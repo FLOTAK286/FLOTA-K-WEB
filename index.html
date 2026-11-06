@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta property="og:title" content="Flota-K · Traslados al Aeropuerto de Santiago">
+<meta property="og:description" content="Tarifa fija por comuna, seguimiento de vuelo y espera incluida. Reserve por WhatsApp.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fk-servicios.com/">
+<link rel="canonical" href="https://fk-servicios.com/">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
+<title>Flota-K Traslados SCL</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Traslados al Aeropuerto de Santiago (SCL) con tarifa fija por comuna. Peajes, TAG y estacionamiento incluidos. Seguimiento de vuelo, espera incluida y cumplimiento garantizado.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: airport wayfinding. A dark terminal band with a departure-board fare lookup, then plain sections that read like signage. Brand = black + brass gold. */
+:root {
+  color-scheme: dark;
+  --bg: #0d0f12;
+  --panel: #15181d;
+  --line: #262a31;
+  --fg: #eceae4;
+  --muted: #a3a6ad;
+  --gold: #d4a64a;
+  --gold-ink: #17130a;
+  --board: #0a0b0d;
+  --ok: #5fbf8a;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --step--1: 0.875rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.3rem;
+  --step-2: 1.75rem;
+  --step-3: clamp(2.2rem, 6vw, 3.6rem);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f3f4f6; --panel: #ffffff; --line: #d9dce1; --fg: #15181d; --muted: #555b65;
+    --gold: #a77a1f; --gold-ink: #ffffff; --board: #101215; --ok: #2f8a5b;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f4f6; --panel: #ffffff; --line: #d9dce1; --fg: #15181d; --muted: #555b65;
+  --gold: #a77a1f; --gold-ink: #ffffff; --board: #101215; --ok: #2f8a5b;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: var(--step-0); line-height: 1.55;
+}
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.05; text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h2 { font-size: var(--step-2); text-transform: uppercase; }
+h3 { font-size: var(--step-1); }
+p { margin: 0; }
+a { color: inherit; }
+.eyebrow { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.14em; font-size: var(--step--1); color: var(--gold); font-weight: 600; }
+.muted { color: var(--muted); }
+
+/* Header */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--board); }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--board); border-bottom: 1px solid #22262d; }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; letter-spacing: 0.08em; color: #d4a64a; text-decoration: none; }
+.brand span { color: #eceae4; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: 0.04em; text-transform: uppercase;
+  background: var(--gold); color: var(--gold-ink); text-decoration: none;
+  padding: 12px 20px; border-radius: 4px; border: 0; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:focus-visible, input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.btn.small { font-size: 1rem; padding: 8px 14px; }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+
+/* Hero / terminal band */
+.terminal { background: var(--board); color: #eceae4; }
+.terminal .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; padding-block: 48px 56px; align-items: start; }
+.terminal h1 { font-size: var(--step-3); text-transform: uppercase; }
+.terminal h1 em { font-style: normal; color: #d4a64a; }
+.lead { font-size: 1.15rem; color: #c4c6cb; margin-top: 16px; max-width: 34ch; }
+.promise { margin-top: 22px; border-left: 3px solid #d4a64a; padding: 4px 0 4px 14px; color: #eceae4; max-width: 44ch; }
+.promise strong { color: #d4a64a; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.hero-cta .btn.ghost { color: #eceae4; border-color: #3a3f48; }
+
+/* Departure board */
+.board { background: #15181d; border: 1px solid #2a2f37; border-radius: 6px; padding: 18px; min-width: 0; }
+.board-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.12em; color: #d4a64a; font-weight: 600; }
+.board-head small { color: #8b8f97; letter-spacing: 0.06em; }
+.field { display: grid; gap: 6px; margin-top: 14px; }
+.field label { font-size: var(--step--1); color: #a3a6ad; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-display); font-weight: 600; }
+.field input {
+  width: 100%; font: inherit; font-size: 1.1rem; padding: 12px 14px; border-radius: 4px;
+  background: #0d0f12; color: #eceae4; border: 1px solid #333842;
+}
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button {
+  font-family: var(--font-display); font-weight: 600; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 10px 6px; border-radius: 4px; border: 1px solid #333842; background: #0d0f12; color: #c4c6cb; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: #d4a64a; color: #17130a; border-color: #d4a64a; }
+.results { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 6px; max-height: 330px; overflow-y: auto; }
+.row {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+  background: #0a0b0d; border: 1px solid #23272e; border-radius: 4px; padding: 10px 12px;
+}
+.row .place { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.03em; min-width: 0; }
+.row .route { display: block; font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 0.85rem; color: #8b8f97; font-weight: 400; }
+.row .fare { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; color: #d4a64a; font-variant-numeric: tabular-nums; text-align: right; }
+.row a.book { grid-column: 1 / -1; font-size: 0.9rem; color: #d4a64a; text-decoration: none; font-weight: 600; }
+.row a.book:hover { text-decoration: underline; }
+.board-note { margin-top: 12px; font-size: 0.85rem; color: #8b8f97; }
+.empty { color: #a3a6ad; padding: 10px 2px; }
+
+/* Sections */
+section.block { padding-block: 56px; border-bottom: 1px solid var(--line); }
+.section-head { display: grid; gap: 8px; margin-bottom: 24px; max-width: 60ch; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.item { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.item .big { font-family: var(--font-display); font-weight: 700; font-size: 2rem; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; }
+.waits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.waits div { padding: 18px; border-right: 1px solid var(--line); display: grid; gap: 4px; }
+.waits div:last-child { border-right: 0; }
+.waits .big { font-family: var(--font-display); font-weight: 700; font-size: 2.2rem; color: var(--gold); line-height: 1; font-variant-numeric: tabular-nums; }
+
+.roundtrip { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 24px; }
+.roundtrip .ticket { font-family: var(--font-display); text-transform: uppercase; display: grid; gap: 6px; border: 1px dashed var(--gold); border-radius: 6px; padding: 16px; }
+.ticket .leg { display: flex; justify-content: space-between; gap: 12px; font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ticket .leg b { color: var(--gold); }
+
+.steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; counter-reset: s; }
+.steps li { counter-increment: s; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.steps li::before { content: counter(s); font-family: var(--font-display); font-weight: 700; font-size: 1.6rem; color: var(--gold); line-height: 1; }
+.corp { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: end; margin-top: 20px; }
+
+.faq { display: grid; gap: 8px; max-width: 760px; }
+.faq details { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+.faq summary { cursor: pointer; font-weight: 700; }
+.faq details p { margin-top: 8px; color: var(--muted); }
+
+.en { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.en p + p { margin-top: 10px; }
+
+footer { padding-block: 40px 60px; color: var(--muted); font-size: 0.95rem; }
+footer .wrap { display: grid; gap: 14px; }
+.contact-line { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
+.copy { background: none; border: 1px solid var(--line); color: var(--fg); border-radius: 4px; padding: 4px 10px; font: inherit; font-size: 0.85rem; cursor: pointer; }
+
+.fab {
+  position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 6;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+
+@media (max-width: 860px) {
+  .terminal .wrap { grid-template-columns: 1fr; gap: 28px; padding-block: 32px 40px; }
+  .grid-3, .waits, .roundtrip, .en, .corp { grid-template-columns: 1fr; }
+  .waits div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .waits div:last-child { border-bottom: 0; }
+  .steps { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 460px) {
+  .steps { grid-template-columns: 1fr; }
+  header.top .btn.small span.long { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .row { animation: in .25s ease both; }
+  @keyframes in { from { transform: translateY(3px); opacity: .6; } to { transform: none; opacity: 1; } }
+}
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio">FLOTA<span>·K</span></a>
+    <a class="btn small" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20cotizar%20un%20traslado%20al%20aeropuerto" target="_blank" rel="noopener">WhatsApp <span class="long">+56 9 2227 5399</span></a>
+  </div>
+</header>
+
+<main id="inicio">
+  <div class="terminal">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Aeropuerto de Santiago · SCL</p>
+        <h1 style="margin-top:10px">Traslados al aeropuerto con <em>tarifa fija</em> por comuna</h1>
+        <p class="lead">Conozca el valor de su traslado antes de viajar. Peajes y TAG incluidos dentro de la Región Metropolitana, y estacionamiento incluido durante el tiempo de espera.</p>
+        <p class="promise"><strong>Comprometidos con su traslado.</strong> Planificamos cada viaje con tiempo, seguimos su vuelo y lo mantenemos informado de principio a fin.</p>
+        <div class="hero-cta">
+          <a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20reservar%20un%20traslado%20al%20aeropuerto" target="_blank" rel="noopener">Reservar por WhatsApp</a>
+          <a class="btn ghost" href="#empresas">Soy empresa</a>
+        </div>
+      </div>
+
+      <div class="board" aria-labelledby="board-title">
+        <div class="board-head"><span id="board-title">Tarifas 2026</span><small>Pesos chilenos</small></div>
+        <div class="field">
+          <label for="q">¿Desde qué comuna viaja?</label>
+          <input id="q" type="search" autocomplete="off" placeholder="Ej: Las Condes, Providencia, Maipú">
+        </div>
+        <div class="field">
+          <label id="mode-label">Tipo de traslado</label>
+          <div class="seg" role="group" aria-labelledby="mode-label">
+            <button type="button" id="m-ida" data-mode="ida" aria-pressed="true">Ida</button>
+            <button type="button" id="m-reg" data-mode="regreso" aria-pressed="false">Regreso</button>
+            <button type="button" id="m-van" data-mode="van" aria-pressed="false">Van</button>
+          </div>
+        </div>
+        <ul class="results" id="results" aria-live="polite"></ul>
+        <p class="board-note" id="board-note">Ida: desde su comuna al aeropuerto. Regreso: del aeropuerto a su comuna. Van: grupos o mucho equipaje.</p>
+      </div>
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Qué incluye</p>
+        <h2>Todo está en el precio</h2>
+      </div>
+      <div class="grid-3">
+        <div class="item"><h3>Peajes, TAG y estacionamiento</h3><p class="muted">Peajes y TAG incluidos dentro de la Región Metropolitana. El estacionamiento del aeropuerto está incluido durante el tiempo de espera.</p></div>
+        <div class="item"><h3>Seguimiento de su vuelo</h3><p class="muted">Si el vuelo se adelanta o se atrasa, su conductor lo sabe.</p></div>
+        <div class="item"><h3>Atención 24/7</h3><p class="muted">Vuelos de madrugada incluidos. Conductores bilingües, español e inglés.</p></div>
+      </div>
+      <div style="margin-top:28px" class="section-head">
+        <p class="eyebrow">Espera incluida</p>
+        <h3>Tiempo de espera sin costo adicional</h3>
+      </div>
+      <div class="waits">
+        <div><span class="big">15 min</span><span>En su domicilio</span></div>
+        <div><span class="big">45 min</span><span>Vuelos nacionales, desde el aterrizaje</span></div>
+        <div><span class="big">1 hora</span><span>Vuelos internacionales, desde el aterrizaje</span></div>
+      </div>
+      <p class="muted" style="margin-top:12px;max-width:65ch">Si la espera en el aeropuerto supera ese tiempo, solo se agrega el valor del estacionamiento adicional. Se lo informamos siempre antes de cobrarlo.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="roundtrip">
+        <div class="section-head" style="margin:0">
+          <p class="eyebrow">Ida y vuelta</p>
+          <h2>Su regreso, al mismo valor de la ida</h2>
+          <p class="muted">Reserve los dos tramos y le respetamos la tarifa de ida en su regreso. Al volver, seguimos su vuelo y lo esperamos.</p>
+          <div style="margin-top:12px"><a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20reservar%20ida%20y%20vuelta%20al%20aeropuerto" target="_blank" rel="noopener">Reservar ida y vuelta</a></div>
+        </div>
+        <div class="ticket" aria-label="Ejemplo con Providencia">
+          <span class="eyebrow">Ejemplo · Providencia</span>
+          <div class="leg"><span>Ida → SCL</span><b>$30.000</b></div>
+          <div class="leg"><span>SCL → Regreso</span><b>$30.000</b></div>
+          <span class="muted" style="font-family:var(--font-body);text-transform:none;font-size:.9rem">Tarifa normal de regreso: $32.000</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="empresas">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Empresas</p>
+        <h2>Convenio de transporte ejecutivo</h2>
+        <p class="muted">Traslados al aeropuerto, reuniones, servicios por hora y eventos para su equipo, con una sola factura al mes.</p>
+      </div>
+      <ol class="steps">
+        <li><h3>Acordamos tarifas</h3><p class="muted">Por escrito, por comuna o por servicio.</p></li>
+        <li><h3>Su equipo solicita</h3><p class="muted">Por WhatsApp o correo, sin trámites.</p></li>
+        <li><h3>Confirmamos</h3><p class="muted">Cada servicio, con conductor y hora.</p></li>
+        <li><h3>Realizamos</h3><p class="muted">Con seguimiento de vuelo y conductor confirmado.</p></li>
+        <li><h3>Una factura</h3><p class="muted">Exenta, mensual, con pago a 30 días.</p></li>
+      </ol>
+      <div class="corp">
+        <p class="muted">Solicite la presentación corporativa en <strong style="color:var(--fg)">gerencia@fk-servicios.com</strong> o por WhatsApp.</p>
+        <a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20informaci%C3%B3n%20sobre%20un%20convenio%20para%20empresas" target="_blank" rel="noopener">Pedir presentación</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Preguntas frecuentes</p>
+        <h2>Antes de reservar</h2>
+      </div>
+      <div class="faq">
+        <details><summary>¿Cómo reservo?</summary><p>Escríbanos por WhatsApp al +56 9 2227 5399 o al correo gerencia@fk-servicios.com. Le pedimos los datos del viaje (dirección, fecha, hora y número de vuelo, pasajeros y maletas), agendamos su traslado y se lo confirmamos por el mismo medio.</p></details>
+        <details><summary>¿Con cuánta anticipación debo reservar?</summary><p>Mientras antes, mejor: así aseguramos su horario. Para vuelos de madrugada, reserve al menos la noche anterior. Si necesita un traslado para hoy, escríbanos y revisamos disponibilidad.</p></details>
+        <details><summary>¿Qué pasa si mi vuelo se atrasa?</summary><p>Seguimos su vuelo y lo esperamos desde que aterriza: 45 minutos en vuelos nacionales y 1 hora en internacionales, sin costo adicional. Si la espera supera ese tiempo, solo se agrega el valor del estacionamiento adicional del aeropuerto.</p></details>
+        <details><summary>¿Llevan sillas para niños?</summary><p>No contamos con sillas para niños. Como servicio de taxi, la normativa no exige su uso.</p></details>
+        <details><summary>¿Puedo viajar con mi mascota?</summary><p>Sí, siempre que viaje en su canil o jaula de transporte. Sin canil no podemos trasladarla.</p></details>
+        <details><summary>¿Emiten factura?</summary><p>Sí. Para empresas, factura exenta mensual con convenio.</p></details>
+        <details><summary>¿Atienden fuera de Santiago?</summary><p>Sí, con tarifa fija a destinos como Valparaíso, Viña del Mar, Rancagua, Los Andes, San Felipe, Melipilla y Farellones. Búsquelos en el tarifario de arriba.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" lang="en">
+    <div class="wrap en">
+      <div class="section-head" style="margin:0">
+        <p class="eyebrow">English</p>
+        <h2>Santiago Airport transfers at a fixed price</h2>
+      </div>
+      <div>
+        <p>Private transfers between Santiago Airport (SCL) and any district in the Santiago Metropolitan Region. You know the fare before you travel, with tolls included.</p>
+        <p>English-speaking drivers, flight tracking, and up to 1 hour of free waiting time for international arrivals (airport parking included during that time). Pets are welcome in a carrier.</p>
+        <p style="margin-top:14px"><a class="btn" href="https://wa.me/56922275399?text=Hello%20Flota-K%2C%20I%20would%20like%20to%20book%20an%20airport%20transfer" target="_blank" rel="noopener">Book on WhatsApp</a></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="brand" style="font-size:1.3rem">FLOTA<span>·K</span></p>
+    <div class="contact-line">
+      <span>WhatsApp: <strong id="phone" style="color:var(--fg)">+56 9 2227 5399</strong></span>
+      <button class="copy" type="button" id="copy-phone">Copiar número</button>
+      <span>Correo: <strong style="color:var(--fg)">gerencia@fk-servicios.com</strong></span>
+    </div>
+    <p>FK Servicios SpA · Santiago, Chile · Instagram <a href="https://www.instagram.com/fkservi/" target="_blank" rel="noopener">@fkservi</a> · TikTok <a href="https://www.tiktok.com/@fk_servicios" target="_blank" rel="noopener">@fk_servicios</a></p>
+    <p style="font-size:.85rem">Tarifas 2026 en pesos chilenos. Valores dentro de la Región Metropolitana incluyen peajes y TAG, y el estacionamiento del aeropuerto durante el tiempo de espera incluido.</p>
+  </div>
+</footer>
+
+<a class="btn fab" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20cotizar%20un%20traslado%20al%20aeropuerto" target="_blank" rel="noopener" aria-label="Escribir por WhatsApp">WhatsApp</a>
+
+<script>
+// [comuna/sector, ida, regreso, van]
+const T = [
+["Buin",46000,49000,63000],["Maipo",49000,51000,63000],["Linderos",49000,51000,63000],["Paine",54000,57000,69000],
+["Huelquén",62000,64000,79000],["Champa",63000,65000,84000],["Calera de Tango",38000,40000,53000],
+["Camino Lonquén (Veterquímica)",24000,26000,32000],["Cerrillos",21000,23000,34000],["Cerro Navia",19000,20000,30000],
+["Colina centro hasta Esmeralda",44000,46000,58000],["Colina sector Peldehue - Chacabuco",60000,62000,69000],
+["Conchalí",23000,25000,34000],["Curacaví",49000,51000,69000],["María Pinto",52000,54000,69000],
+["Chicureo hasta Piedra Roja (vía normal)",38000,40000,53000],["Chicureo desde Los Pioneros - Lo Arcaya",40000,43000,58000],
+["El Bosque",31000,33000,42000],["El Monte",53000,57000,69000],["Estación Central",19000,21000,28000],
+["Farellones (temporada baja)",108000,108000,158000],["Huechuraba",29000,31000,37000],["Independencia",22000,24000,32000],
+["Isla de Maipo",57000,59000,74000],["La Cisterna",29000,31000,37000],["La Florida hasta Av. La Florida",37000,39000,53000],
+["La Florida desde Av. La Florida",39000,42000,55000],["La Florida Alto Macul, Las Perdices al oriente",43000,45000,58000],
+["La Granja",32000,34000,42000],["La Pintana",36000,38000,48000],["La Reina (Vicente Pérez Rosales)",37000,39000,53000],
+["La Reina (Padre Hurtado - Las Perdices)",39000,42000,55000],["La Reina Alta (Álvaro Casanova)",43000,45000,63000],
+["Lampa Pueblo (centro)",30000,32000,42000],["Lampa Chicauma",33000,35000,48000],["Lampa Valle Grande",32000,34000,48000],
+["Lampa Batuco",40000,43000,53000],["Las Condes hasta Manquehue",34000,36000,48000],
+["Las Condes desde Manquehue hasta Padre Harris",37000,39000,50000],["Lo Barnechea hasta el Golf de Manquehue",43000,45000,58000],
+["Lo Barnechea hasta P.L. Urqueta y B.L. Cotapos",44000,46000,60000],["Lo Barnechea Pie Andino (Paseo Los Bravos)",49000,51000,63000],
+["El Arrayán",49000,51000,69000],["Lo Espejo",29000,31000,38000],["Lo Prado",18000,20000,29000],
+["Lonquén (Pueblo)",46000,48000,63000],["Los Andes",98000,98000,137000],["Macul",36000,38000,48000],
+["Maipú hasta Plaza de Maipú",22000,24000,32000],["Maipú desde Plaza de Maipú",27000,30000,37000],
+["Maipú Ciudad Satélite",31000,33000,42000],["Melipilla",76000,78000,100000],["Ñuñoa por Costanera",33000,35000,48000],
+["Ñuñoa por Vespucio Sur",35000,37000,48000],["Padre Hurtado",32000,34000,42000],["Pedro Aguirre Cerda",27000,30000,37000],
+["Peñaflor",39000,42000,51000],["Peñalolén hasta Tobalaba",39000,42000,51000],["Peñalolén Alto hasta Las Perdices",42000,44000,53000],
+["Peñalolén Diagonal Las Torres",44000,46000,58000],["Pirque hasta Virginia Subercaseaux",48000,50000,61000],
+["Pirque El Principal - Club de Golf",54000,57000,74000],["Providencia",30000,32000,42000],["Pudahuel",18000,19000,25000],
+["Puente Alto",43000,45000,58000],["Puente Alto Las Vizcachas",45000,47000,60000],["Quilicura",22000,24000,34000],
+["Quinta Normal",19000,22000,30000],["Rancagua",103000,103000,137000],["Recoleta",29000,31000,40000],
+["Renca",19000,22000,26000],["San Bernardo",35000,38000,46000],["San Bernardo - Nos",37000,39000,48000],
+["San Carlos de Apoquindo hasta C. Otoñal, San Damián",37000,39000,48000],["San Carlos de Apoquindo hasta Av. La Plaza",39000,42000,51000],
+["San Carlos de Apoquindo, Av. La Plaza a cordillera",42000,44000,55000],["San Felipe",108000,108000,153000],
+["San Joaquín",31000,33000,42000],["San José de Maipo",71000,73000,100000],["San Miguel",30000,32000,40000],
+["San Ramón",32000,33000,42000],["Santiago Centro",26000,28000,37000],["Talagante",47000,49000,61000],
+["Til Til",65000,67000,84000],["Valparaíso - Viña del Mar",130000,130000,168000],["Vitacura hasta Manquehue",34000,36000,46000],
+["Vitacura hasta Tabancura",37000,39000,48000]
+];
+const FEATURED = ["Santiago Centro","Providencia","Las Condes hasta Manquehue","Vitacura hasta Manquehue","Ñuñoa por Costanera","Maipú hasta Plaza de Maipú"];
+const idx = { ida: 1, regreso: 2, van: 3 };
+const routeLabel = { ida: "Su comuna → Aeropuerto", regreso: "Aeropuerto → Su comuna", van: "Van para grupos (ida)" };
+let mode = "ida";
+const fmt = n => "$" + n.toLocaleString("es-CL");
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const q = document.getElementById("q");
+const list = document.getElementById("results");
+
+function waLink(name, price) {
+  const tramo = mode === "regreso" ? "desde el aeropuerto a" : (mode === "van" ? "en van desde" : "desde");
+  const msg = `Hola Flota-K, quiero reservar un traslado ${tramo} ${name} (${fmt(price)}). Fecha y hora de mi vuelo: `;
+  return "https://wa.me/56922275399?text=" + encodeURIComponent(msg);
+}
+
+function render() {
+  const term = norm(q.value.trim());
+  const rows = term ? T.filter(r => norm(r[0]).includes(term)) : FEATURED.map(n => T.find(r => r[0] === n));
+  list.innerHTML = "";
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "No encontramos esa comuna en el tarifario. Escríbanos por WhatsApp y le cotizamos a medida.";
+    list.appendChild(li);
+    return;
+  }
+  for (const r of rows) {
+    const price = r[idx[mode]];
+    const li = document.createElement("li");
+    li.className = "row";
+    li.innerHTML = `<span class="place"></span><span class="fare">${fmt(price)}</span><a class="book" target="_blank" rel="noopener">Reservar este traslado por WhatsApp →</a>`;
+    li.querySelector(".place").innerHTML = "";
+    li.querySelector(".place").append(document.createTextNode(r[0]));
+    const route = document.createElement("span");
+    route.className = "route";
+    route.textContent = routeLabel[mode];
+    li.querySelector(".place").append(route);
+    li.querySelector("a.book").href = waLink(r[0], price);
+    list.appendChild(li);
+  }
+}
+
+document.querySelectorAll(".seg button").forEach(b => {
+  b.addEventListener("click", () => {
+    mode = b.dataset.mode;
+    document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  });
+});
+q.addEventListener("input", render);
+
+document.getElementById("copy-phone").addEventListener("click", e => {
+  const btn = e.currentTarget;
+  const done = () => { btn.textContent = "Copiado"; setTimeout(() => btn.textContent = "Copiar número", 1500); };
+  try {
+    navigator.clipboard.writeText("+56922275399").then(done).catch(() => {
+      const r = document.createRange(); r.selectNodeContents(document.getElementById("phone"));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    });
+  } catch (_) {}
+});
+
+render();
+</script>
+
+</body>
+</html>
