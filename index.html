@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta property="og:title" content="Flota-K · Traslados al Aeropuerto de Santiago">
+<meta property="og:title" content="Taxi y traslados al Aeropuerto de Santiago con tarifa fija | Flota-K">
 <meta property="og:description" content="Tarifa fija por comuna, seguimiento de vuelo y espera incluida. Reserve por WhatsApp.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://fk-servicios.com/">
 <link rel="canonical" href="https://fk-servicios.com/">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
-<title>Flota-K Traslados SCL</title>
+<title>Taxi y Traslados al Aeropuerto de Santiago (SCL) con tarifa fija | Flota-K</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Traslados al Aeropuerto de Santiago (SCL) con tarifa fija por comuna. Peajes, TAG y estacionamiento incluidos. Seguimiento de vuelo, espera incluida y cumplimiento garantizado.">
+<meta name="description" content="Taxi y traslados al Aeropuerto de Santiago (SCL) con tarifa fija por comuna, desde $18.000. Peajes y TAG incluidos, seguimiento de vuelo, espera incluida y atención 24/7. Reserve por WhatsApp.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
@@ -119,6 +119,7 @@ header.top .wrap { display: flex; align-items: center; justify-content: space-be
 .row .route { display: block; font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 0.85rem; color: #8b8f97; font-weight: 400; }
 .row .fare { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; color: #d4a64a; font-variant-numeric: tabular-nums; text-align: right; }
 .row a.book { grid-column: 1 / -1; font-size: 0.9rem; color: #d4a64a; text-decoration: none; font-weight: 600; }
+.comunas a { color: var(--gold); }
 .row a.book:hover { text-decoration: underline; }
 .board-note { margin-top: 12px; font-size: 0.85rem; color: #8b8f97; }
 .empty { color: #a3a6ad; padding: 10px 2px; }
@@ -178,6 +179,8 @@ footer .wrap { display: grid; gap: 14px; }
   @keyframes in { from { transform: translateY(3px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
 </style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "TaxiService", "name": "Flota-K", "alternateName": "FK Servicios", "url": "https://fk-servicios.com/", "telephone": "+56922275399", "email": "gerencia@fk-servicios.com", "priceRange": "$18.000 - $168.000", "areaServed": {"@type": "AdministrativeArea", "name": "Región Metropolitana de Santiago, Chile"}, "availableLanguage": ["es", "en"], "openingHours": "Mo-Su 00:00-23:59", "sameAs": ["https://www.instagram.com/fkservi/", "https://www.tiktok.com/@fk_servicios", "https://www.facebook.com/109594051545933"]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "¿Cómo reservo un traslado al aeropuerto?", "acceptedAnswer": {"@type": "Answer", "text": "Por WhatsApp al +56 9 2227 5399 o al correo gerencia@fk-servicios.com. Le pedimos los datos del viaje, agendamos su traslado y se lo confirmamos."}}, {"@type": "Question", "name": "¿Qué pasa si mi vuelo se atrasa?", "acceptedAnswer": {"@type": "Answer", "text": "Seguimos su vuelo y lo esperamos desde que aterriza: 45 minutos en vuelos nacionales y 1 hora en internacionales, sin costo adicional. Si la espera supera ese tiempo, solo se agrega el valor del estacionamiento adicional del aeropuerto."}}, {"@type": "Question", "name": "¿Puedo viajar con mi mascota?", "acceptedAnswer": {"@type": "Answer", "text": "Sí, siempre que viaje en su canil o jaula de transporte."}}, {"@type": "Question", "name": "¿Emiten factura?", "acceptedAnswer": {"@type": "Answer", "text": "Sí. Para empresas, factura exenta mensual con convenio."}}]}</script>
 </head>
 <body>
 
@@ -194,7 +197,7 @@ footer .wrap { display: grid; gap: 14px; }
     <div class="wrap">
       <div>
         <p class="eyebrow">Aeropuerto de Santiago · SCL</p>
-        <h1 style="margin-top:10px">Traslados al aeropuerto con <em>tarifa fija</em> por comuna</h1>
+        <h1 style="margin-top:10px">Taxi y traslados al aeropuerto con <em>tarifa fija</em> por comuna</h1>
         <p class="lead">Conozca el valor de su traslado antes de viajar. Peajes y TAG incluidos dentro de la Región Metropolitana, y estacionamiento incluido durante el tiempo de espera.</p>
         <p class="promise"><strong>Comprometidos con su traslado.</strong> Planificamos cada viaje con tiempo, seguimos su vuelo y lo mantenemos informado de principio a fin.</p>
         <div class="hero-cta">
@@ -203,7 +206,7 @@ footer .wrap { display: grid; gap: 14px; }
         </div>
       </div>
 
-      <div class="board" aria-labelledby="board-title">
+      <div class="board" id="tarifas" aria-labelledby="board-title">
         <div class="board-head"><span id="board-title">Tarifas 2026</span><small>Pesos chilenos</small></div>
         <div class="field">
           <label for="q">¿Desde qué comuna viaja?</label>
@@ -263,6 +266,16 @@ footer .wrap { display: grid; gap: 14px; }
           <span class="muted" style="font-family:var(--font-body);text-transform:none;font-size:.9rem">Tarifa normal de regreso: $32.000</span>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Por comuna</p>
+        <h2>Traslados al aeropuerto desde su comuna</h2>
+      </div>
+      <p class="comunas" style="line-height:2"><a href="/aeropuerto/las-condes/">Las Condes</a> · <a href="/aeropuerto/providencia/">Providencia</a> · <a href="/aeropuerto/vitacura/">Vitacura</a> · <a href="/aeropuerto/lo-barnechea/">Lo Barnechea</a> · <a href="/aeropuerto/nunoa/">Ñuñoa</a> · <a href="/aeropuerto/santiago-centro/">Santiago Centro</a> · <a href="/aeropuerto/la-reina/">La Reina</a> · <a href="/aeropuerto/chicureo-colina/">Chicureo y Colina</a> · <a href="/aeropuerto/maipu/">Maipú</a> · <a href="/aeropuerto/la-florida/">La Florida</a> · <a href="/aeropuerto/penalolen/">Peñalolén</a> · <a href="/aeropuerto/puente-alto/">Puente Alto</a> · <a href="/aeropuerto/vina-del-mar-valparaiso/">Viña del Mar y Valparaíso</a></p>
     </div>
   </section>
 
