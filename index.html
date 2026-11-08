@@ -8,7 +8,13 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://fk-servicios.com/">
 <link rel="canonical" href="https://fk-servicios.com/">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%} [hidden]{display:none!important}
+.top-right { display: flex; align-items: center; gap: 10px; }
+.social { display: flex; gap: 6px; }
+.social a { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #333842; border-radius: 50%; color: #eceae4; }
+.social a:hover { color: #d4a64a; border-color: #d4a64a; }
+@media (max-width: 400px) { .social a { width: 30px; height: 30px; } .top-right { gap: 6px; } }
+</style>
 <title>Taxi y Traslados al Aeropuerto de Santiago (SCL) con tarifa fija | Flota-K</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Taxi y traslados al Aeropuerto de Santiago (SCL) con tarifa fija por comuna, desde $18.000. Peajes y TAG incluidos, seguimiento de vuelo, espera incluida y atención 24/7. Reserve por WhatsApp.">
@@ -188,7 +194,14 @@ footer .wrap { display: grid; gap: 14px; }
 <header class="top">
   <div class="wrap">
     <a class="brand" href="#inicio">FLOTA<span>·K</span></a>
-    <a class="btn small" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20cotizar%20un%20traslado%20al%20aeropuerto" target="_blank" rel="noopener">WhatsApp <span class="long">+56 9 2227 5399</span></a>
+    <div class="top-right">
+      <nav class="social" aria-label="Redes sociales">
+        <a href="https://www.instagram.com/fkservi/" target="_blank" rel="noopener" aria-label="Instagram @fkservi"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.3" cy="6.7" r="1.3" fill="currentColor"/></svg></a>
+        <a href="https://www.tiktok.com/@fk_servicios" target="_blank" rel="noopener" aria-label="TikTok @fk_servicios"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14 3c.4 2.6 2.2 4.4 5 4.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></a>
+        <a href="https://www.facebook.com/109594051545933" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.6-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4V10.5H9v3h2.5V21z" fill="currentColor"/></svg></a>
+      </nav>
+      <a class="btn small" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20cotizar%20un%20traslado%20al%20aeropuerto" target="_blank" rel="noopener">WhatsApp <span class="long">+56 9 2227 5399</span></a>
+    </div>
   </div>
 </header>
 
@@ -365,7 +378,7 @@ const T = [
 ["La Reina (Padre Hurtado - Las Perdices)",39000,42000,55000],["La Reina Alta (Álvaro Casanova)",43000,45000,63000],
 ["Lampa Pueblo (centro)",30000,32000,42000],["Lampa Chicauma",33000,35000,48000],["Lampa Valle Grande",32000,34000,48000],
 ["Lampa Batuco",40000,43000,53000],["Las Condes hasta Manquehue",34000,36000,48000],
-["Las Condes desde Manquehue hasta Padre Harris",37000,39000,50000],["Lo Barnechea hasta el Golf de Manquehue",43000,45000,58000],
+["Las Condes desde Manquehue hasta Paul Harris",37000,39000,50000],["Lo Barnechea hasta el Golf de Manquehue",43000,45000,58000],
 ["Lo Barnechea hasta P.L. Urqueta y B.L. Cotapos",44000,46000,60000],["Lo Barnechea Pie Andino (Paseo Los Bravos)",49000,51000,63000],
 ["El Arrayán",49000,51000,69000],["Lo Espejo",29000,31000,38000],["Lo Prado",18000,20000,29000],
 ["Lonquén (Pueblo)",46000,48000,63000],["Los Andes",98000,98000,137000],["Macul",36000,38000,48000],
