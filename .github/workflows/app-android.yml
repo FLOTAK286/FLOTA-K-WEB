@@ -1,6 +1,6 @@
 # Arma la app Android del conductor (archivo .apk) cada vez que cambia la carpeta app-android.
 # Con la llave de firma (secretos FK_KEYSTORE_B64 / FK_KEYSTORE_PASS): versión oficial en el release "conductor-android".
-# Sin llave: versión de prueba en el release "conductor-android-prueba" (no reemplaza la oficial).
+# Sin llave: misma app con firma temporal, también en "conductor-android" (al agregar la llave se reinstala una vez).
 name: App Android del conductor
 on:
   push:
@@ -37,12 +37,12 @@ jobs:
             echo "nombre=App Flota-K Conductor (Android)" >> "$GITHUB_OUTPUT"
             echo "prueba=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Sin llave de firma: se arma una versión de PRUEBA (no se instala encima de la oficial)."
+            echo "::warning::Sin llave de firma: firma temporal. Al agregar la llave habrá que reinstalar una vez."
             ./gradlew assembleDebug --no-daemon
             cp app/build/outputs/apk/debug/app-debug.apk ../flota-k-conductor.apk
-            echo "tag=conductor-android-prueba" >> "$GITHUB_OUTPUT"
-            echo "nombre=App Flota-K Conductor (PRUEBA, sin firma fija)" >> "$GITHUB_OUTPUT"
-            echo "prueba=true" >> "$GITHUB_OUTPUT"
+            echo "tag=conductor-android" >> "$GITHUB_OUTPUT"
+            echo "nombre=App Flota-K Conductor (Android)" >> "$GITHUB_OUTPUT"
+            echo "prueba=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: softprops/action-gh-release@v2
         with:
