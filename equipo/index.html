@@ -119,9 +119,15 @@
           <div id="n-sug" class="sug" role="listbox" hidden></div></div>
         <div id="n-cli" class="pay" hidden></div>
         <div class="row3">
-          <div class="f"><label for="n-nombre">Pasajero</label><input id="n-nombre" required></div>
+          <div class="f"><label for="n-nombre" id="l-nombre">Pasajero</label><input id="n-nombre" required></div>
           <div class="f"><label for="n-tel">Teléfono</label><input id="n-tel" type="tel" required></div>
           <div class="f"><label for="n-mail">Correo</label><input id="n-mail" type="email"></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="n-otra"> Viaja otra persona (quien reserva paga; ej.: sus suegros, un invitado)</label>
+        <div class="row3" id="n-pas" hidden>
+          <div class="f"><label for="n-pnombre">Nombre del pasajero</label><input id="n-pnombre" maxlength="200"></div>
+          <div class="f"><label for="n-ptel">Teléfono del pasajero</label><input id="n-ptel" type="tel" maxlength="30"></div>
+          <div class="small muted" style="align-self:end">El conductor y el enlace de seguimiento son para el pasajero. El cobro va a quien reserva.</div>
         </div>
         <div class="row3">
           <div class="f"><label for="n-fecha">Fecha y hora de retiro</label><input id="n-fecha" type="datetime-local" required></div>
@@ -438,6 +444,36 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
+// ---- Confirmación por WhatsApp (se abre su WhatsApp con el mensaje armado; usted lo envía)
+function enviarConfirmacion(r, alSolicitante) {
+  const tel = alSolicitante ? r.solicitante_telefono : r.telefono;
+  let d = (tel || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d; if (d.length === 8) d = "569" + d;
+  if (!d) return msg("d-msg", "No hay teléfono registrado.", "err");
+  const nombre = (alSolicitante ? r.solicitante_nombre : r.nombre_pasajero || "").split(" ")[0];
+  const v = vehDe(r.conductor_id, r.vehiculo_id), cond = r.conductor_id ? etiquetaConductor(r.conductor_id).split(" · ").slice(0, 2).join(" · ") : "";
+  const t = `Hola ${nombre}, ${alSolicitante ? `el traslado de ${r.nombre_pasajero} está confirmado` : "su traslado con Flota-K está confirmado"}.\n\n` +
+    `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
+    (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
+    `\n\nSiga su traslado aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nComprometidos con su traslado. Flota-K`;
+  window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(t), "_blank", "noopener");
+}
+// ---- Copiar reserva: abre "Nueva reserva" con los mismos datos (falta poner la fecha)
+function copiarReserva(r) {
+  $("det").close();
+  document.querySelector('.tabs button[data-tab="nueva"]').click();
+  $("nf").reset();
+  const set = (id, v) => { if (v != null) $(id).value = v; };
+  const otra = !!r.solicitante_nombre;
+  $("n-otra").checked = otra; $("n-otra").dispatchEvent(new Event("change"));
+  set("n-nombre", otra ? r.solicitante_nombre : r.nombre_pasajero); set("n-tel", otra ? r.solicitante_telefono : r.telefono); set("n-mail", otra ? r.solicitante_correo : r.correo);
+  if (otra) { set("n-pnombre", r.nombre_pasajero); set("n-ptel", r.telefono); }
+  set("n-origen", r.origen); set("n-destino", r.destino); set("n-tipo", r.tipo_servicio); set("n-veh", r.vehiculo || "auto"); set("n-pax", r.pasajeros); set("n-maletas", r.maletas);
+  set("n-precio", r.precio); set("n-pago", r.forma_pago || ""); set("n-cobro", r.tipo_cobro || "fija"); set("n-cc", r.centro_costo); set("n-com", r.comentarios);
+  clienteSel = r.cliente_id || null;
+  msg("n-msg", `Copia de ${r.codigo}: ponga la nueva fecha y hora y revise antes de guardar.`, "ok");
+  $("n-fecha").focus();
+}
+
 // ---- Conductor sugerido: conectado, con vehículo adecuado y libre a esa hora (ordenado por número de móvil)
 async function sugerirConductor(r) {
   const box = $("a-sug"); box.textContent = "Buscando conductor sugerido…";
@@ -618,6 +654,7 @@ async function abrir(id) {
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.fecha_hora))}</dd>
       <dt>Pasajero</dt><dd>${esc(r.nombre_pasajero)}</dd>
+      ${r.solicitante_nombre ? `<dt>Reservado y pagado por</dt><dd><b>${esc(r.solicitante_nombre)}</b> · ${esc(r.solicitante_telefono || "")}${r.solicitante_correo ? " · " + esc(r.solicitante_correo) : ""}</dd>` : ""}
       <dt>Teléfono</dt><dd>${esc(r.telefono)}</dd>
       <dt>Correo</dt><dd>${esc(r.correo || "—")}</dd>
       <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · pide <b>${esc(PIDE[r.vehiculo] || r.vehiculo || "Auto")}</b></dd>
@@ -643,6 +680,7 @@ async function abrir(id) {
       <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
       <div class="f"><label for="d-nota">Nota (queda en el historial)</label><input id="d-nota" maxlength="1000"></div>
     </div>
+    <div class="actions"><button class="btn ghost sm" type="button" id="wa-pas">📲 Enviar confirmación al pasajero</button>${r.solicitante_nombre ? '<button class="btn ghost sm" type="button" id="wa-sol">📲 Enviar confirmación a quien reservó</button>' : ""}<button class="btn ghost sm" type="button" id="d-copiar">⧉ Copiar reserva</button></div>
     <div id="d-notas"></div>
     <h3 style="margin:6px 0 0">Asignación</h3>
     <div id="a-sug" class="small"></div>
@@ -677,6 +715,9 @@ async function abrir(id) {
   $("d-close").onclick = () => $("det").close();
   pintarCobro(r);
   pintarCalificaciones(r); pintarMensajes(r); pintarCambios(r); notasCliente(r);
+  $("wa-pas").onclick = () => enviarConfirmacion(r, false);
+  if ($("wa-sol")) $("wa-sol").onclick = () => enviarConfirmacion(r, true);
+  $("d-copiar").onclick = () => copiarReserva(r);
   if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
   $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
   const margen = () => {
@@ -1126,7 +1167,7 @@ function pintarDespacho() {
     <tr data-id="${esc(r.id)}" class="${r._urg >= 3 ? "urg3" : r._urg === 2 ? "urg2" : ""} ${r.estado === "finalizada" ? "fin" : ""}">
       <td class="nowrap"><b>${esc(hora(r.fecha_hora))}</b><br><span class="muted small">${diaK(r.fecha_hora) === hoyK ? "hoy" : esc(new Date(r.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric" }))}</span></td>
       <td class="nowrap"><span class="code">${esc(r.codigo)}</span><br>${pill(r.estado)}</td>
-      <td><b>${esc(r.nombre_pasajero)}</b><br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
+      <td><b>${esc(r.nombre_pasajero)}</b>${r.solicitante_nombre ? `<br><span class="small muted">paga: ${esc(r.solicitante_nombre)}</span>` : ""}<br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
       <td class="tray" title="${esc(r.origen)} → ${esc(r.destino)}">${corto(r.origen)}<br><span class="muted">→ ${corto(r.destino)}</span></td>
       <td class="nowrap">${vueloLink(r.vuelo)}</td>
       <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
@@ -1566,6 +1607,8 @@ function fichaEmpresa(id) {
   pintarPas(); pintar();
 }
 
+$("n-otra").addEventListener("change", ev => { $("n-pas").hidden = !ev.target.checked; $("l-nombre").textContent = ev.target.checked ? "Quien reserva y paga" : "Pasajero"; });
+
 // ---- Reserva rápida: lee un mensaje de WhatsApp y completa el formulario (lo que no entienda, queda para completar a mano)
 const AEROLINEAS = ["LA", "JA", "H2", "JJ", "AR", "AV", "CM", "AA", "DL", "UA", "IB", "AF", "KL", "LH", "BA", "QF", "AM", "AC", "EK", "QR", "TK", "LX", "AZ", "UX", "G3", "AD", "2Z", "XL", "4M", "DM", "LP", "O4", "WJ", "P5", "TA", "UC", "ET", "NZ", "VB"];
 function leerMensaje(txt) {
@@ -1704,7 +1747,8 @@ $("n-mail").addEventListener("change", detectarCliente);
 
 $("nf").addEventListener("submit", async e => {
   e.preventDefault();
-  const req = ["n-nombre", "n-tel", "n-fecha", "n-origen", "n-destino"];
+  const otra = $("n-otra").checked;
+  const req = ["n-nombre", "n-tel", "n-fecha", "n-origen", "n-destino"].concat(otra ? ["n-pnombre", "n-ptel"] : []);
   const falta = req.find(id => !$(id).value.trim());
   if (falta) return msg("n-msg", "Complete: " + $(falta).labels[0].textContent, "err");
   const fh = FK.chileLocalToISO($("n-fecha").value);
@@ -1717,6 +1761,8 @@ $("nf").addEventListener("submit", async e => {
     comentarios: $("n-com").value.trim() || null, estado: "confirmada"
   };
   if (clienteSel) fila.cliente_id = clienteSel;
+  if (otra) Object.assign(fila, { solicitante_nombre: fila.nombre_pasajero, solicitante_telefono: fila.telefono, solicitante_correo: fila.correo,
+    nombre_pasajero: $("n-pnombre").value.trim(), telefono: $("n-ptel").value.trim(), correo: null });
   if ($("n-cc").value.trim()) fila.centro_costo = $("n-cc").value.trim();
   const rep = $("n-rep").value, hasta = $("n-rep-hasta").value;
   let filas = [fila];
@@ -1736,7 +1782,7 @@ $("nf").addEventListener("submit", async e => {
   const { data, error } = await sb.from("reservas").insert(filas).select("codigo");
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", data.length > 1 ? `${data.length} reservas guardadas como confirmadas (${data[0].codigo} … ${data[data.length - 1].codigo}).` : `Reserva ${data[0].codigo} guardada como confirmada.`, "ok");
-  $("nf").reset(); clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
+  $("nf").reset(); $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
 });
 
 // ---- Equipo y roles (solo admin)

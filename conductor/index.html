@@ -189,7 +189,7 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -511,7 +511,7 @@ function pintar() {
       <div class="top" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="time">${esc(hora(r.fecha_hora))}</span>${pill(r.estado)}</div>
       ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
-      <div class="who">${esc(r.nombre_pasajero)}</div>
+      <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
       ${r.estado === "en_lugar" ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="https://www.google.com/search?q=${encodeURIComponent(r.vuelo + " estado del vuelo")}" target="_blank" rel="noopener" style="color:var(--gold)"><b>${esc(r.vuelo)}</b></a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>

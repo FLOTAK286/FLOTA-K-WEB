@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Quien reserva y paga distinto del pasajero; confirmación por WhatsApp; copiar reserva (pendiente de publicar)
+- Base de datos (`etapa12_solicitante_distinto_del_pasajero`): la reserva guarda nombre, teléfono y correo de quien reserva y paga; el cliente (cobranza) se toma de esa persona. Probado: una reserva para la suegra de Fernando queda en la ficha de Fernando.
+- "Nueva reserva": casilla **"Viaja otra persona"** con nombre y teléfono del pasajero; el cliente buscado es quien reserva y paga.
+- Ficha: "Reservado y pagado por …"; botones **"Enviar confirmación al pasajero"** y **"a quien reservó"** (abre WhatsApp con código, fecha, origen, destino, vuelo, móvil, vehículo y enlace de seguimiento); **"Copiar reserva"** (abre Nueva reserva con los mismos datos, falta la fecha).
+- Tablero: "paga: …" bajo el pasajero. App del conductor: "Reservado por …".
+
 ## 9 nov 2026 · Chat solo con servicio activo y ayuda a la central (pendiente de publicar)
 - Base de datos (`etapa11_chat_activo_y_ayuda_central`): los mensajes tienen canal ("viaje" o "central"), tema (objeto perdido, ayuda, otro) y si fueron atendidos. El chat pasajero-conductor solo funciona en camino, en el lugar o a bordo; al finalizar se cierra. El conductor no ve el canal central. Funciones nuevas: `enviar_central_publico`, `enviar_mensaje_central`, `ver_mensajes_publico_v2`.
 - **Pasajero:** el chat con el conductor aparece solo con el servicio en curso. Nueva sección "¿Necesita algo? Escriba a Flota-K" con **Olvidé un objeto**, **Necesito ayuda** y **Otra consulta** (llega solo a la central; la respuesta aparece ahí mismo; hasta 60 días después del viaje).
