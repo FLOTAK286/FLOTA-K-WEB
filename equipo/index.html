@@ -133,7 +133,7 @@
           <div class="f"><label for="n-maletas">Maletas</label><input id="n-maletas" type="number" min="0" max="30" value="1"></div>
         </div>
         <div class="row3">
-          <div class="f"><label for="n-veh">Vehículo</label><select id="n-veh"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
+          <div class="f"><label for="n-veh">Vehículo que pide</label><select id="n-veh"><option value="auto">Auto (lo hace cualquiera)</option><option value="suv">SUV (SUV o van)</option><option value="van">Van (solo van)</option></select></div>
           <div class="f"><label for="n-precio">Precio acordado</label><input id="n-precio" type="number" min="0" step="1000" inputmode="numeric"></div>
           <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
           <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
@@ -167,11 +167,11 @@
         <div class="row3">
           <div class="f"><label for="v-color">Color</label><input id="v-color" list="dl-colores" autocomplete="off" maxlength="40"></div>
           <div class="f"><label for="v-pat">Patente</label><input id="v-pat" required placeholder="ABCD12" maxlength="10"></div>
-          <div class="f"><label for="v-tipo">Tipo</label><select id="v-tipo"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
+          <div class="f"><label for="v-cat">Categoría</label><select id="v-cat"><option value="taxi_basico">Taxi básico</option><option value="taxi_turismo">Taxi turismo</option><option value="taxi_ejecutivo">Taxi ejecutivo</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
         </div>
         <div class="row3">
           <div class="f"><label for="v-cap">Capacidad (pasajeros)</label><input id="v-cap" type="number" min="1" max="20" value="4"></div>
-          <div class="f"><label for="v-cond">Conductor fijo</label><select id="v-cond"></select></div>
+          <div class="f"><label for="v-cond">Conductor fijo (obligatorio)</label><select id="v-cond" required></select></div>
           <div class="f"><label for="v-foto">Foto (opcional)</label><input id="v-foto" type="file" accept="image/*"></div>
         </div>
         <div class="actions"><button class="btn" type="submit">Agregar vehículo</button></div>
@@ -291,12 +291,34 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, ho
 const hoyChile = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 async function cargarRecursos() {
   const [{ data: c }, { data: v }] = await Promise.all([
-    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono").eq("conduce", true).eq("activo", true).order("nombre"),
-    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual, marca, modelo, anio, color, foto_path").eq("activo", true).order("patente")
+    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono, movil").eq("conduce", true).eq("activo", true).order("nombre"),
+    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual, marca, modelo, anio, color, foto_path, categoria").eq("activo", true).order("patente")
   ]);
-  conductores = c || []; vehiculos = v || [];
+  conductores = (c || []).sort((a, b) => (Number(a.movil) || 1e9) - (Number(b.movil) || 1e9) || a.nombre.localeCompare(b.nombre)); vehiculos = v || [];
 }
 const nombreConductor = id => (conductores.find(c => c.id === id) || {}).nombre;
+// Categorías: el servicio pide auto (cualquiera), suv (SUV o van) o van (solo van). Si no calza, se advierte.
+const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
+const PIDE = { auto: "Auto", suv: "SUV", van: "Van" };
+const sirve = (cat, pide) => pide === "van" ? cat === "van" : pide === "suv" ? ["suv", "van"].includes(cat) : true;
+const vehDe = (cond, vehId) => vehiculos.find(v => v.id === vehId) || vehiculos.find(v => v.conductor_habitual === cond);
+// "286 · Juan Kieferling · SSHY88 Virtus"
+function etiquetaConductor(id) {
+  const c = conductores.find(x => x.id === id); if (!c) return "";
+  const v = vehiculos.find(x => x.conductor_habitual === id);
+  return [c.movil, c.nombre, v && [v.patente, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+}
+function opcionesConductor(sel, pide) {
+  return conductores.map(c => { const v = vehiculos.find(x => x.conductor_habitual === c.id);
+    const ok = !v || sirve(v.categoria, pide || "auto");
+    return `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(etiquetaConductor(c.id))}${ok ? "" : " ⚠ " + esc(CAT[v.categoria])}</option>`; }).join("");
+}
+// Pide confirmación si el vehículo no corresponde a lo que pide el servicio
+function confirmarCategoria(r, cond, vehId) {
+  const v = vehDe(cond, vehId), pide = r.vehiculo || "auto";
+  if (!v || sirve(v.categoria, pide)) return true;
+  return confirm(`Este servicio es de ${PIDE[pide] || pide} y va a asignar un ${CAT[v.categoria]} (${v.patente}${v.modelo ? " " + v.modelo : ""}, ${v.capacidad} pasajeros).\n\n¿Está seguro?`);
+}
 function asignadoTxt(r) {
   if (r.derivado_a) return "Derivado a " + r.derivado_a;
   if (r.conductor_id) return "Conductor: " + (nombreConductor(r.conductor_id) || "asignado");
@@ -546,7 +568,7 @@ async function abrir(id) {
       <dt>Pasajero</dt><dd>${esc(r.nombre_pasajero)}</dd>
       <dt>Teléfono</dt><dd>${esc(r.telefono)}</dd>
       <dt>Correo</dt><dd>${esc(r.correo || "—")}</dd>
-      <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · ${esc(r.vehiculo || "")}</dd>
+      <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · pide <b>${esc(PIDE[r.vehiculo] || r.vehiculo || "Auto")}</b></dd>
       <dt>Origen</dt><dd>${esc(r.origen)}</dd>
       <dt>Destino</dt><dd>${esc(r.destino)}</dd>
       <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
@@ -571,8 +593,8 @@ async function abrir(id) {
     </div>
     <h3 style="margin:6px 0 0">Asignación</h3>
     <div class="row3">
-      <div class="f"><label for="a-cond">Conductor</label><select id="a-cond"><option value="">Sin asignar</option>${conductores.map(c => `<option value="${c.id}" ${c.id === r.conductor_id ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></div>
-      <div class="f"><label for="a-veh">Vehículo</label><select id="a-veh"><option value="">Sin vehículo</option>${vehiculos.map(v => `<option value="${v.id}" ${v.id === r.vehiculo_id ? "selected" : ""}>${esc(v.patente)} · ${esc(v.descripcion || v.tipo)} (${v.capacidad})</option>`).join("")}</select></div>
+      <div class="f"><label for="a-cond">Conductor</label><select id="a-cond"><option value="">Sin asignar</option>${opcionesConductor(r.conductor_id, r.vehiculo)}</select></div>
+      <div class="f"><label for="a-veh">Vehículo</label><select id="a-veh"><option value="">Sin vehículo</option>${vehiculos.map(v => `<option value="${v.id}" ${v.id === r.vehiculo_id ? "selected" : ""}>${esc(v.patente)} · ${esc([v.marca, v.modelo].filter(Boolean).join(" ") || v.descripcion || v.tipo)} · ${esc(CAT[v.categoria] || "")} (${v.capacidad})${sirve(v.categoria, r.vehiculo || "auto") ? "" : " ⚠"}</option>`).join("")}</select></div>
       <div class="f"><label for="a-dur">Duración estimada (min)</label><input id="a-dur" type="number" min="15" max="1440" step="15" value="${esc(r.duracion_min || 90)}"></div>
     </div>
     <div class="row2">
@@ -613,6 +635,7 @@ async function abrir(id) {
     const der = $("a-der").value.trim() || null, costo = $("a-costo").value === "" ? null : Number($("a-costo").value);
     const dur = Math.max(15, Math.min(1440, Number($("a-dur").value) || 90));
     if (cond && der) return msg("d-msg", "Elija un conductor o un partner, no ambos.", "err");
+    if (cond && !confirmarCategoria(r, cond, veh)) return;
     if (cond && !confirmarChoque) {
       const ch = await choques(cond, r.fecha_hora, dur, r.id);
       if (ch.length) {
@@ -682,16 +705,16 @@ async function subirFoto(file, prefijo) {
 }
 async function cargarFlota() {
   const [{ data: ps }, { data: vs }, { data: ds }] = await Promise.all([
-    sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, foto_path, telefono").eq("conduce", true).order("nombre"),
+    sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, foto_path, telefono, movil").eq("conduce", true).order("nombre"),
     sb.from("vehiculos").select("*").order("patente"),
     sb.from("documentos").select("*").order("vence", { ascending: true, nullsFirst: false })
   ]);
-  flPerf = ps || []; flVehs = vs || []; flDocs = ds || [];
+  flPerf = (ps || []).sort((a, b) => (Number(a.movil) || 1e9) - (Number(b.movil) || 1e9)); flVehs = vs || []; flDocs = ds || [];
   // Formulario de vehículo: marcas, años, colores, conductores
   $("dl-marcas").innerHTML = Object.keys(window.FK_AUTOS || {}).map(m => `<option value="${esc(m)}">`).join("");
   $("dl-colores").innerHTML = (window.FK_COLORES || []).map(c => `<option value="${esc(c)}">`).join("");
   const y = new Date().getFullYear(); $("v-anio").innerHTML = '<option value="">—</option>' + Array.from({ length: 30 }, (_, i) => y + 1 - i).map(a => `<option>${a}</option>`).join("");
-  $("v-cond").innerHTML = '<option value="">Sin conductor fijo</option>' + flPerf.filter(p => p.activo).map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("");
+  $("v-cond").innerHTML = '<option value="">Elija el conductor</option>' + flPerf.filter(p => p.activo).map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("");
   const docsDe = (k, id) => flDocs.filter(d => d[k] === id);
   const resumenDocs = lista => { const e = lista.map(estadoDoc); const r = e.filter(x => x.c === "roja").length, a = e.filter(x => x.c === "amarilla").length, g = e.filter(x => x.c === "gris").length;
     return lista.length ? [r && `<span class="alerta roja">${r} vencido(s)</span>`, a && `<span class="alerta amarilla">${a} por vencer</span>`, g && `<span class="alerta gris">${g} por revisar</span>`].filter(Boolean).join(" ") || '<span class="alerta verde">Documentos al día</span>' : '<span class="alerta gris">Sin documentos</span>'; };
@@ -699,10 +722,11 @@ async function cargarFlota() {
     const veh = flVehs.find(v => v.conductor_habitual === p.id && v.activo);
     return `<div class="fl-card" data-p="${esc(p.id)}">
       <div class="fl-foto">${p.foto_path ? `<img src="${esc(fotoUrl(p.foto_path))}" alt="Foto de ${esc(p.nombre)}">` : `<span>${esc((p.nombre || "?")[0])}</span>`}</div>
-      <div class="fl-info"><b>${esc(p.nombre)}</b> <span class="small ${p.disponible ? "ok-txt" : "muted"}">● ${p.disponible ? "Conectado" : "Desconectado"}</span>${p.activo ? "" : ' <span class="muted small">(inactivo)</span>'}
+      <div class="fl-info"><b>${p.movil ? `<span class="movil">${esc(p.movil)}</span> ` : ""}${esc(p.nombre)}</b> <span class="small ${p.disponible ? "ok-txt" : "muted"}">● ${p.disponible ? "Conectado" : "Desconectado"}</span>${p.activo ? "" : ' <span class="muted small">(inactivo)</span>'}
         <div class="small muted">${esc(p.telefono || "Sin teléfono")} · ${veh ? esc([veh.marca, veh.modelo, veh.patente].filter(Boolean).join(" ")) : "sin vehículo fijo"}</div>
         <div>${resumenDocs(docsDe("conductor_id", p.id))}</div>
         <div class="actions" style="margin-top:6px"><label class="btn ghost sm">Foto<input type="file" accept="image/*" class="p-foto" hidden></label>
+          <input class="p-movil" placeholder="Móvil N°" aria-label="Número de móvil" value="${esc(p.movil || "")}" maxlength="10" inputmode="numeric" style="max-width:90px;padding:5px 8px">
           <input class="p-tel" placeholder="Teléfono" value="${esc(p.telefono || "")}" maxlength="30" style="max-width:150px;padding:5px 8px"><button class="btn ghost sm p-doc" type="button">+ Documento</button></div></div></div>`;
   }).join("") || '<p class="muted">No hay conductores. Marque "Conduce" en Equipo y roles.</p>';
   $("fl-conds").querySelectorAll(".fl-card").forEach(card => {
@@ -711,6 +735,11 @@ async function cargarFlota() {
       const f = ev.target.files[0]; if (!f) return;
       try { const path = await subirFoto(f, "conductor-" + id); const { error } = await sb.from("perfiles").update({ foto_path: path }).eq("id", id); if (error) throw error; msg("v-msg", "Foto del conductor actualizada.", "ok"); cargarFlota(); }
       catch (e) { msg("v-msg", errText(e), "err"); }
+    });
+    card.querySelector(".p-movil").addEventListener("change", async ev => {
+      const { error } = await sb.from("perfiles").update({ movil: ev.target.value.trim() || null }).eq("id", id);
+      if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Ese número de móvil ya lo tiene otro conductor." : errText(error), "err");
+      msg("v-msg", "Número de móvil guardado.", "ok"); await cargarRecursos(); cargarFlota();
     });
     card.querySelector(".p-tel").addEventListener("change", async ev => {
       const { error } = await sb.from("perfiles").update({ telefono: ev.target.value.trim() || null }).eq("id", id);
@@ -721,9 +750,10 @@ async function cargarFlota() {
   $("fl-vehs").innerHTML = flVehs.map(v => `<div class="fl-card ${v.activo ? "" : "inact"}" data-v="${esc(v.id)}">
       <div class="fl-foto auto">${v.foto_path ? `<img src="${esc(fotoUrl(v.foto_path))}" alt="Foto del vehículo ${esc(v.patente)}">` : "<span>🚗</span>"}</div>
       <div class="fl-info"><b>${esc([v.marca, v.modelo].filter(Boolean).join(" ") || v.descripcion || "Vehículo")}</b> <span class="code">${esc(v.patente)}</span>${v.activo ? "" : ' <span class="muted small">(de baja)</span>'}
-        <div class="small muted">${esc([v.anio, v.color, v.tipo, v.capacidad + " pasajeros"].filter(Boolean).join(" · "))}</div>
+        <div class="small muted">${esc([v.anio, v.color, v.capacidad + " pasajeros"].filter(Boolean).join(" · "))}</div>
+        <div><select class="v-cat-sel" aria-label="Categoría de ${esc(v.patente)}">${Object.entries(CAT).map(([k, t]) => `<option value="${k}" ${k === v.categoria ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${v.conductor_habitual ? "" : ' <span class="alerta roja">Sin conductor fijo</span>'}</div>
         <div>${resumenDocs(docsDe("vehiculo_id", v.id))}</div>
-        <div class="actions" style="margin-top:6px"><select class="v-cond-sel" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${flPerf.map(p => `<option value="${p.id}" ${p.id === v.conductor_habitual ? "selected" : ""}>${esc(p.nombre)}</option>`).join("")}</select>
+        <div class="actions" style="margin-top:6px"><select class="v-cond-sel" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${flPerf.map(p => `<option value="${p.id}" ${p.id === v.conductor_habitual ? "selected" : ""}>${esc([p.movil, p.nombre].filter(Boolean).join(" · "))}</option>`).join("")}</select>
           <label class="btn ghost sm">Foto<input type="file" accept="image/*" class="v-foto-in" hidden></label><button class="btn ghost sm v-doc" type="button">+ Documento</button>
           <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div></div></div>`).join("") || '<p class="muted">Aún no hay vehículos.</p>';
   $("fl-vehs").querySelectorAll(".fl-card").forEach(card => {
@@ -731,6 +761,11 @@ async function cargarFlota() {
     card.querySelector(".v-cond-sel").addEventListener("change", async ev => {
       const { error } = await sb.from("vehiculos").update({ conductor_habitual: ev.target.value || null }).eq("id", v.id);
       msg("v-msg", error ? errText(error) : `${v.patente}: conductor fijo actualizado. Al asignarle servicios, el vehículo se pone solo.`, error ? "err" : "ok"); cargarRecursos(); cargarFlota();
+    });
+    card.querySelector(".v-cat-sel").addEventListener("change", async ev => {
+      const cat = ev.target.value;
+      const { error } = await sb.from("vehiculos").update({ categoria: cat, tipo: cat === "van" ? "van" : cat === "suv" ? "suv" : "auto" }).eq("id", v.id);
+      msg("v-msg", error ? errText(error) : `${v.patente}: categoría ${CAT[cat]}.`, error ? "err" : "ok"); cargarRecursos();
     });
     card.querySelector(".v-foto-in").addEventListener("change", async ev => {
       const f = ev.target.files[0]; if (!f) return;
@@ -811,8 +846,10 @@ $("vf").addEventListener("submit", async e => {
   if (pat.length < 5) return msg("v-msg", "Ingrese una patente válida.", "err");
   const marca = $("v-marca").value.trim(), modelo = $("v-modelo").value.trim(), color = $("v-color").value.trim();
   if (!marca || !modelo) return msg("v-msg", "Indique marca y modelo.", "err");
+  if (!$("v-cond").value) return msg("v-msg", "Elija el conductor fijo del vehículo.", "err");
+  const cat = $("v-cat").value;
   const fila = { empresa_id: yo.empresa_id, patente: pat, marca, modelo, anio: Number($("v-anio").value) || null, color: color || null,
-    descripcion: [marca, modelo, color && color.toLowerCase()].filter(Boolean).join(" "), tipo: $("v-tipo").value, capacidad: Number($("v-cap").value) || 4, conductor_habitual: $("v-cond").value || null };
+    descripcion: [marca, modelo, color && color.toLowerCase()].filter(Boolean).join(" "), categoria: cat, tipo: cat === "van" ? "van" : cat === "suv" ? "suv" : "auto", capacidad: Number($("v-cap").value) || 4, conductor_habitual: $("v-cond").value || null };
   const { data, error } = await sb.from("vehiculos").insert(fila).select("id").single();
   if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Esa patente ya está registrada." : errText(error), "err");
   const f = $("v-foto").files[0];
@@ -982,14 +1019,14 @@ function pintarDespacho() {
   // Orden: urgentes, en curso, próximos por hora, y al final los finalizados
   const grupo = r => r.estado === "finalizada" ? 3 : r._urg >= 2 ? 0 : enCurso(r) ? 1 : 2;
   const rows = tablero.filter(filtros[tbFiltro]).sort((a, b) => grupo(a) - grupo(b) || b._urg - a._urg || new Date(a.fecha_hora) - new Date(b.fecha_hora));
-  const opcCond = r => `<option value="">${r.derivado_a ? "Derivado: " + esc(r.derivado_a) : "Sin asignar"}</option>` + conductores.map(c => `<option value="${c.id}" ${c.id === r.conductor_id ? "selected" : ""}>${esc(c.nombre)}</option>`).join("");
+  const opcCond = r => `<option value="">${r.derivado_a ? "Derivado: " + esc(r.derivado_a) : "Sin asignar"}</option>` + opcionesConductor(r.conductor_id, r.vehiculo);
   const patente = r => { const v = vehiculos.find(x => x.id === r.vehiculo_id) || vehiculos.find(x => x.conductor_habitual === r.conductor_id); return v ? v.patente : ""; };
   const corto = t => esc((t || "").length > 28 ? t.slice(0, 27) + "…" : t || "");
   $("tb-body").innerHTML = rows.length ? rows.map(r => `
     <tr data-id="${esc(r.id)}" class="${r._urg >= 3 ? "urg3" : r._urg === 2 ? "urg2" : ""} ${r.estado === "finalizada" ? "fin" : ""}">
       <td class="nowrap"><b>${esc(hora(r.fecha_hora))}</b><br><span class="muted small">${diaK(r.fecha_hora) === hoyK ? "hoy" : esc(new Date(r.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric" }))}</span></td>
       <td class="nowrap"><span class="code">${esc(r.codigo)}</span><br>${pill(r.estado)}</td>
-      <td><b>${esc(r.nombre_pasajero)}</b><br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span></td>
+      <td><b>${esc(r.nombre_pasajero)}</b><br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
       <td class="tray" title="${esc(r.origen)} → ${esc(r.destino)}">${corto(r.origen)}<br><span class="muted">→ ${corto(r.destino)}</span></td>
       <td class="nowrap">${vueloLink(r.vuelo)}</td>
       <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
@@ -1004,6 +1041,7 @@ function pintarDespacho() {
     const id = ev.target.closest("tr").dataset.id, cond = ev.target.value || null;
     const r = tablero.find(x => x.id === id);
     const veh = cond ? (vehiculos.find(v => v.conductor_habitual === cond) || {}).id || null : null;
+    if (cond && !confirmarCategoria(r, cond, veh)) { ev.target.value = r.conductor_id || ""; return; }
     if (cond) {
       const ch = await choques(cond, r.fecha_hora, r.duracion_min || 90, r.id);
       if (ch.length && !confirm(`${nombreConductor(cond)} ya tiene ${ch.length} servicio(s) que se cruzan (${ch.map(x => hora(x.fecha_hora) + " " + x.codigo).join(", ")}). ¿Asignar igual?`)) { ev.target.value = r.conductor_id || ""; return; }

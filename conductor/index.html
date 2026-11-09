@@ -158,7 +158,7 @@ $("reload").addEventListener("click", () => cargar());
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
-  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path").eq("id", session.user.id).maybeSingle();
+  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil").eq("id", session.user.id).maybeSingle();
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; window.__fkListo = true; return; }
   yo = data; window.__fkListo = true;
   const { data: vs } = await sb.from("vehiculos").select("*");
@@ -166,7 +166,7 @@ async function iniciar(session) {
   tar = emp || { taxi_bajada: 2400, taxi_cada_200m: 180, taxi_cada_60s: 180, valor_tag: 900 };
   (vs || []).forEach(v => vehiculos[v.id] = v);
   const mio = (vs || []).find(v => v.conductor_habitual === yo.id);
-  $("who").textContent = yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
+  $("who").textContent = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
   pintarConexion();
   cargar(); revisarCentral(); setInterval(revisarCentral, 20000);

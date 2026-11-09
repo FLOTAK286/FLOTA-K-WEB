@@ -1,5 +1,13 @@
 # Cambios
 
+## 9 nov 2026 · Categorías de vehículo y número de móvil (pendiente de publicar)
+- Base de datos (`etapa9_categorias_y_movil`): categoría del vehículo (Taxi básico, Taxi turismo, Taxi ejecutivo, SUV, Van) y número de móvil por conductor (único). La nota del historial al asignar incluye el móvil.
+- El servicio indica qué vehículo pide (campo existente): **Auto** (lo hace cualquiera), **SUV** (SUV o van) o **Van** (solo van).
+- Al asignar (tablero o ficha), los conductores aparecen como **"286 · Juan Kieferling · SSHY88 Virtus"**, ordenados por móvil; los que no calzan llevan ⚠ y, si se eligen, se pide confirmación ("Este servicio es de Van y va a asignar un Taxi ejecutivo… ¿Está seguro?"). El despachador decide.
+- Flota: número de móvil en cada conductor; categoría editable en cada vehículo; al agregar un vehículo el **conductor fijo es obligatorio**; aviso "Sin conductor fijo" en los vehículos que no lo tienen.
+- App del conductor: muestra "Móvil 286 · Juan Kieferling".
+- Pendiente del dueño: en Flota, poner la categoría **Taxi ejecutivo** al Virtus SSHY88 y su móvil **286**.
+
 ## Pendientes acordados con el dueño
 - Correos automáticos al cliente (confirmación, conductor asignado, en camino, calificación): queda para más adelante. Requiere cuenta gratis en Resend, registros DNS del dominio en Squarespace (con visto bueno del dueño) y la clave guardada por el dueño en Supabase.
 - Llave de firma de la app Android en GitHub (secretos FK_KEYSTORE_PASS y FK_KEYSTORE_B64).

@@ -173,3 +173,5 @@ dialog .panel { border: 0; }
 .doc-fila { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .foto-auto { width: 110px; height: 74px; object-fit: cover; border-radius: 8px; border: 2px solid var(--gold); }
 .subir-doc summary, details summary.btn { display: inline-block; cursor: pointer; list-style: none; }
+.movil { display: inline-block; background: var(--gold); color: #17130a; font-family: var(--font-display); font-weight: 700; padding: 0 7px; border-radius: 4px; }
+.fl-info select.v-cat-sel { max-width: 160px; }
