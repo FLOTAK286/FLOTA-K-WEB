@@ -58,7 +58,7 @@
             <option value="historial">Historial</option>
             <option value="pendientes">Pendientes de confirmar</option>
             <option value="observ">Con observación por revisar</option>
-            <option value="porcobrar">Finalizados por cobrar</option>
+            <option value="porcobrar">Por cobrar (no pagados)</option>
             <option value="califbaja">Calificación baja por revisar (3★ o menos)</option>
             <option value="mensajes">Con mensajes (últimas 24 horas)</option>
           </select></div>
@@ -414,7 +414,7 @@ async function cargarReservas() {
   else if (f === "proximas") q = q.gte("fecha_hora", ahora.toISOString()).neq("estado", "cancelada").order("fecha_hora").limit(200);
   else if (f === "pendientes") q = q.eq("estado", "recibida").order("fecha_hora").limit(200);
   else if (f === "observ") q = q.not("observacion_conductor", "is", null).eq("observacion_revisada", false).order("fecha_hora", { ascending: false }).limit(200);
-  else if (f === "porcobrar") q = q.eq("estado", "finalizada").eq("pagado", false).order("fecha_hora", { ascending: false }).limit(200);
+  else if (f === "porcobrar") q = q.neq("estado", "cancelada").eq("pagado", false).order("fecha_hora", { ascending: false }).limit(200);
   else if (f === "califbaja" || f === "mensajes") {
     const { data: x } = f === "califbaja"
       ? await sb.from("calificaciones").select("reserva_id").lte("estrellas", 3).eq("revisada", false).limit(500)
@@ -670,8 +670,8 @@ let clientes = [], cobros = [];
 async function cargarClientes() {
   const [{ data: cs }, { data: vs }, { data: ks }] = await Promise.all([
     sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id").order("nombre"),
-    sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000),
-    sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000)
+    sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000),
+    sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000)
   ]);
   clientes = cs || []; cobros = vs || []; califCli = {};
   (ks || []).forEach(k => { const x = califCli[k.cliente_id] = califCli[k.cliente_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
@@ -679,8 +679,9 @@ async function cargarClientes() {
 }
 let califCli = {};
 const califTxt = x => x ? `${(x.s / x.n).toFixed(1).replace(".", ",")} ★ <span class="muted small">(${x.n})</span>` : '<span class="muted small">—</span>';
+// Todo servicio no cancelado queda pendiente de pago hasta que un administrador lo marque como pagado.
 function resumenCliente(id) {
-  const fin = cobros.filter(x => x.cliente_id === id && x.estado === "finalizada");
+  const fin = cobros.filter(x => x.cliente_id === id && x.estado !== "cancelada");
   const total = fin.reduce((a, x) => a + (x.total || 0), 0);
   const pagado = fin.filter(x => x.pagado).reduce((a, x) => a + (x.total || 0), 0);
   return { servicios: cobros.filter(x => x.cliente_id === id).length, finalizados: fin.length, total, pagado, pendiente: total - pagado };
@@ -695,7 +696,7 @@ function pintarClientes() {
     <td>${r.servicios}</td><td>${califTxt(califCli[c.id])}</td><td>${clp(r.total)}</td><td>${clp(r.pagado)}</td><td>${r.pendiente > 0 ? `<b class="warn">${clp(r.pendiente)}</b>` : clp(0)}</td></tr>`).join("")
     : `<tr><td colspan="6" class="muted">${soloSaldo ? "No hay clientes con saldo pendiente." : "No hay clientes."}</td></tr>`;
   const tot = filas.reduce((a, x) => a + x.r.pendiente, 0);
-  $("cl-resumen").textContent = `Total pendiente de cobro: ${clp(tot)}. El saldo considera solo servicios finalizados.`;
+  $("cl-resumen").textContent = `Total pendiente de cobro: ${clp(tot)}. Todo servicio no cancelado queda pendiente hasta que administración lo marque como pagado.`;
   $("cl-tbody").querySelectorAll("tr[data-id]").forEach(tr => tr.addEventListener("click", () => fichaCliente(tr.dataset.id)));
 }
 $("cl-buscar").addEventListener("input", pintarClientes);
@@ -712,8 +713,8 @@ function fichaCliente(id) {
     <p class="muted">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}</p>
     <div class="row3">
       <div class="f"><label for="cf-desde">Desde</label><input id="cf-desde" type="date"></div>
-      <div class="f"><label for="cf-hasta">Hasta</label><input id="cf-hasta" type="date" value="${hoy}"></div>
-      <div class="f"><label for="cf-ver">Mostrar</label><select id="cf-ver"><option value="pend">Pendientes de pago</option><option value="todos">Todos los finalizados</option></select></div>
+      <div class="f"><label for="cf-hasta">Hasta</label><input id="cf-hasta" type="date"></div>
+      <div class="f"><label for="cf-ver">Mostrar</label><select id="cf-ver"><option value="pend">Pendientes de pago</option><option value="todos">Todos (pagados y pendientes)</option></select></div>
     </div>
     <div id="cf-res" class="small" style="margin-top:6px"></div>
     <div class="tblwrap"><table class="tbl"><thead><tr>${admin ? '<th><input type="checkbox" id="cf-all" aria-label="Seleccionar todos"></th>' : ""}<th>Fecha</th><th>Código</th><th>Trayecto</th><th>Total</th><th>Pago</th></tr></thead><tbody id="cf-tbody"></tbody></table></div>
@@ -726,13 +727,13 @@ function fichaCliente(id) {
   const filtrar = () => {
     const d = $("cf-desde").value, h = $("cf-hasta").value, ver = $("cf-ver").value;
     const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date(iso));
-    return cobros.filter(x => x.cliente_id === id && x.estado === "finalizada" && (!d || dia(x.fecha_hora) >= d) && (!h || dia(x.fecha_hora) <= h) && (ver === "todos" || !x.pagado))
+    return cobros.filter(x => x.cliente_id === id && x.estado !== "cancelada" && (!d || dia(x.fecha_hora) >= d) && (!h || dia(x.fecha_hora) <= h) && (ver === "todos" || !x.pagado))
       .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
   };
   const pintar = () => {
     const rows = filtrar();
     $("cf-tbody").innerHTML = rows.length ? rows.map(x => `<tr>${admin ? `<td>${x.pagado ? "" : `<input type="checkbox" class="cf-sel" value="${esc(x.id)}" aria-label="Seleccionar ${esc(x.codigo)}">`}</td>` : ""}
-      <td>${esc(fecha(x.fecha_hora))}</td><td class="code">${esc(x.codigo)}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td>${clp(x.total)}</td>
+      <td>${esc(fecha(x.fecha_hora))}</td><td class="code">${esc(x.codigo)}<br>${pill(x.estado)}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td>${x.tipo_cobro === "taximetro" && x.estado !== "finalizada" ? '<span class="muted small">Taxímetro: se calcula al finalizar</span>' : clp(x.total)}</td>
       <td>${x.pagado ? `<span class="pill s-ok">Pagado</span>` : `<span class="pill s-new">Pendiente</span>`}</td></tr>`).join("")
       : `<tr><td colspan="6" class="muted">No hay servicios en este período.</td></tr>`;
     const tot = rows.reduce((a, x) => a + (x.total || 0), 0), pend = rows.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
@@ -764,20 +765,20 @@ async function planilla(c, rows, desde, hasta) {
   const aoa = [
     ["FK Servicios SpA · Flota-K"], ["Detalle de servicios para cobro"], [],
     ["Cliente", c.nombre], ["Contacto", [c.telefono, c.correo].filter(Boolean).join(" · ")],
-    ["Período", `${desde ? fd(desde + "T12:00:00") : "Inicio"} al ${hasta ? fd(hasta + "T12:00:00") : "hoy"}`], ["Emitido", fd(new Date().toISOString())], [],
-    ["Fecha", "Hora", "Código", "Pasajero", "Origen", "Destino", "Tipo de cobro", "Detalle taxímetro", "Valor base", "Gastos", "Detalle de gastos", "Total", "Estado de pago", "Respaldo (seguimiento)"],
-    ...rows.map(x => [fd(x.fecha_hora), fh(x.fecha_hora), x.codigo, x.nombre_pasajero, x.origen, x.destino,
+    ["Período", `${desde ? fd(desde + "T12:00:00") : "Inicio"} al ${hasta ? fd(hasta + "T12:00:00") : "último servicio"}`], ["Emitido", fd(new Date().toISOString())], [],
+    ["Fecha", "Hora", "Código", "Estado del servicio", "Pasajero", "Origen", "Destino", "Tipo de cobro", "Detalle taxímetro", "Valor base", "Gastos", "Detalle de gastos", "Total", "Estado de pago", "Respaldo (seguimiento)"],
+    ...rows.map(x => [fd(x.fecha_hora), fh(x.fecha_hora), x.codigo, ESTADOS[x.estado] ? ESTADOS[x.estado].t : x.estado, x.nombre_pasajero, x.origen, x.destino,
       x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija",
       x.tipo_cobro === "taximetro" ? `${metrosTxt(x.taxi_metros)} · espera ${segTxt(x.taxi_segundos)}` : "",
       x.valor_base || 0, x.gastos || 0, det(x.id), x.total || 0, x.pagado ? `Pagado ${x.pagado_medio || ""}` : "Pendiente",
       location.origin + "/seguimiento/?t=" + x.token_seguimiento]),
-    [], ["", "", "", "", "", "", "", "", "", "", "TOTAL", total], ["", "", "", "", "", "", "", "", "", "", "PENDIENTE DE PAGO", pend], [],
+    [], ["", "", "", "", "", "", "", "", "", "", "", "TOTAL", total], ["", "", "", "", "", "", "", "", "", "", "", "PENDIENTE DE PAGO", pend], [],
     ["Pago por transferencia. Consultas: gerencia@fk-servicios.com · WhatsApp +56 9 2227 5399"]
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [10, 7, 11, 22, 30, 30, 13, 24, 11, 10, 34, 11, 16, 60].map(w => ({ wch: w }));
+  ws["!cols"] = [10, 7, 11, 18, 22, 30, 30, 13, 24, 11, 10, 34, 11, 16, 60].map(w => ({ wch: w }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Servicios");
-  const nombre = `Flota-K_${c.nombre.replace(/[^\wÁÉÍÓÚáéíóúÑñ]+/g, "_")}_${hasta || "hoy"}.xlsx`;
+  const nombre = `Flota-K_${c.nombre.replace(/[^\wÁÉÍÓÚáéíóúÑñ]+/g, "_")}_${hasta || hoyChile()}.xlsx`;
   XLSX.writeFile(wb, nombre);
   msg("cf-msg", `Planilla descargada: ${nombre}`, "ok");
 }
