@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Flota-K Conductor</string>
+    <string name="title_activity_main">Flota-K Conductor</string>
+    <string name="package_name">cl.fkservicios.conductor</string>
+    <string name="custom_url_scheme">cl.fkservicios.conductor</string>
+    <string name="capacitor_background_geolocation_notification_channel_name">Ubicación en servicio</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_tracking</string>
+    <string name="capacitor_background_geolocation_notification_color">#D4A64A</string>
+</resources>

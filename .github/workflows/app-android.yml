@@ -1,0 +1,36 @@
+# Arma la app Android del conductor (archivo .apk) cada vez que cambia la carpeta app-android.
+# El archivo queda para descargar en: Releases → "App Flota-K Conductor (Android)".
+name: App Android del conductor
+on:
+  push:
+    paths: ["app-android/**", ".github/workflows/app-android.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Compilar
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon -PversionCode=${{ github.run_number }}
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk flota-k-conductor.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: conductor-android
+          name: App Flota-K Conductor (Android)
+          make_latest: true
+          body: |
+            App del conductor de Flota-K para Android. Sigue enviando la ubicación aunque se use Waze, Cabify u otra app.
+            Descargue flota-k-conductor.apk desde el teléfono y ábralo para instalar (permita "instalar apps de esta fuente" si el teléfono lo pide).
+            Versión ${{ github.run_number }} · ${{ github.sha }}
+          files: app-android/flota-k-conductor.apk

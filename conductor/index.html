@@ -73,8 +73,9 @@
       <div class="actions"><button class="btn sm" id="install-btn" type="button" hidden>Instalar</button><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
     </div>
     <div class="gps" id="gps" style="margin-top:12px"><span class="dot"></span><span id="gps-txt">Ubicación: iniciando…</span><button class="btn ghost sm" id="gps-btn" type="button" hidden>Activar ubicación</button></div>
-    <details class="small muted" style="margin-top:6px"><summary>¿Y si uso Waze?</summary>
-      <p style="margin:6px 0 0">La ubicación se envía mientras esta app está abierta en pantalla. Si navega con Waze, la app deja de enviarla hasta que vuelva a abrirla. Opciones: 1) <b>pantalla dividida</b> en Android (Waze arriba y Flota-K abajo) y se envía todo el tiempo; 2) en Waze, toque <b>"Compartir viaje"</b> y envíe el enlace al pasajero por WhatsApp.</p></details>
+    <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
+      <p style="margin:6px 0 0">Desde el navegador, la ubicación se envía solo mientras esta pantalla está abierta. Para que se siga enviando con Waze, Cabify u otra app abierta, instale la <b>app Android de Flota-K</b>: <a href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">descargar app Android</a>.</p></details>
+    <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze, Cabify u otra app. Mientras esté en segundo plano verá una notificación de Flota-K.</p>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
     <p class="muted small" id="updated" style="margin-top:10px"></p>
   </section>
@@ -283,7 +284,38 @@ const enServicio = () => items.some(r => EN_CURSO.includes(r.estado));
 function gpsEstado(clase, texto, boton) {
   $("gps").className = "gps " + (clase || ""); $("gps-txt").textContent = texto; $("gps-btn").hidden = !boton;
 }
+// Dentro de la app Android (Capacitor) se usa la ubicación nativa, que sigue funcionando en segundo plano.
+const NATIVO = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const BG = NATIVO ? window.Capacitor.registerPlugin("BackgroundGeolocation") : null;
+let watcherId = null, iniciandoNativo = false;
+if (NATIVO) { $("waze-web").hidden = true; $("waze-app").hidden = false; }
+async function iniciarGPSNativo() {
+  if (watcherId || iniciandoNativo) return;
+  iniciandoNativo = true;
+  try { await window.Capacitor.registerPlugin("LocalNotifications").requestPermissions(); } catch (_) {}
+  try {
+    watcherId = await BG.addWatcher({
+      backgroundTitle: "Flota-K Conductor",
+      backgroundMessage: "Compartiendo su ubicación con el despacho y el pasajero.",
+      requestPermissions: true, stale: false, distanceFilter: 0
+    }, (loc, err) => {
+      if (err) {
+        if (err.code === "NOT_AUTHORIZED") {
+          gpsBloqueado = true;
+          gpsEstado("err", "Ubicación no permitida. Toque Activar: se abrirán los ajustes; entre a Permisos → Ubicación → Permitir.", true);
+          if (watcherId) BG.removeWatcher({ id: watcherId }); watcherId = null;
+        }
+        return;
+      }
+      if (!loc) return;
+      ultimaPos = { coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, heading: loc.bearing, speed: loc.speed } };
+      enviarUbicacion();
+    });
+  } catch (e) { gpsEstado("err", "No se pudo iniciar la ubicación: " + (e.message || e), true); }
+  iniciandoNativo = false;
+}
 function iniciarGPS() {
+  if (NATIVO) return iniciarGPSNativo();
   if (!("geolocation" in navigator)) return gpsEstado("err", "Este teléfono no permite compartir ubicación desde el navegador.");
   if (geoId !== null) return;
   geoId = navigator.geolocation.watchPosition(p => { ultimaPos = p; enviarUbicacion(); }, e => {
@@ -314,14 +346,16 @@ async function pantallaEncendida() {
     else if (!enServicio() && wakeLock) { await wakeLock.release(); wakeLock = null; }
   } catch (_) {}
 }
-$("gps-btn").addEventListener("click", () => { gpsBloqueado = false; gpsEstado("", "Ubicación: iniciando…"); iniciarGPS(); });
-setInterval(() => { if (geoId === null && !gpsBloqueado && yo) iniciarGPS(); enviarUbicacion(); }, 15000);
+$("gps-btn").addEventListener("click", () => {
+  if (NATIVO && gpsBloqueado) { BG.openSettings(); gpsBloqueado = false; return; }
+  gpsBloqueado = false; gpsEstado("", "Ubicación: iniciando…"); iniciarGPS(); });
+setInterval(() => { if (geoId === null && watcherId === null && !gpsBloqueado && yo) iniciarGPS(); enviarUbicacion(); }, 15000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) { enviarUbicacion(true); pantallaEncendida(); } });
 
 // ---- Instalar como app
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/conductor/sw.js", { scope: "/conductor/" }).catch(() => {});
+if (!NATIVO && "serviceWorker" in navigator) navigator.serviceWorker.register("/conductor/sw.js", { scope: "/conductor/" }).catch(() => {});
 let promptInstalar = null;
-const yaInstalada = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const yaInstalada = NATIVO || window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 let ocultar = false; try { ocultar = localStorage.getItem("fk_install_x") === "1"; } catch (_) {}
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalar = e; if (!yaInstalada && !ocultar) { $("install").hidden = false; $("install-btn").hidden = false; } });
 if (!yaInstalada && !ocultar && /iphone|ipad/i.test(navigator.userAgent)) { $("install").hidden = false; $("install-txt").textContent = "En iPhone: toque el botón Compartir y luego \"Agregar a inicio\"."; }

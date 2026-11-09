@@ -1,0 +1,17 @@
+{
+  "appId": "cl.fkservicios.conductor",
+  "appName": "Flota-K Conductor",
+  "webDir": "www",
+  "server": {
+    "url": "https://fk-servicios.com/conductor/",
+    "allowNavigation": ["fk-servicios.com", "www.fk-servicios.com", "iejhmplstveockkjjbks.supabase.co"],
+    "errorPath": "sin-conexion.html"
+  },
+  "android": {
+    "useLegacyBridge": true,
+    "backgroundColor": "#0a0b0d"
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}
