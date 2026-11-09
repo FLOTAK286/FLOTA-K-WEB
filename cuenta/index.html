@@ -84,13 +84,37 @@ async function cargar(session) {
     : { data: [], error: null };
   const list = $("list");
   if (error) { list.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
-  if (!data.length) { list.innerHTML = `<p class="muted">Aún no tiene reservas. <a href="/#tarifas" style="color:var(--gold)">Reserve su traslado</a>.</p>`; return; }
-  list.innerHTML = data.map(r => `
-    <a class="card" href="/seguimiento/?t=${esc(r.token_seguimiento)}" style="text-decoration:none">
-      <div class="top"><span class="when">${esc(fecha(r.fecha_hora))}</span>${pill(r.estado)}</div>
-      <div>${esc(r.origen)} → ${esc(r.destino)}</div>
-      <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")}</span><span>${clp(r.precio ?? r.tarifa_web)}</span></div>
-    </a>`).join("");
+  const wa = t => "https://wa.me/56922275399?text=" + encodeURIComponent(t);
+  const nuevo = `<div class="actions"><a class="btn" target="_blank" rel="noopener" href="${wa("Hola Flota-K, quiero reservar un traslado. Origen, destino, fecha y hora: ")}">Reservar un traslado por WhatsApp</a><a class="btn ghost" href="/#tarifas">Ver tarifas</a></div>`;
+  if (!data.length) { list.innerHTML = `<p class="muted">Aún no tiene reservas.</p>${nuevo}`; return; }
+  // Totales y estado de pago de cada servicio
+  const { data: cob } = await sb.from("v_cobro").select("codigo, total, pagado, estado").in("cliente_id", ids);
+  const pago = Object.fromEntries((cob || []).map(c => [c.codigo, c]));
+  const ahora = Date.now(), activos = r => r.estado !== "cancelada";
+  const proximos = data.filter(r => activos(r) && new Date(r.fecha_hora) > ahora - 3 * 3600e3 && r.estado !== "finalizada").reverse();
+  const anteriores = data.filter(r => !proximos.includes(r));
+  const pend = (cob || []).filter(c => c.estado !== "cancelada" && !c.pagado).reduce((a, c) => a + (c.total || 0), 0);
+  const anio = new Date().getFullYear(), delAnio = data.filter(r => r.estado === "finalizada" && new Date(r.fecha_hora).getFullYear() === anio).length;
+  // Direcciones frecuentes (sin contar el aeropuerto)
+  const cuenta = {}; data.filter(activos).forEach(r => [r.origen, r.destino].forEach(d => { if (d && !/aeropuerto|\bscl\b/i.test(d)) cuenta[d] = (cuenta[d] || 0) + 1; }));
+  const frecuentes = Object.entries(cuenta).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const tarjeta = r => { const c = pago[r.codigo] || {}; return `
+    <div class="card">
+      <a href="/seguimiento/?t=${esc(r.token_seguimiento)}" style="text-decoration:none;color:inherit;display:grid;gap:4px">
+        <div class="top"><span class="when">${esc(fecha(r.fecha_hora))}</span>${pill(r.estado)}</div>
+        <div>${esc(r.origen)} → ${esc(r.destino)}</div>
+        <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")}</span><span>${clp(c.total ?? r.precio ?? r.tarifa_web)}${r.estado !== "cancelada" ? ` · <span class="small ${c.pagado ? "muted" : ""}">${c.pagado ? "Pagado" : "Pendiente de pago"}</span>` : ""}</span></div>
+      </a>
+      <div class="actions"><a class="btn ghost sm" target="_blank" rel="noopener" href="${wa(`Hola Flota-K, quiero repetir mi traslado ${r.origen} → ${r.destino} (como la reserva ${r.codigo}). Fecha y hora: `)}">Repetir este viaje</a>
+        <a class="btn ghost sm" target="_blank" rel="noopener" href="${wa(`Hola Flota-K, quiero reservar el regreso: ${r.destino} → ${r.origen} (reserva ${r.codigo}). Fecha y hora: `)}">Reservar el regreso</a></div>
+    </div>`; };
+  list.innerHTML = `
+    <div class="rp-kpis"><div class="pay"><small class="muted">Viajes en ${anio}</small><b>${delAnio}</b></div><div class="pay"><small class="muted">Pendiente de pago</small><b>${clp(pend)}</b></div></div>
+    ${nuevo}
+    ${frecuentes.length ? `<h3 style="margin:10px 0 0">Sus direcciones frecuentes</h3><div class="actions">${frecuentes.map(([d]) => `<a class="btn ghost sm" target="_blank" rel="noopener" href="${wa(`Hola Flota-K, quiero un traslado desde ${d} al aeropuerto. Fecha y hora: `)}">${esc(d)} → aeropuerto</a>`).join("")}</div>` : ""}
+    <h3 style="margin:10px 0 0">Próximos viajes</h3>${proximos.length ? proximos.map(tarjeta).join("") : '<p class="muted">No tiene viajes agendados.</p>'}
+    <h3 style="margin:10px 0 0">Viajes anteriores</h3>${anteriores.length ? anteriores.map(tarjeta).join("") : '<p class="muted">Aún no hay viajes anteriores.</p>'}
+    <p class="muted small">¿Necesita boleta o factura de algún viaje? Escríbanos por WhatsApp indicando el código.</p>`;
 }
 
 sb.auth.onAuthStateChange((_ev, session) => { if (session) cargar(session); });
