@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Arreglo de la pantalla en blanco en la app Android (pendiente de publicar)
+- Causa (vista gracias al nuevo diagnóstico en pantalla): dentro de la app faltaba la librería de Capacitor que conecta la página con Android (`registerPlugin`). Ahora se carga desde `assets/vendor/capacitor-core-6.2.3.js` (en el navegador no hace nada).
+- La librería de Supabase también se sirve desde el sitio (`assets/vendor/supabase-2.45.4.js`); dentro de la app se omite el "candado" de sesión que puede quedarse pegado.
+- Si algo impide cargar la app del conductor, aparece un recuadro rojo con el motivo y "Reintentar".
+- La app Android ya no reenvía todas las conexiones por Android (causaba problemas); solo el envío de ubicación usa la conexión nativa.
+
 ## 9 nov 2026 · Calificaciones y mensajes (pendiente de publicar)
 - **Calificaciones:**
   - El pasajero califica al conductor (1 a 5 estrellas + comentario) desde su enlace de seguimiento cuando el servicio finaliza (una vez, hasta 30 días). Si da 5 estrellas y está configurado `resenaGoogle` en `assets/config.js`, se le invita a dejar reseña en Google (pendiente: enlace de reseñas de la ficha de Google).
