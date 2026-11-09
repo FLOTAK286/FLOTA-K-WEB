@@ -1,5 +1,10 @@
 # Cambios
 
+## 9 nov 2026 · Actualización automática de la app Android (pendiente: llave de firma)
+- La app abre la página, así que **todas las mejoras de pantallas y funciones llegan solas**, sin descargar nada.
+- Si cambia la parte instalada (pocas veces), la app muestra "Hay una versión nueva" con un botón "Actualizar app" que se instala encima. La versión se lleva en `app-android/version.json`.
+- Para instalar encima, todas las versiones deben ir firmadas con la misma llave. La llave se guarda solo como secreto de GitHub (`FK_KEYSTORE_B64`, `FK_KEYSTORE_PASS`), nunca en el código. **Pendiente: falta crear y guardar esa llave (requiere permiso del dueño).**
+
 ## 9 nov 2026 · Mapa del despacho con disponibilidad y retiro de la app de Chrome (pendiente de publicar)
 - **Mapa en vivo (despacho):** cada conductor aparece con su estado: verde disponible, dorado disponible con servicio en menos de 1 hora, rojo ocupado (en camino / en el lugar / a bordo), gris sin señal. La lista muestra el servicio actual, el próximo servicio agendado (36 horas) y el resumen "X disponibles · Y ocupados · Z sin señal". También aparecen los conductores que nunca han abierto la app.
 - **App del conductor:** se retiró la versión instalable desde Chrome (obsoleta). En Android la página ahora ofrece "Descargar app" (la app Android) y explica cómo desinstalar la versión anterior.

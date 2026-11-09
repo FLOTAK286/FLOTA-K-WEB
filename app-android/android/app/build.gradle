@@ -1,5 +1,8 @@
 apply plugin: 'com.android.application'
 
+// Versión de la app: se cambia en app-android/version.json (la página la usa para avisar que hay una nueva).
+def fkVersion = new groovy.json.JsonSlurper().parse(file('../../version.json'))
+
 android {
     namespace "cl.fkservicios.conductor"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +10,8 @@ android {
         applicationId "cl.fkservicios.conductor"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode((project.findProperty("versionCode") ?: "1") as Integer)
-        versionName "1.0." + (project.findProperty("versionCode") ?: "1")
+        versionCode fkVersion.versionCode as Integer
+        versionName fkVersion.versionName as String
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +19,21 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    lint { checkReleaseBuilds false }
+    // Firma fija: la llave vive solo en los secretos de GitHub (FK_KEYSTORE_B64 / FK_KEYSTORE_PASS), nunca en el código.
+    signingConfigs {
+        release {
+            if (System.getenv("FK_KEYSTORE")) {
+                storeFile file(System.getenv("FK_KEYSTORE"))
+                storePassword System.getenv("FK_KEYSTORE_PASS")
+                keyAlias "flotak"
+                keyPassword System.getenv("FK_KEYSTORE_PASS")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("FK_KEYSTORE")) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

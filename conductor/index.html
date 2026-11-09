@@ -66,6 +66,11 @@
         <button role="tab" data-v="prox" aria-selected="false">Próximos</button>
       </div>
     </div>
+    <div class="panel install" id="upd" hidden style="margin-top:12px">
+      <b>Hay una versión nueva de la app</b>
+      <p class="small muted" id="upd-txt"></p>
+      <div class="actions"><a class="btn sm" href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">Actualizar app</a></div>
+    </div>
     <div class="panel install" id="install" hidden style="margin-top:12px">
       <b>Instale la app Android de Flota-K</b>
       <p class="small muted">Sigue enviando su ubicación aunque use Waze o Cabify. Si tenía instalada la versión anterior (desde Chrome), desinstálela: mantenga presionado su ícono → Desinstalar.</p>
@@ -134,6 +139,7 @@ async function iniciar(session) {
   $("userbar").hidden = false; $("app").hidden = false;
   cargar();
   iniciarGPS();
+  revisarVersionApp(); setInterval(revisarVersionApp, 6 * 3600e3);
   setInterval(cargar, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
 }
@@ -353,6 +359,19 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && yo
 
 // ---- App Android: la versión instalada desde Chrome quedó obsoleta.
 if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+// Las pantallas se actualizan solas (la app abre la página). Si cambia la parte instalada, se avisa con un botón.
+async function revisarVersionApp() {
+  if (!NATIVO) return;
+  let actual = 0;
+  try { actual = Number((await window.Capacitor.registerPlugin("App").getInfo()).build) || 0; } catch (_) {}
+  let ult = null;
+  try { ult = await (await fetch("/app-android/version.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch (_) {}
+  if (!ult || !ult.versionCode || actual >= ult.versionCode) { $("upd").hidden = true; return; }
+  $("upd-txt").textContent = actual < 2
+    ? "Por única vez: primero desinstale esta app (mantenga presionado el ícono → Desinstalar) y luego toque Actualizar e instale la nueva. Desde ahí, las próximas se instalan encima."
+    : "Toque Actualizar, abra el archivo descargado e instale. Se instala encima de la actual; no pierde nada.";
+  $("upd").hidden = false;
+}
 let ocultar = false; try { ocultar = localStorage.getItem("fk_apk_x") === "1"; } catch (_) {}
 if (!NATIVO && !ocultar && /android/i.test(navigator.userAgent)) $("install").hidden = false;
 $("install-x").addEventListener("click", () => { $("install").hidden = true; try { localStorage.setItem("fk_apk_x", "1"); } catch (_) {} });

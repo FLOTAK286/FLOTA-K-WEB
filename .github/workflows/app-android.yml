@@ -15,15 +15,27 @@ jobs:
         working-directory: app-android
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: "17" }
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
       - run: npm ci
       - run: npx cap sync android
-      - name: Compilar
-        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon -PversionCode=${{ github.run_number }}
-      - run: cp android/app/build/outputs/apk/debug/app-debug.apk flota-k-conductor.apk
+      - name: Compilar con la firma fija de Flota-K (si está configurada)
+        env:
+          FK_KEYSTORE_B64: ${{ secrets.FK_KEYSTORE_B64 }}
+          FK_KEYSTORE_PASS: ${{ secrets.FK_KEYSTORE_PASS }}
+        run: |
+          cd android && chmod +x gradlew
+          if [ -n "$FK_KEYSTORE_B64" ]; then
+            echo "$FK_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/flotak.jks"
+            FK_KEYSTORE="$RUNNER_TEMP/flotak.jks" ./gradlew assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk ../flota-k-conductor.apk
+          else
+            echo "::warning::Sin llave de firma: se arma una versión de prueba que no se puede instalar encima de la anterior."
+            ./gradlew assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk ../flota-k-conductor.apk
+          fi
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: conductor-android
@@ -32,5 +44,5 @@ jobs:
           body: |
             App del conductor de Flota-K para Android. Sigue enviando la ubicación aunque se use Waze, Cabify u otra app.
             Descargue flota-k-conductor.apk desde el teléfono y ábralo para instalar (permita "instalar apps de esta fuente" si el teléfono lo pide).
-            Versión ${{ github.run_number }} · ${{ github.sha }}
+            Armado ${{ github.run_number }} · ${{ github.sha }}
           files: app-android/flota-k-conductor.apk
