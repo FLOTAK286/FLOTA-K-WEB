@@ -1,5 +1,8 @@
 # Cambios
 
+## 9 nov 2026 · Corrección (pendiente de publicar)
+- /cuenta mostraba todas las reservas cuando entraba una cuenta del equipo (por sus permisos de administrador). Ahora muestra solo las reservas propias del cliente. Ningún cliente real veía reservas ajenas.
+
 ## 9 nov 2026 · Publicación de la etapa 1 (aprobada por el dueño)
 - Publicadas /equipo, /cuenta y /seguimiento.
 - Página principal: franja superior y pie de página con "Acceso clientes" y "Acceso equipo".

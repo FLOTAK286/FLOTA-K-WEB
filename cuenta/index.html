@@ -73,9 +73,15 @@ async function cargar(session) {
   $("login").hidden = true; $("me").hidden = false;
   $("who").textContent = "Ingresó como " + session.user.email;
   await sb.rpc("vincular_cuenta_cliente", { p_empresa: FK.empresa });
-  const { data, error } = await sb.from("reservas")
-    .select("codigo, estado, fecha_hora, origen, destino, tipo_servicio, pasajeros, precio, tarifa_web, token_seguimiento")
-    .order("fecha_hora", { ascending: false });
+  // Solo las reservas del propio cliente (aunque la cuenta sea también del equipo).
+  const { data: yoCliente } = await sb.from("clientes").select("id").eq("user_id", session.user.id);
+  const ids = (yoCliente || []).map(c => c.id);
+  const { data, error } = ids.length
+    ? await sb.from("reservas")
+        .select("codigo, estado, fecha_hora, origen, destino, tipo_servicio, pasajeros, precio, tarifa_web, token_seguimiento")
+        .in("cliente_id", ids)
+        .order("fecha_hora", { ascending: false })
+    : { data: [], error: null };
   const list = $("list");
   if (error) { list.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   if (!data.length) { list.innerHTML = `<p class="muted">Aún no tiene reservas. <a href="/#tarifas" style="color:var(--gold)">Reserve su traslado</a>.</p>`; return; }
