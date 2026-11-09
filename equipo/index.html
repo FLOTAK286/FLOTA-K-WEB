@@ -1118,8 +1118,8 @@ async function pintarCierres(desde, hasta, filas) {
 }
 $("rp-cierres-xlsx").addEventListener("click", () => {
   if (!window.XLSX || !rpCierres.length) return;
-  const aoa = [["Día", "Vehículo", "Conductor", "Odómetro inicio", "Odómetro fin", "Km", "Servicios Flota-K", "Ingreso Flota-K", "Gastos Flota-K (TAG/peajes)", "Viajes Cabify", "Ingreso Cabify", "Peajes Cabify", "Otras apps", "Ingreso otras", "Combustible", "Otros gastos", "Ingresos", "Gastos directos", "Ganancia", "Costo/km", "Ganancia/km", "Resultado con $410/km", "Notas"],
-    ...rpCierres.map(x => [x.c.fecha, x.patente, x.cond, x.c.km_inicio, x.c.km_fin, x.c.km_recorridos, x.nFK, x.ingFK, x.gasFK, x.c.cabify_viajes, x.c.cabify_ingreso, x.c.cabify_peajes, x.c.otras_detalle || "", x.c.otras_ingreso, x.c.combustible, x.c.otros_gastos, x.ing, x.costos, x.gan,
+  const aoa = [["Día", "Vehículo", "Conductor", "Km", "Servicios Flota-K", "Ingreso Flota-K", "Gastos Flota-K (TAG/peajes)", "Viajes Cabify", "Ingreso Cabify", "Peajes Cabify", "Otras apps", "Ingreso otras", "Combustible", "Otros gastos", "Ingresos", "Gastos directos", "Ganancia", "Costo/km", "Ganancia/km", "Resultado con $410/km", "Notas"],
+    ...rpCierres.map(x => [x.c.fecha, x.patente, x.cond, x.c.km_recorridos, x.nFK, x.ingFK, x.gasFK, x.c.cabify_viajes, x.c.cabify_ingreso, x.c.cabify_peajes, x.c.otras_detalle || "", x.c.otras_ingreso, x.c.combustible, x.c.otros_gastos, x.ing, x.costos, x.gan,
       x.c.km_recorridos ? Math.round(x.costos / x.c.km_recorridos) : "", x.c.km_recorridos ? Math.round(x.gan / x.c.km_recorridos) : "", x.ref, x.c.notas || ""])];
   const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
   XLSX.utils.book_append_sheet(wb, ws, "Cierres"); XLSX.writeFile(wb, `Flota-K_cierres_${hoyChile()}.xlsx`);

@@ -1,5 +1,8 @@
 # Cambios
 
+## 9 nov 2026 · Cierre diario solo con km recorridos (pendiente de publicar)
+- A pedido del dueño, el cierre ya no pide odómetro inicial y final: solo **los kilómetros recorridos en el día** (Flota-K + Cabify + otras). Función nueva `guardar_cierre_km` (`etapa14b_cierre_solo_km`); la anterior queda sin uso. El Excel del panel ya no trae columnas de odómetro.
+
 ## 9 nov 2026 · Cierre diario de vehículos propios de Flota-K (pendiente de publicar)
 - Base de datos (`etapa14_cierre_diario_vehiculos_propios`): marca **vehículo propio** (por defecto sí; a los prestadores se les quita); tabla de cierres diarios (odómetro, Cabify: ingreso/viajes/peajes, otras apps, combustible, otros gastos, notas); `guardar_cierre` solo funciona con el vehículo fijo del conductor si es propio (hoy o últimos 7 días; corrige si ya existe). Probado: bloquea km negativos, fechas antiguas y vehículos de prestador.
 - **App del conductor → Billetera → "Cierre del día"** (solo si su vehículo es propio; los prestadores no lo ven): odómetro (sugiere el último), Cabify, otras apps y gastos; Flota-K se suma solo (servicios finalizados del día y sus TAG/peajes). Muestra km, ingresos (% Flota-K y apps), gastos directos, **costo/km, ingreso/km, ganancia/km** y el resultado con el **costo de referencia $410/km**.

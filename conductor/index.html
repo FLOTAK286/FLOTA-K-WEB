@@ -442,8 +442,7 @@ async function pintarCierre(rows) {
   box.innerHTML = `<div class="svc cierre">
     <div class="inicio-tit"><b>Cierre del día · ${esc(v.o_patente)}</b><select id="ci-fecha" aria-label="Día del cierre">${dias.map(d => `<option value="${d}" ${d === cierreFecha ? "selected" : ""}>${d === hoy ? "Hoy" : esc(new Date(d + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" }))}</option>`).join("")}</select></div>
     <span class="small muted">Solo vehículos propios de Flota-K. ${prev ? "Ya hay un cierre guardado para este día: puede corregirlo." : "Complete al terminar su jornada."}</span>
-    <div class="row2"><div class="f"><label for="ci-ki">Odómetro al iniciar (km)</label><input id="ci-ki" type="number" inputmode="numeric" min="0" value="${esc(val("km_inicio", v.o_ultimo_km ?? ""))}"></div>
-      <div class="f"><label for="ci-kf">Odómetro al terminar (km)</label><input id="ci-kf" type="number" inputmode="numeric" min="0" value="${esc(val("km_fin"))}"></div></div>
+    <div class="f"><label for="ci-km">Kilómetros recorridos en el día (Flota-K + Cabify + otras)</label><input id="ci-km" type="number" inputmode="numeric" min="0" max="3000" value="${esc(val("km_recorridos", ""))}" placeholder="Ej.: 280"></div>
     <div class="pay"><b>Flota-K (automático)</b><br><span class="small">${delDia.length} servicio(s) finalizado(s) · ${clp(ingFK)}${gasFK ? ` · incluye ${clp(gasFK)} de TAG/peajes/estacionamiento` : ""}</span></div>
     <b>Cabify</b>
     <div class="row3"><div class="f"><label for="ci-ci">Ingreso (lo que le queda)</label><input id="ci-ci" type="number" inputmode="numeric" min="0" step="100" value="${esc(val("cabify_ingreso", ""))}"></div>
@@ -461,12 +460,12 @@ async function pintarCierre(rows) {
   </div>`;
   const n = id => Math.max(0, Number($(id).value) || 0);
   const calcular = () => {
-    const km = Math.max(0, n("ci-kf") - n("ci-ki")), ing = ingFK + n("ci-ci") + n("ci-oi");
+    const km = n("ci-km"), ing = ingFK + n("ci-ci") + n("ci-oi");
     const costos = gasFK + n("ci-cp") + n("ci-cb") + n("ci-og"), gan = ing - costos;
     const ref = ing - km * KM_REF - gasFK - n("ci-cp"); // el costo de referencia ya incluye combustible
     const porKm = x => km ? clp(Math.round(x / km)) : "—";
     const pFK = ing ? Math.round(ingFK / ing * 100) : 0;
-    $("ci-res").innerHTML = !$("ci-kf").value ? '<span class="small muted">Complete el odómetro para ver el resultado del día.</span>' : `
+    $("ci-res").innerHTML = !$("ci-km").value ? '<span class="small muted">Escriba los kilómetros del día para ver el resultado.</span>' : `
       <div class="rp-kpis">
         <div class="pay"><small class="muted">Km del día</small><b>${km.toLocaleString("es-CL")}</b><span class="small muted">Flota-K + Cabify + otras</span></div>
         <div class="pay"><small class="muted">Ingresos</small><b>${clp(ing)}</b><span class="small muted">${pFK}% Flota-K · ${100 - pFK}% apps</span></div>
@@ -478,9 +477,9 @@ async function pintarCierre(rows) {
   box.querySelectorAll("input").forEach(i => i.addEventListener("input", calcular)); calcular();
   $("ci-fecha").addEventListener("change", ev => { cierreFecha = ev.target.value; pintarCierre(rows); });
   $("ci-ok").addEventListener("click", async () => {
-    if (!$("ci-ki").value || !$("ci-kf").value) return msg("ci-msg", "Ingrese el odómetro al iniciar y al terminar.", "err");
+    if ($("ci-km").value === "") return msg("ci-msg", "Escriba los kilómetros recorridos en el día.", "err");
     $("ci-ok").disabled = true;
-    const { error } = await sb.rpc("guardar_cierre", { p_fecha: cierreFecha, p_km_inicio: n("ci-ki"), p_km_fin: n("ci-kf"), p_cabify_ingreso: n("ci-ci"), p_cabify_viajes: n("ci-cv"),
+    const { error } = await sb.rpc("guardar_cierre_km", { p_fecha: cierreFecha, p_km: n("ci-km"), p_cabify_ingreso: n("ci-ci"), p_cabify_viajes: n("ci-cv"),
       p_cabify_peajes: n("ci-cp"), p_otras_ingreso: n("ci-oi"), p_otras_detalle: $("ci-od").value, p_combustible: n("ci-cb"), p_otros_gastos: n("ci-og"), p_notas: $("ci-no").value });
     $("ci-ok").disabled = false;
     if (error) return msg("ci-msg", errText(error), "err");
