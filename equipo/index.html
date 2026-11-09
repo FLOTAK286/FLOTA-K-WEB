@@ -250,7 +250,7 @@
       <form id="inv" class="row3" novalidate>
         <div class="f"><label for="i-mail">Correo</label><input id="i-mail" type="email" required></div>
         <div class="f"><label for="i-nombre">Nombre</label><input id="i-nombre" required></div>
-        <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="admin">Administrador</option></select></div>
+        <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="propietario">Propietario de vehículo (ve reportes de sus autos)</option><option value="admin">Administrador</option></select></div>
         <div class="actions"><button class="btn" type="submit">Invitar</button></div>
       </form>
       <div id="i-msg" class="msg" hidden></div>
@@ -408,6 +408,13 @@ async function iniciar(session) {
   $("login").hidden = true;
   await sb.rpc("aceptar_invitacion");
   const { data } = await sb.from("perfiles").select("id, empresa_id, rol, nombre, activo").eq("id", session.user.id).maybeSingle();
+  if (data && data.activo && data.rol === "propietario") {
+    $("noaccess").querySelector("h2").textContent = "Usted es propietario de vehículo";
+    $("noaccess").querySelector("p").innerHTML = 'Sus reportes están en el portal del propietario: <a href="/propietario/" style="color:var(--gold)"><b>fk-servicios.com/propietario</b></a>.';
+    $("noaccess").hidden = false;
+    if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
+    return;
+  }
   if (data && data.activo && data.rol === "conductor") {
     $("noaccess").querySelector("h2").textContent = "Usted es conductor";
     $("noaccess").querySelector("p").innerHTML = 'Sus servicios están en la app del conductor: <a href="/conductor/" style="color:var(--gold)"><b>fk-servicios.com/conductor</b></a>. Ábrala en su teléfono e instálela.';
@@ -779,7 +786,7 @@ const DOCS = { licencia: "Licencia de conducir", cedula: "Cédula de identidad",
   permiso_circulacion: "Permiso de circulación", revision_tecnica: "Revisión técnica", soap: "SOAP", seguro: "Seguro", padron: "Padrón", otro: "Otro" };
 const DOCS_COND = ["licencia", "cedula", "antecedentes", "hoja_vida", "otro"], DOCS_VEH = ["permiso_circulacion", "revision_tecnica", "soap", "seguro", "padron", "otro"];
 const fotoUrl = path => path ? sb.storage.from("fotos").getPublicUrl(path).data.publicUrl : null;
-let flDocs = [], flPerf = [], flVehs = [], flFiltro = "todos";
+let flDocs = [], flPerf = [], flVehs = [], flFiltro = "todos", flTodos = [];
 function estadoDoc(d) {
   if (d.estado === "rechazado") return { c: "roja", t: "Rechazado" };
   if (d.vence) {
@@ -810,6 +817,7 @@ async function cargarFlota() {
     sb.from("vehiculos").select("*").order("patente"),
     sb.from("documentos").select("*").order("vence", { ascending: true, nullsFirst: false })
   ]);
+  const { data: todos } = await sb.from("perfiles").select("id, nombre, rol, movil").eq("activo", true).order("nombre"); flTodos = todos || [];
   flPerf = (ps || []).sort((a, b) => (Number(a.movil) || 1e9) - (Number(b.movil) || 1e9)); flVehs = vs || []; flDocs = ds || [];
   // Formulario de vehículo: marcas, años, colores, conductores
   $("dl-marcas").innerHTML = Object.keys(window.FK_AUTOS || {}).map(m => `<option value="${esc(m)}">`).join("");
@@ -856,12 +864,23 @@ async function cargarFlota() {
         <div>${resumenDocs(docsDe("vehiculo_id", v.id))}</div>
         <div class="actions" style="margin-top:6px"><select class="v-cond-sel" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${flPerf.map(p => `<option value="${p.id}" ${p.id === v.conductor_habitual ? "selected" : ""}>${esc([p.movil, p.nombre].filter(Boolean).join(" · "))}</option>`).join("")}</select>
           <label class="btn ghost sm">Foto<input type="file" accept="image/*" class="v-foto-in" hidden></label><button class="btn ghost sm v-doc" type="button">+ Documento</button>
-          <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div></div></div>`).join("") || '<p class="muted">Aún no hay vehículos.</p>';
+          <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div>
+        <div class="actions small" style="margin-top:4px"><label>Propietario <select class="v-prop" aria-label="Propietario de ${esc(v.patente)}"><option value="">Flota-K (propio)</option>${flTodos.map(p => `<option value="${p.id}" ${p.id === v.propietario_id ? "selected" : ""}>${esc(p.nombre)}${p.rol === "propietario" ? "" : " (" + esc(ROLES[p.rol] || p.rol) + ")"}</option>`).join("")}</select></label>
+          <label>Comisión Flota-K <input class="v-com" type="number" min="0" max="100" step="0.5" value="${v.comision_pct ?? ""}" placeholder="%" style="width:70px;padding:4px 6px"> %</label></div></div></div>`).join("") || '<p class="muted">Aún no hay vehículos.</p>';
   $("fl-vehs").querySelectorAll(".fl-card").forEach(card => {
     const v = flVehs.find(x => x.id === card.dataset.v);
     card.querySelector(".v-cond-sel").addEventListener("change", async ev => {
       const { error } = await sb.from("vehiculos").update({ conductor_habitual: ev.target.value || null }).eq("id", v.id);
       msg("v-msg", error ? errText(error) : `${v.patente}: conductor fijo actualizado. Al asignarle servicios, el vehículo se pone solo.`, error ? "err" : "ok"); cargarRecursos(); cargarFlota();
+    });
+    card.querySelector(".v-prop").addEventListener("change", async ev => {
+      const { error } = await sb.from("vehiculos").update({ propietario_id: ev.target.value || null }).eq("id", v.id);
+      msg("v-msg", error ? errText(error) : `${v.patente}: propietario actualizado. Verá este vehículo en fk-servicios.com/propietario.`, error ? "err" : "ok");
+    });
+    card.querySelector(".v-com").addEventListener("change", async ev => {
+      const n = ev.target.value === "" ? null : Math.max(0, Math.min(100, Number(ev.target.value)));
+      const { error } = await sb.from("vehiculos").update({ comision_pct: n }).eq("id", v.id);
+      msg("v-msg", error ? errText(error) : `${v.patente}: comisión ${n == null ? "sin definir" : n + " %"}.`, error ? "err" : "ok");
     });
     card.querySelector(".v-cat-sel").addEventListener("change", async ev => {
       const cat = ev.target.value;

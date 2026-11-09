@@ -17,7 +17,7 @@
     finalizada: { t: "Finalizada",     c: "s-done" },
     cancelada:  { t: "Cancelada",      c: "s-cancel" }
   };
-  const ROLES = { admin: "Administrador", despachador: "Despachador", telefonista: "Telefonista", conductor: "Conductor" };
+  const ROLES = { admin: "Administrador", despachador: "Despachador", telefonista: "Telefonista", conductor: "Conductor", propietario: "Propietario de vehículo" };
   const SERVICIOS = { ida: "Ida al aeropuerto", regreso: "Regreso desde el aeropuerto", ida_vuelta: "Ida y vuelta", punto_a_punto: "Punto a punto", por_hora: "Por hora" };
 
   const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));

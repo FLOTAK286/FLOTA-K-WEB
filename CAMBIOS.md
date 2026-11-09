@@ -1,5 +1,10 @@
 # Cambios
 
+## 9 nov 2026 · Portal del propietario de vehículos (pendiente de publicar)
+- Base de datos (`etapa13_rol_propietario`, `etapa13_portal_propietario`): rol nuevo **propietario**; cada vehículo puede tener propietario y **comisión de Flota-K (%)**. Funciones `propietario_vehiculos` y `propietario_servicios` (solo sus vehículos; trayecto por comuna; sin nombre ni teléfono de pasajeros). Probado: el dueño ve lo suyo y un usuario ajeno no ve nada.
+- Página nueva **fk-servicios.com/propietario**: vehículos con foto, conductor, estado de documentos y comisión; totales del período (servicios, total generado, le corresponde, comisión, clientes por pagar, km taxímetro); gráficos por vehículo, conductor y tipo de servicio; tabla de servicios; **liquidación en Excel**.
+- Panel: invitar con rol "Propietario de vehículo"; en Flota, cada vehículo tiene **Propietario** y **Comisión Flota-K %**. Un propietario que entra a /equipo es dirigido a su portal.
+
 ## 9 nov 2026 · Mejoras de uso en ruta (pendiente de publicar)
 - **Conductor:** deslizar para confirmar (Voy en camino, Llegué, Pasajero a bordo, Finalizar; también con Enter); **modo en ruta** en el Inicio con el servicio en curso (lo esencial en grande; "Ver detalles"); **cuenta regresiva** "Sale en X min" / "Atrasado"; **aviso de documentos** vencidos o por vencer (30 días) al abrir; **meta del mes** en la Billetera con barra de avance; aviso **"Sin conexión"**; el recordatorio en pantalla ahora aparece arriba (no tapa la barra).
 - **Pasajero:** botón **"Compartir mi viaje"** (enlace en vivo para un familiar).

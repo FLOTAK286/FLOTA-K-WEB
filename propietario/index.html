@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Portal del propietario | Flota-K</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+<style>
+  .pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .pv-card { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--panel); }
+  .pv-card img, .pv-card .ph { width: 92px; height: 64px; object-fit: cover; border-radius: 6px; flex: none; background: var(--bg); display: grid; place-items: center; }
+  .pv-card > div { display: grid; gap: 3px; min-width: 0; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="brand" href="/propietario/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">PROPIETARIOS</small></a><div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
+<main class="app">
+  <section class="panel" id="login" hidden>
+    <h2>Portal del propietario</h2>
+    <p class="muted">Para dueños de vehículos y gestores de flota que trabajan con Flota-K. Ingrese con su correo y contraseña.</p>
+    <form id="login-form" class="f" novalidate>
+      <label for="email">Correo</label><input id="email" type="email" autocomplete="username" required>
+      <label for="pass" style="margin-top:6px">Contraseña</label><input id="pass" type="password" autocomplete="current-password">
+      <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
+      <p class="small muted">¿Primera vez? Pida a Flota-K que lo invite como "Propietario de vehículo" y cree su contraseña entrando una vez por <a href="/equipo/" style="color:var(--gold)">fk-servicios.com/equipo</a>.</p>
+    </form>
+    <div id="login-msg" class="msg" hidden></div>
+  </section>
+  <section class="panel" id="noaccess" hidden><h2>Sin vehículos</h2><p>Su usuario aún no tiene vehículos asociados. Pida a Flota-K que lo asigne como propietario de su vehículo.</p></section>
+
+  <section id="app" hidden class="list">
+    <div class="actions" style="justify-content:space-between;align-items:flex-end">
+      <h1 style="margin:0">Mis vehículos</h1>
+      <div class="actions" style="align-items:flex-end">
+        <div class="f"><label for="per">Período</label><select id="per"><option value="mes">Este mes</option><option value="mesant">Mes anterior</option><option value="30">Últimos 30 días</option><option value="anio">Este año</option></select></div>
+        <button class="btn ghost" id="xlsx" type="button">Descargar liquidación (Excel)</button>
+      </div>
+    </div>
+    <div id="kpis" class="rp-kpis"></div>
+    <div id="vehs" class="pv-grid"></div>
+    <div class="rp-grid" id="grafs"></div>
+    <h2 style="margin:6px 0 0">Servicios del período</h2>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Código</th><th>Vehículo</th><th>Conductor</th><th>Trayecto (comunas)</th><th>Total</th><th>Le corresponde</th><th>Cobro al cliente</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    <p class="muted small">Total = valor cobrado al cliente (incluye gastos como TAG, peajes o estacionamiento). "Le corresponde" = total menos la comisión de Flota-K de cada vehículo. "Cobro al cliente" indica si el cliente ya pagó a Flota-K. Por privacidad no se muestran datos de los pasajeros.</p>
+  </section>
+</main>
+<script src="/assets/vendor/supabase-2.45.4.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script>
+const { sb, esc, clp, fecha, errText, SERVICIOS, ESTADOS } = FK;
+const $ = id => document.getElementById(id);
+const TZ = "America/Santiago";
+const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
+let yo = null, vehs = [], filas = [];
+function msg(id, t, k) { const m = $(id); m.hidden = false; m.className = "msg " + (k || ""); m.textContent = t; }
+
+$("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const v = $("email").value.trim().toLowerCase(), pw = $("pass").value;
+  if (!/.+@.+\..+/.test(v) || !pw) return msg("login-msg", "Ingrese su correo y contraseña.", "err");
+  msg("login-msg", "Entrando…");
+  const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
+  if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
+});
+$("logout").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+
+function rango() {
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()), [y, m] = hoy.split("-").map(Number), p = $("per").value;
+  const iso = (yy, mm) => FK.chileLocalToISO(`${yy}-${String(mm).padStart(2, "0")}-01T00:00`);
+  if (p === "mes") return [iso(y, m), iso(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1), "este mes"];
+  if (p === "mesant") return [iso(m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1), iso(y, m), "mes anterior"];
+  if (p === "anio") return [iso(y, 1), iso(y + 1, 1), "este año"];
+  return [new Date(Date.now() - 30 * 864e5).toISOString(), new Date(Date.now() + 864e5).toISOString(), "últimos 30 días"];
+}
+const neto = r => Math.round((r.o_total || 0) * (1 - (Number(r.o_comision) || 0) / 100));
+
+async function iniciar(session) {
+  $("login").hidden = true;
+  try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
+  const { data: p } = await sb.from("perfiles").select("nombre, rol, activo").eq("id", session.user.id).maybeSingle();
+  yo = p || { nombre: session.user.email };
+  $("who").textContent = yo.nombre; $("userbar").hidden = false;
+  const { data, error } = await sb.rpc("propietario_vehiculos");
+  vehs = data || [];
+  if (error || !vehs.length) { $("noaccess").hidden = false; return; }
+  $("app").hidden = false;
+  cargar();
+}
+async function cargar() {
+  const [desde, hasta, txt] = rango();
+  const { data, error } = await sb.rpc("propietario_servicios", { p_desde: desde, p_hasta: hasta });
+  if (error) { $("tbody").innerHTML = `<tr><td colspan="8" class="msg err">${esc(errText(error))}</td></tr>`; return; }
+  filas = data || [];
+  const fin = filas.filter(r => r.o_estado === "finalizada");
+  const total = fin.reduce((a, r) => a + (r.o_total || 0), 0), suyo = fin.reduce((a, r) => a + neto(r), 0);
+  const km = fin.reduce((a, r) => a + (Number(r.o_km) || 0), 0), porCobrar = fin.filter(r => !r.o_pagado).reduce((a, r) => a + (r.o_total || 0), 0);
+  $("kpis").innerHTML = `
+    <div class="pay"><small class="muted">Servicios finalizados (${esc(txt)})</small><b>${fin.length}</b><span class="small muted">${filas.length - fin.length} agendado(s) o en curso</span></div>
+    <div class="pay"><small class="muted">Total generado</small><b>${clp(total)}</b><span class="small muted">cobrado a clientes</span></div>
+    <div class="pay"><small class="muted">Le corresponde</small><b>${clp(suyo)}</b><span class="small muted">comisión Flota-K: ${clp(total - suyo)}</span></div>
+    <div class="pay"><small class="muted">Clientes por pagar</small><b>${clp(porCobrar)}</b><span class="small muted">de servicios finalizados</span></div>
+    ${km ? `<div class="pay"><small class="muted">Km con taxímetro</small><b>${km.toFixed(1).replace(".", ",")}</b><span class="small muted">km registrados</span></div>` : ""}`;
+  $("vehs").innerHTML = vehs.map(v => {
+    const sv = fin.filter(r => r.o_vehiculo_id === v.o_id), t = sv.reduce((a, r) => a + (r.o_total || 0), 0);
+    const foto = v.o_foto ? `<img src="${esc(sb.storage.from("fotos").getPublicUrl(v.o_foto).data.publicUrl)}" alt="Foto de ${esc(v.o_patente)}">` : '<span class="ph">🚗</span>';
+    const docs = v.o_docs_vencidos ? `<span class="alerta roja">${v.o_docs_vencidos} documento(s) vencido(s)</span>` : v.o_docs_por_vencer ? `<span class="alerta amarilla">${v.o_docs_por_vencer} por vencer</span>` : '<span class="alerta verde">Documentos al día</span>';
+    return `<div class="pv-card">${foto}<div><b>${esc([v.o_marca, v.o_modelo].filter(Boolean).join(" ") || "Vehículo")}</b> <span class="code">${esc(v.o_patente)}</span>
+      <span class="small muted">${esc([v.o_anio, v.o_color, CAT[v.o_categoria]].filter(Boolean).join(" · "))}${v.o_activo ? "" : " · de baja"}</span>
+      <span class="small">Conductor: ${esc(v.o_conductor ? (v.o_movil ? "móvil " + v.o_movil + " · " : "") + v.o_conductor : "sin conductor fijo")}</span>
+      <span class="small">${sv.length} servicio(s) · ${clp(t)} · comisión ${v.o_comision != null ? esc(String(v.o_comision).replace(".", ",")) + " %" : "sin definir"}</span>${docs}</div></div>`;
+  }).join("");
+  const agrupar = (clave, nombre) => { const m = new Map(); fin.forEach(r => { const k = clave(r) || "—"; const x = m.get(k) || { n: 0, t: 0 }; x.n++; x.t += r.o_total || 0; m.set(k, x); }); return [...m.entries()].map(([k, x]) => ({ nombre: nombre ? nombre(k) : k, ...x })).sort((a, b) => b.t - a.t); };
+  const barras = (tit, l) => { const mx = Math.max(1, ...l.map(x => x.t)); return `<div class="rp-caja"><h3>${tit}</h3>${l.length ? l.slice(0, 8).map(x => `<div class="rp-bar"><span class="rp-n">${esc(x.nombre)}</span><span class="rp-track"><span style="width:${Math.max(2, x.t / mx * 100)}%"></span></span><span class="rp-v">${clp(x.t)} <span class="muted small">(${x.n})</span></span></div>`).join("") : '<p class="muted small">Sin datos.</p>'}</div>`; };
+  $("grafs").innerHTML = barras("Por vehículo", agrupar(r => r.o_patente)) + barras("Por conductor", agrupar(r => r.o_conductor ? (r.o_movil ? r.o_movil + " · " : "") + r.o_conductor : "—")) + barras("Por tipo de servicio", agrupar(r => SERVICIOS[r.o_tipo_servicio] || r.o_tipo_servicio));
+  $("tbody").innerHTML = filas.length ? filas.map(r => `<tr><td>${esc(fecha(r.o_fecha_hora))}</td><td class="code">${esc(r.o_codigo)}<br><span class="small muted">${esc(ESTADOS[r.o_estado] ? ESTADOS[r.o_estado].t : r.o_estado)}</span></td><td>${esc(r.o_patente)}</td>
+    <td>${esc(r.o_conductor ? (r.o_movil ? r.o_movil + " · " : "") + r.o_conductor : "—")}</td><td>${esc(r.o_origen)} → ${esc(r.o_destino)}</td><td>${clp(r.o_total)}</td><td>${r.o_estado === "finalizada" ? clp(neto(r)) : '<span class="muted small">al finalizar</span>'}</td>
+    <td>${r.o_pagado ? "Pagado" : "Pendiente"}</td></tr>`).join("") : '<tr><td colspan="8" class="muted">No hay servicios en este período.</td></tr>';
+}
+$("per").addEventListener("change", cargar);
+$("xlsx").addEventListener("click", () => {
+  if (!window.XLSX) return alert("No se pudo cargar el generador de planillas. Revise su conexión.");
+  const [, , txt] = rango(), fin = filas.filter(r => r.o_estado === "finalizada");
+  const aoa = [["Flota-K · Liquidación del propietario"], ["Propietario", yo.nombre], ["Período", txt], ["Emitida", new Date().toLocaleDateString("es-CL", { timeZone: TZ })], [],
+    ["Fecha", "Código", "Vehículo", "Conductor", "Origen (comuna)", "Destino (comuna)", "Servicio", "Total", "Gastos incluidos", "Comisión %", "Le corresponde", "Cobro al cliente"],
+    ...fin.map(r => [new Date(r.o_fecha_hora).toLocaleString("es-CL", { timeZone: TZ }), r.o_codigo, r.o_patente, r.o_conductor || "", r.o_origen, r.o_destino, SERVICIOS[r.o_tipo_servicio] || r.o_tipo_servicio, r.o_total || 0, r.o_gastos || 0, Number(r.o_comision) || 0, neto(r), r.o_pagado ? "Pagado" : "Pendiente"]),
+    [], ["", "", "", "", "", "", "TOTAL", fin.reduce((a, r) => a + (r.o_total || 0), 0), "", "", fin.reduce((a, r) => a + neto(r), 0)]];
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [18, 11, 10, 22, 18, 18, 22, 11, 11, 10, 13, 14].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Liquidación");
+  XLSX.writeFile(wb, `Flota-K_liquidacion_${new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date())}.xlsx`);
+});
+
+let iniciado = false;
+sb.auth.onAuthStateChange((_e, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
+sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else $("login").hidden = false; });
+</script>
+</body>
+</html>
