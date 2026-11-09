@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Cuentas de empresa (pendiente de publicar)
+- Base de datos (`etapa7_cuentas_empresa`): cada reserva guarda la empresa a la que se cobra (se toma del pasajero al crearla) y un **centro de costo**; la empresa tiene días de pago y si el convenio está activo. Probado con datos que se deshacen.
+- "Clientes y cobros" ahora tiene **Personas / Empresas**. En Empresas: crear empresa (razón social, RUT, contacto, correo de facturación, días de pago), **pasajeros autorizados** (buscar y agregar o quitar), servicios del período con su centro de costo, resumen por centro de costo, marcar pagados, **planilla Excel para facturar** (con RUT y resumen por centro de costo) y "Cobrar por correo" al correo de facturación.
+- "Nueva reserva": campo **Centro de costo** y aviso "Se cobra a la empresa: …" al elegir un pasajero de empresa. La ficha de la reserva muestra la empresa y el centro de costo.
+- Corregido: los botones Personas/Empresas se confundían con los filtros del tablero.
+
 ## 9 nov 2026 · Tarifario compartido y precio sugerido (pendiente de publicar)
 - El tarifario 2026 pasó a `assets/tarifas.js`; la página principal (cotizador por comuna con reserva por WhatsApp) lo usa igual que antes.
 - En "Nueva reserva" del panel aparece la **tarifa sugerida** según la comuna de la dirección (ida, regreso o van); un toque la pone como precio.

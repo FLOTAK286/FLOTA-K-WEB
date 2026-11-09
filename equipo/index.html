@@ -137,6 +137,7 @@
           <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
         </div>
         <div id="n-sugerida" class="small" hidden></div>
+        <div class="row2"><div class="f"><label for="n-cc">Centro de costo (empresas, opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div><div id="n-emp" class="small" style="align-self:end"></div></div>
         <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
         <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
@@ -152,6 +153,18 @@
     </div>
 
     <div data-pane="clientes" class="panel" style="margin-top:14px" hidden>
+      <div class="chips" role="group" aria-label="Tipo de cliente"><button type="button" class="chip on" id="cl-ver-per">Personas</button><button type="button" class="chip" id="cl-ver-emp">Empresas</button></div>
+      <div id="em-lista" hidden>
+        <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Empresas con convenio</h2><button class="btn sm" type="button" id="em-nueva">+ Nueva empresa</button></div>
+        <form id="em-form" class="confirm" hidden novalidate>
+          <b>Nueva empresa</b>
+          <div class="row2"><div class="f"><label for="em-rs">Razón social</label><input id="em-rs" required maxlength="200"></div><div class="f"><label for="em-rut">RUT</label><input id="em-rut" maxlength="20" placeholder="76.123.456-7"></div></div>
+          <div class="row3"><div class="f"><label for="em-con">Contacto</label><input id="em-con" maxlength="200" placeholder="Nombre y teléfono"></div><div class="f"><label for="em-mail">Correo de facturación</label><input id="em-mail" type="email" maxlength="200"></div><div class="f"><label for="em-dias">Días de pago</label><input id="em-dias" type="number" min="0" max="120" value="30"></div></div>
+          <div class="actions"><button class="btn" type="submit">Guardar empresa</button><button class="btn ghost" type="button" id="em-cancel">Cancelar</button></div>
+          <div class="msg" id="em-msg" hidden></div>
+        </form>
+        <div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Pasajeros</th><th>Servicios</th><th>Total</th><th>Pendiente</th></tr></thead><tbody id="em-tbody"></tbody></table></div>
+      </div>
       <div id="cl-lista">
         <div class="actions">
           <div class="f" style="flex:1;min-width:180px"><label for="cl-buscar">Buscar cliente</label><input id="cl-buscar" placeholder="Nombre, teléfono o correo"></div>
@@ -327,7 +340,7 @@ async function iniciar(session) {
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
   $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin";
   $("app").hidden = false;
-  await cargarRecursos();
+  await cargarRecursos(); cargarCuentas();
   cargarDespacho(); timerDespacho = setInterval(() => { if (!document.hidden && pestanaActual() === "despacho") cargarDespacho(); }, 30000);
   if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
 }
@@ -344,7 +357,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "agenda") cargarAgenda();
-  if (b.dataset.tab === "clientes") { $("cl-ficha").hidden = true; $("cl-lista").hidden = false; cargarClientes(); }
+  if (b.dataset.tab === "clientes") { $("cl-ficha").hidden = true; $("em-lista").hidden = true; $("cl-lista").hidden = false; $("cl-ver-per").classList.add("on"); $("cl-ver-emp").classList.remove("on"); cargarClientes(); }
   if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
@@ -494,6 +507,7 @@ async function abrir(id) {
       <dt>Origen</dt><dd>${esc(r.origen)}</dd>
       <dt>Destino</dt><dd>${esc(r.destino)}</dd>
       <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
+      ${r.cuenta_corporativa_id || r.centro_costo ? `<dt>Empresa</dt><dd>${esc((cuentas.find(x => x.id === r.cuenta_corporativa_id) || {}).razon_social || "—")}${r.centro_costo ? " · centro de costo: " + esc(r.centro_costo) : ""}</dd>` : ""}
       <dt>Pasajeros / maletas</dt><dd>${esc(r.pasajeros)} / ${esc(r.maletas ?? "—")}</dd>
       <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
       <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
@@ -758,8 +772,8 @@ function pintarDespacho() {
     cargarDespacho();
   }));
 }
-document.querySelectorAll(".chips .chip").forEach(c => c.addEventListener("click", () => {
-  tbFiltro = c.dataset.f; document.querySelectorAll(".chips .chip").forEach(x => x.classList.toggle("on", x === c)); pintarDespacho();
+document.querySelectorAll("[data-pane=\"despacho\"] .chips .chip").forEach(c => c.addEventListener("click", () => {
+  tbFiltro = c.dataset.f; document.querySelectorAll("[data-pane=\"despacho\"] .chips .chip").forEach(x => x.classList.toggle("on", x === c)); pintarDespacho();
 }));
 
 // ---- Agenda
@@ -877,7 +891,7 @@ async function cargarClientes() {
     sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000),
     sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000)
   ]);
-  clientes = cs || []; cobros = vs || []; califCli = {};
+  clientes = cs || []; cobros = vs || []; califCli = {}; await cargarCuentas();
   (ks || []).forEach(k => { const x = califCli[k.cliente_id] = califCli[k.cliente_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   pintarClientes();
 }
@@ -914,7 +928,7 @@ function fichaCliente(id) {
   $("cl-ficha").innerHTML = `
     <div class="actions"><button class="btn ghost sm" id="cl-volver" type="button">◀ Volver a clientes</button></div>
     <h2 style="margin-top:10px">${esc(c.nombre)}</h2>
-    <p class="muted">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}</p>
+    <p class="muted">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}${c.cuenta_corporativa_id ? ` · Empresa: <b>${esc((cuentas.find(x => x.id === c.cuenta_corporativa_id) || {}).razon_social || "")}</b>` : ""}</p>
     <div class="row3">
       <div class="f"><label for="cf-desde">Desde</label><input id="cf-desde" type="date"></div>
       <div class="f"><label for="cf-hasta">Hasta</label><input id="cf-hasta" type="date"></div>
@@ -991,19 +1005,20 @@ async function planilla(c, rows, desde, hasta) {
   const total = rows.reduce((a, x) => a + (x.total || 0), 0), pend = rows.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
   const aoa = [
     ["FK Servicios SpA · Flota-K"], ["Detalle de servicios para cobro"], [],
-    ["Cliente", c.nombre], ["Contacto", [c.telefono, c.correo].filter(Boolean).join(" · ")],
+    ["Cliente", c.nombre], ...(c.rut ? [["RUT", c.rut]] : []), ["Contacto", [c.telefono, c.correo].filter(Boolean).join(" · ")],
     ["Período", `${desde ? fd(desde + "T12:00:00") : "Inicio"} al ${hasta ? fd(hasta + "T12:00:00") : "último servicio"}`], ["Emitido", fd(new Date().toISOString())], [],
-    ["Fecha", "Hora", "Código", "Estado del servicio", "Pasajero", "Origen", "Destino", "Tipo de cobro", "Detalle taxímetro", "Valor base", "Gastos", "Detalle de gastos", "Total", "Estado de pago", "Respaldo (seguimiento)"],
-    ...rows.map(x => [fd(x.fecha_hora), fh(x.fecha_hora), x.codigo, ESTADOS[x.estado] ? ESTADOS[x.estado].t : x.estado, x.nombre_pasajero, x.origen, x.destino,
+    ["Fecha", "Hora", "Código", "Estado del servicio", "Pasajero", "Centro de costo", "Origen", "Destino", "Tipo de cobro", "Detalle taxímetro", "Valor base", "Gastos", "Detalle de gastos", "Total", "Estado de pago", "Respaldo (seguimiento)"],
+    ...rows.map(x => [fd(x.fecha_hora), fh(x.fecha_hora), x.codigo, ESTADOS[x.estado] ? ESTADOS[x.estado].t : x.estado, x.nombre_pasajero, x.centro_costo || "", x.origen, x.destino,
       x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija",
       x.tipo_cobro === "taximetro" ? `${metrosTxt(x.taxi_metros)} · espera ${segTxt(x.taxi_segundos)}` : "",
       x.valor_base || 0, x.gastos || 0, det(x.id), x.total || 0, x.pagado ? `Pagado ${x.pagado_medio || ""}` : "Pendiente",
       location.origin + "/seguimiento/?t=" + x.token_seguimiento]),
-    [], ["", "", "", "", "", "", "", "", "", "", "", "TOTAL", total], ["", "", "", "", "", "", "", "", "", "", "", "PENDIENTE DE PAGO", pend], [],
+    [], ["", "", "", "", "", "", "", "", "", "", "", "", "TOTAL", total], ["", "", "", "", "", "", "", "", "", "", "", "", "PENDIENTE DE PAGO", pend],
+    ...(c.porCentro ? [[], ["Resumen por centro de costo"], ...c.porCentro] : []), [],
     ["Pago por transferencia. Consultas: gerencia@fk-servicios.com · WhatsApp +56 9 2227 5399"]
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [10, 7, 11, 18, 22, 30, 30, 13, 24, 11, 10, 34, 11, 16, 60].map(w => ({ wch: w }));
+  ws["!cols"] = [10, 7, 11, 18, 22, 16, 30, 30, 13, 24, 11, 10, 34, 11, 16, 60].map(w => ({ wch: w }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Servicios");
   const nombre = `Flota-K_${c.nombre.replace(/[^\wÁÉÍÓÚáéíóúÑñ]+/g, "_")}_${hasta || hoyChile()}.xlsx`;
   XLSX.writeFile(wb, nombre);
@@ -1025,12 +1040,153 @@ $("tf").addEventListener("submit", async e => {
 });
 
 // ---- Nueva reserva
+// ---- Empresas con convenio (cuentas corporativas)
+let cuentas = [];
+async function cargarCuentas() {
+  const { data } = await sb.from("cuentas_corporativas").select("*").order("razon_social");
+  cuentas = data || [];
+}
+function verClientes(emp) {
+  $("cl-ver-per").classList.toggle("on", !emp); $("cl-ver-emp").classList.toggle("on", emp);
+  $("cl-ficha").hidden = true; $("cl-lista").hidden = emp; $("em-lista").hidden = !emp;
+  if (emp) pintarEmpresas(); else pintarClientes();
+}
+$("cl-ver-per").addEventListener("click", () => verClientes(false));
+$("cl-ver-emp").addEventListener("click", async () => { await cargarCuentas(); verClientes(true); });
+function pintarEmpresas() {
+  $("em-tbody").innerHTML = cuentas.length ? cuentas.map(e => {
+    const pas = clientes.filter(c => c.cuenta_corporativa_id === e.id).length;
+    const sv = cobros.filter(x => x.cuenta_corporativa_id === e.id && x.estado !== "cancelada");
+    const tot = sv.reduce((a, x) => a + (x.total || 0), 0), pend = sv.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
+    return `<tr data-e="${esc(e.id)}" style="cursor:pointer"><td><b>${esc(e.razon_social)}</b>${e.activa ? "" : ' <span class="muted small">(inactiva)</span>'}<br><span class="muted small">${esc([e.rut, e.contacto].filter(Boolean).join(" · "))}</span></td><td>${pas}</td><td>${sv.length}</td><td>${clp(tot)}</td><td>${pend ? `<b class="warn">${clp(pend)}</b>` : clp(0)}</td></tr>`;
+  }).join("") : '<tr><td colspan="5" class="muted">Aún no hay empresas. Cree la primera con "+ Nueva empresa".</td></tr>';
+  $("em-tbody").querySelectorAll("tr[data-e]").forEach(tr => tr.addEventListener("click", () => fichaEmpresa(tr.dataset.e)));
+}
+$("em-nueva").addEventListener("click", () => { $("em-form").hidden = false; $("em-rs").focus(); });
+$("em-cancel").addEventListener("click", () => { $("em-form").hidden = true; $("em-form").reset(); });
+$("em-form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const rs = $("em-rs").value.trim(); if (!rs) return msg("em-msg", "Escriba la razón social.", "err");
+  const { error } = await sb.from("cuentas_corporativas").insert({ empresa_id: yo.empresa_id, razon_social: rs, rut: $("em-rut").value.trim() || null, contacto: $("em-con").value.trim() || null, correo_facturacion: $("em-mail").value.trim().toLowerCase() || null, dias_pago: Number($("em-dias").value) || 30 });
+  if (error) return msg("em-msg", errText(error), "err");
+  $("em-form").reset(); $("em-form").hidden = true; await cargarCuentas(); pintarEmpresas();
+});
+function fichaEmpresa(id) {
+  const e = cuentas.find(x => x.id === id); if (!e) return;
+  const admin = yo.rol === "admin";
+  const [y, m] = hoyChile().split("-");
+  $("em-lista").hidden = true; $("cl-ficha").hidden = false;
+  const pasajeros = () => clientes.filter(c => c.cuenta_corporativa_id === e.id);
+  $("cl-ficha").innerHTML = `
+    <div class="actions"><button class="btn ghost sm" id="ef-volver" type="button">◀ Volver a empresas</button></div>
+    <h2 style="margin-top:10px">${esc(e.razon_social)}</h2>
+    <div class="row3">
+      <div class="f"><label for="ef-rut">RUT</label><input id="ef-rut" value="${esc(e.rut || "")}" maxlength="20"></div>
+      <div class="f"><label for="ef-con">Contacto</label><input id="ef-con" value="${esc(e.contacto || "")}" maxlength="200"></div>
+      <div class="f"><label for="ef-mail">Correo de facturación</label><input id="ef-mail" type="email" value="${esc(e.correo_facturacion || "")}" maxlength="200"></div>
+    </div>
+    <div class="row3">
+      <div class="f"><label for="ef-dias">Días de pago</label><input id="ef-dias" type="number" min="0" max="120" value="${esc(e.dias_pago ?? 30)}"></div>
+      <div class="f"><label class="chk" style="margin-top:28px"><input type="checkbox" id="ef-activa" ${e.activa ? "checked" : ""}> Convenio activo</label></div>
+      <div class="f" style="align-self:end"><button class="btn ghost" id="ef-save" type="button">Guardar datos</button></div>
+    </div>
+    <h3 style="margin:8px 0 0">Pasajeros autorizados</h3>
+    <p class="muted small" style="margin:0">Las reservas nuevas de estas personas se cobran a la empresa.</p>
+    <div id="ef-pas" class="chips"></div>
+    <div class="f" style="position:relative;max-width:420px"><label for="ef-buscar">Agregar pasajero (cliente registrado)</label><input id="ef-buscar" placeholder="Nombre, teléfono o correo" autocomplete="off"><div id="ef-sug" class="sug" hidden></div></div>
+    <h3 style="margin:10px 0 0">Servicios</h3>
+    <div class="row3">
+      <div class="f"><label for="cf-desde">Desde</label><input id="cf-desde" type="date" value="${y}-${m}-01"></div>
+      <div class="f"><label for="cf-hasta">Hasta</label><input id="cf-hasta" type="date"></div>
+      <div class="f"><label for="cf-ver">Mostrar</label><select id="cf-ver"><option value="todos">Todos (pagados y pendientes)</option><option value="pend">Pendientes de pago</option></select></div>
+    </div>
+    <div id="cf-res" class="small"></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr>${admin ? '<th><input type="checkbox" id="cf-all" aria-label="Seleccionar todos"></th>' : ""}<th>Fecha</th><th>Código</th><th>Pasajero</th><th>Centro de costo</th><th>Trayecto</th><th>Total</th><th>Pago</th></tr></thead><tbody id="cf-tbody"></tbody></table></div>
+    <div id="ef-cc" class="small"></div>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn" id="cf-xlsx" type="button">Descargar planilla Excel (para facturar)</button>
+      <button class="btn ghost" id="cf-mail" type="button">Cobrar por correo</button>
+      ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
+    </div>
+    <div id="cf-msg" class="msg" hidden></div>`;
+  $("ef-volver").onclick = () => { $("cl-ficha").hidden = true; $("em-lista").hidden = false; pintarEmpresas(); };
+  $("ef-save").onclick = async () => {
+    const v = { rut: $("ef-rut").value.trim() || null, contacto: $("ef-con").value.trim() || null, correo_facturacion: $("ef-mail").value.trim().toLowerCase() || null, dias_pago: Number($("ef-dias").value) || 30, activa: $("ef-activa").checked };
+    const { error } = await sb.from("cuentas_corporativas").update(v).eq("id", e.id);
+    if (error) return msg("cf-msg", errText(error), "err");
+    Object.assign(e, v); msg("cf-msg", "Datos de la empresa guardados.", "ok");
+  };
+  const pintarPas = () => {
+    const ps = pasajeros();
+    $("ef-pas").innerHTML = ps.length ? ps.map(c => `<span class="chip">${esc(c.nombre)} <button type="button" class="linkbtn" data-q="${esc(c.id)}" aria-label="Quitar a ${esc(c.nombre)}">✕</button></span>`).join("") : '<span class="muted small">Aún no hay pasajeros asociados.</span>';
+    $("ef-pas").querySelectorAll("[data-q]").forEach(b => b.onclick = async () => {
+      const { error } = await sb.from("clientes").update({ cuenta_corporativa_id: null }).eq("id", b.dataset.q);
+      if (error) return msg("cf-msg", errText(error), "err");
+      clientes.find(c => c.id === b.dataset.q).cuenta_corporativa_id = null; pintarPas();
+    });
+  };
+  $("ef-buscar").addEventListener("input", ev => {
+    const n = norm(ev.target.value).trim(), d = tel8(ev.target.value);
+    const lista = n.length < 2 && d.length < 4 ? [] : clientes.filter(c => c.cuenta_corporativa_id !== e.id && (norm(c.nombre).includes(n) || (c.correo && norm(c.correo).includes(n)) || (d.length >= 4 && tel8(c.telefono).includes(d)))).slice(0, 8);
+    $("ef-sug").hidden = !lista.length;
+    $("ef-sug").innerHTML = lista.map(c => `<button type="button" data-c="${esc(c.id)}"><b>${esc(c.nombre)}</b> <span class="muted small">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}${c.cuenta_corporativa_id ? " · ya en otra empresa" : ""}</span></button>`).join("");
+    $("ef-sug").querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
+      const { error } = await sb.from("clientes").update({ cuenta_corporativa_id: e.id }).eq("id", b.dataset.c);
+      if (error) return msg("cf-msg", errText(error), "err");
+      clientes.find(c => c.id === b.dataset.c).cuenta_corporativa_id = e.id;
+      $("ef-buscar").value = ""; $("ef-sug").hidden = true; pintarPas();
+    });
+  });
+  const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+  const filtrar = () => {
+    const d = $("cf-desde").value, h = $("cf-hasta").value, ver = $("cf-ver").value;
+    return cobros.filter(x => x.cuenta_corporativa_id === e.id && x.estado !== "cancelada" && (!d || dia(x.fecha_hora) >= d) && (!h || dia(x.fecha_hora) <= h) && (ver === "todos" || !x.pagado))
+      .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
+  };
+  const porCentro = rows => { const mm = new Map(); rows.forEach(x => { const k = x.centro_costo || "Sin centro de costo"; const v = mm.get(k) || { n: 0, t: 0 }; v.n++; v.t += x.total || 0; mm.set(k, v); }); return [...mm.entries()].sort((a, b) => b[1].t - a[1].t); };
+  const pintar = () => {
+    const rows = filtrar();
+    $("cf-tbody").innerHTML = rows.length ? rows.map(x => `<tr>${admin ? `<td>${x.pagado ? "" : `<input type="checkbox" class="cf-sel" value="${esc(x.id)}" aria-label="Seleccionar ${esc(x.codigo)}">`}</td>` : ""}
+      <td>${esc(fecha(x.fecha_hora))}</td><td class="code">${esc(x.codigo)}<br>${pill(x.estado)}</td><td>${esc(x.nombre_pasajero)}</td><td>${esc(x.centro_costo || "—")}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td>${clp(x.total)}</td>
+      <td>${x.pagado ? '<span class="pill s-ok">Pagado</span>' : '<span class="pill s-new">Pendiente</span>'}</td></tr>`).join("") : `<tr><td colspan="8" class="muted">No hay servicios en este período.</td></tr>`;
+    const tot = rows.reduce((a, x) => a + (x.total || 0), 0), pend = rows.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
+    $("cf-res").innerHTML = `${rows.length} servicio(s) · total ${clp(tot)} · <b>pendiente ${clp(pend)}</b>`;
+    const pc = porCentro(rows);
+    $("ef-cc").innerHTML = pc.length ? "<b>Por centro de costo:</b> " + pc.map(([k, v]) => `${esc(k)} ${clp(v.t)} (${v.n})`).join(" · ") : "";
+  };
+  ["cf-desde", "cf-hasta", "cf-ver"].forEach(i => $(i).addEventListener("change", pintar));
+  $("cf-all")?.addEventListener("change", ev => $("cf-tbody").querySelectorAll(".cf-sel").forEach(x => x.checked = ev.target.checked));
+  $("cf-pagar")?.addEventListener("click", async () => {
+    const ids = [...$("cf-tbody").querySelectorAll(".cf-sel:checked")].map(x => x.value);
+    if (!ids.length) return msg("cf-msg", "Seleccione los servicios pagados.", "err");
+    const { data, error } = await sb.rpc("marcar_pagado", { p_reservas: ids, p_pagado: true, p_medio: $("cf-medio").value, p_fecha: null });
+    if (error) return msg("cf-msg", errText(error), "err");
+    msg("cf-msg", `${data} servicio(s) marcados como pagados.`, "ok");
+    const { data: vs } = await sb.from("v_cobro").select("*").eq("cuenta_corporativa_id", e.id);
+    cobros = cobros.filter(x => x.cuenta_corporativa_id !== e.id).concat(vs || []); pintar();
+  });
+  const comoCliente = rows => ({ nombre: e.razon_social, rut: e.rut, telefono: e.contacto, correo: e.correo_facturacion,
+    porCentro: porCentro(rows).map(([k, v]) => [k, `${v.n} servicio(s)`, v.t]) });
+  $("cf-xlsx").addEventListener("click", () => { const rows = filtrar(); planilla(comoCliente(rows), rows, $("cf-desde").value, $("cf-hasta").value); });
+  $("cf-mail").addEventListener("click", () => {
+    const pend = filtrar().filter(x => !x.pagado);
+    if (!pend.length) return msg("cf-msg", "No hay servicios pendientes en el período.", "err");
+    if (!e.correo_facturacion) return msg("cf-msg", "Agregue el correo de facturación de la empresa y guarde.", "err");
+    const tot = pend.reduce((a, x) => a + (x.total || 0), 0);
+    const t = `Estimados ${e.razon_social}:\n\nAdjuntamos el detalle de ${pend.length} servicio(s) de transporte pendientes de pago, por un total de ${clp(tot)}` +
+      `${e.dias_pago ? `, con pago a ${e.dias_pago} días según convenio` : ""}.\n\n` + porCentro(pend).map(([k, v]) => `• ${k}: ${clp(v.t)} (${v.n} servicio(s))`).join("\n") +
+      `\n\nQuedamos atentos a cualquier consulta.\n\nFlota-K · Comprometidos con su traslado\nWhatsApp +56 9 2227 5399 · gerencia@fk-servicios.com`;
+    location.href = "mailto:" + encodeURIComponent(e.correo_facturacion) + "?subject=" + encodeURIComponent("Flota-K · Servicios pendientes de pago · " + e.razon_social) + "&body=" + encodeURIComponent(t + "\n\n(Adjunte la planilla Excel descargada desde el panel)");
+  });
+  pintarPas(); pintar();
+}
+
 // ---- Nueva reserva: clientes registrados (se completan sus datos)
 let baseClientes = [], clienteSel = null;
 const norm = t => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const tel8 = t => (t || "").replace(/\D/g, "").slice(-8);
 async function cargarBaseClientes() {
-  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo").order("nombre").limit(5000);
+  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id").order("nombre").limit(5000);
   baseClientes = data || [];
 }
 function buscarClientes(q) {
@@ -1047,6 +1203,9 @@ function pintarSugerencias(lista) {
 async function elegirCliente(id) {
   const c = baseClientes.find(x => x.id === id); if (!c) return;
   clienteSel = c.id;
+  if (!cuentas.length) await cargarCuentas();
+  const emp = cuentas.find(x => x.id === c.cuenta_corporativa_id);
+  $("n-emp").innerHTML = emp ? `Se cobra a la empresa: <b>${esc(emp.razon_social)}</b>` : "";
   $("n-nombre").value = c.nombre || ""; $("n-tel").value = c.telefono || ""; $("n-mail").value = c.correo || "";
   $("n-buscar").value = ""; pintarSugerencias([]);
   // Último servicio del cliente: preferencias y trayecto para repetir
@@ -1075,7 +1234,7 @@ async function elegirCliente(id) {
   };
   $("n-mismo")?.addEventListener("click", () => usar(r.origen, r.destino, false));
   $("n-inv")?.addEventListener("click", () => usar(r.destino, r.origen, true));
-  $("n-quitar").addEventListener("click", () => { clienteSel = null; $("n-cli").hidden = true; });
+  $("n-quitar").addEventListener("click", () => { clienteSel = null; $("n-cli").hidden = true; $("n-emp").innerHTML = ""; });
 }
 $("n-buscar").addEventListener("input", e => pintarSugerencias(buscarClientes(e.target.value)));
 $("n-buscar").addEventListener("keydown", e => { if (e.key === "Escape") pintarSugerencias([]); });
@@ -1125,10 +1284,11 @@ $("nf").addEventListener("submit", async e => {
     comentarios: $("n-com").value.trim() || null, estado: "confirmada"
   };
   if (clienteSel) fila.cliente_id = clienteSel;
+  if ($("n-cc").value.trim()) fila.centro_costo = $("n-cc").value.trim();
   const { data, error } = await sb.from("reservas").insert(fila).select("codigo").single();
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", `Reserva ${data.codigo} guardada como confirmada.`, "ok");
-  $("nf").reset(); clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true;
+  $("nf").reset(); clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
 });
 
 // ---- Equipo y roles (solo admin)
