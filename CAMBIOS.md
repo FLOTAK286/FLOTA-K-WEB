@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Cierre diario de vehículos propios de Flota-K (pendiente de publicar)
+- Base de datos (`etapa14_cierre_diario_vehiculos_propios`): marca **vehículo propio** (por defecto sí; a los prestadores se les quita); tabla de cierres diarios (odómetro, Cabify: ingreso/viajes/peajes, otras apps, combustible, otros gastos, notas); `guardar_cierre` solo funciona con el vehículo fijo del conductor si es propio (hoy o últimos 7 días; corrige si ya existe). Probado: bloquea km negativos, fechas antiguas y vehículos de prestador.
+- **App del conductor → Billetera → "Cierre del día"** (solo si su vehículo es propio; los prestadores no lo ven): odómetro (sugiere el último), Cabify, otras apps y gastos; Flota-K se suma solo (servicios finalizados del día y sus TAG/peajes). Muestra km, ingresos (% Flota-K y apps), gastos directos, **costo/km, ingreso/km, ganancia/km** y el resultado con el **costo de referencia $410/km**.
+- **Panel → Reportes → "Cierres diarios"**: totales del período y tabla por día y vehículo, con descarga en Excel. **Flota**: casilla "Propio de Flota-K (cierre diario)" en cada vehículo.
+- Los montos negativos se muestran como "-$7.500".
+
 ## 9 nov 2026 · Portal del propietario de vehículos (pendiente de publicar)
 - Base de datos (`etapa13_rol_propietario`, `etapa13_portal_propietario`): rol nuevo **propietario**; cada vehículo puede tener propietario y **comisión de Flota-K (%)**. Funciones `propietario_vehiculos` y `propietario_servicios` (solo sus vehículos; trayecto por comuna; sin nombre ni teléfono de pasajeros). Probado: el dueño ve lo suyo y un usuario ajeno no ve nada.
 - Página nueva **fk-servicios.com/propietario**: vehículos con foto, conductor, estado de documentos y comisión; totales del período (servicios, total generado, le corresponde, comisión, clientes por pagar, km taxímetro); gráficos por vehículo, conductor y tipo de servicio; tabla de servicios; **liquidación en Excel**.

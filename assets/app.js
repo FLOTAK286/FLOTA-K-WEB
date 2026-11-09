@@ -21,7 +21,7 @@
   const SERVICIOS = { ida: "Ida al aeropuerto", regreso: "Regreso desde el aeropuerto", ida_vuelta: "Ida y vuelta", punto_a_punto: "Punto a punto", por_hora: "Por hora" };
 
   const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-  const clp = n => (n == null || n === "") ? "—" : "$" + Number(n).toLocaleString("es-CL");
+  const clp = n => (n == null || n === "") ? "—" : (Number(n) < 0 ? "-$" : "$") + Math.abs(Number(n)).toLocaleString("es-CL");
   const fecha = iso => iso ? new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
   const pill = e => { const x = ESTADOS[e] || { t: e, c: "" }; return `<span class="pill ${x.c}">${esc(x.t)}</span>`; };
   const errText = e => (e && (e.message || e.error_description)) || "Ocurrió un error. Intente de nuevo.";

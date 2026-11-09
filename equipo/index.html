@@ -218,6 +218,10 @@
         <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
       </div>
       <div id="rp-body"><p class="muted">Cargando…</p></div>
+      <h2 style="margin:10px 0 0">Cierres diarios · vehículos propios de Flota-K</h2>
+      <p class="muted small" style="margin:0">Lo que registra cada conductor al terminar el día (odómetro, Cabify, otras apps y gastos) más lo de Flota-K, que se suma solo. Costo de referencia: $410 por km (incluye combustible y mantención).</p>
+      <div id="rp-cierres"><p class="muted">Cargando…</p></div>
+      <div class="actions"><button class="btn ghost" id="rp-cierres-xlsx" type="button">Descargar cierres (Excel)</button></div>
     </div>
 
     <div data-pane="clientes" class="panel" style="margin-top:14px" hidden>
@@ -866,6 +870,7 @@ async function cargarFlota() {
           <label class="btn ghost sm">Foto<input type="file" accept="image/*" class="v-foto-in" hidden></label><button class="btn ghost sm v-doc" type="button">+ Documento</button>
           <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div>
         <div class="actions small" style="margin-top:4px"><label>Propietario <select class="v-prop" aria-label="Propietario de ${esc(v.patente)}"><option value="">Flota-K (propio)</option>${flTodos.map(p => `<option value="${p.id}" ${p.id === v.propietario_id ? "selected" : ""}>${esc(p.nombre)}${p.rol === "propietario" ? "" : " (" + esc(ROLES[p.rol] || p.rol) + ")"}</option>`).join("")}</select></label>
+          <label class="chk"><input type="checkbox" class="v-propio" ${v.propio !== false ? "checked" : ""}> Propio de Flota-K (cierre diario)</label>
           <label>Comisión Flota-K <input class="v-com" type="number" min="0" max="100" step="0.5" value="${v.comision_pct ?? ""}" placeholder="%" style="width:70px;padding:4px 6px"> %</label></div></div></div>`).join("") || '<p class="muted">Aún no hay vehículos.</p>';
   $("fl-vehs").querySelectorAll(".fl-card").forEach(card => {
     const v = flVehs.find(x => x.id === card.dataset.v);
@@ -876,6 +881,10 @@ async function cargarFlota() {
     card.querySelector(".v-prop").addEventListener("change", async ev => {
       const { error } = await sb.from("vehiculos").update({ propietario_id: ev.target.value || null }).eq("id", v.id);
       msg("v-msg", error ? errText(error) : `${v.patente}: propietario actualizado. Verá este vehículo en fk-servicios.com/propietario.`, error ? "err" : "ok");
+    });
+    card.querySelector(".v-propio").addEventListener("change", async ev => {
+      const { error } = await sb.from("vehiculos").update({ propio: ev.target.checked }).eq("id", v.id);
+      msg("v-msg", error ? errText(error) : `${v.patente}: ${ev.target.checked ? "vehículo propio de Flota-K (su conductor verá el cierre diario)" : "vehículo de prestador (sin cierre diario)"}.`, error ? "err" : "ok");
     });
     card.querySelector(".v-com").addEventListener("change", async ev => {
       const n = ev.target.value === "" ? null : Math.max(0, Math.min(100, Number(ev.target.value)));
@@ -1033,13 +1042,14 @@ async function cargarReportes() {
   const { desde, hasta, txt } = rangoReporte();
   $("rp-body").innerHTML = '<p class="muted">Cargando…</p>';
   const [{ data: rs, error }, { data: vs }] = await Promise.all([
-    sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000),
+    sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros, vehiculo_id").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000),
     sb.from("v_cobro").select("id, total, gastos, pagado").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000)
   ]);
   if (error) { $("rp-body").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const tot = new Map((vs || []).map(v => [v.id, v]));
   const filas = (rs || []).map(r => ({ ...r, total: (tot.get(r.id) || {}).total || 0, gastos: (tot.get(r.id) || {}).gastos || 0, pagado: (tot.get(r.id) || {}).pagado }));
   const ok = filas.filter(r => r.estado !== "cancelada"), fin = ok.filter(r => r.estado === "finalizada");
+  pintarCierres(desde, hasta, filas);
   rpFilas = ok;
   const suma = a => a.reduce((s, r) => s + (r.total || 0), 0);
   const ingreso = suma(fin), porCobrar = suma(ok.filter(r => !r.pagado)), cobrado = suma(ok.filter(r => r.pagado));
@@ -1073,9 +1083,47 @@ async function cargarReportes() {
       ${barras("Por conductor", agrupar(ok, r => r.derivado_a ? "red:" + r.derivado_a : r.conductor_id, k => k.startsWith("red:") ? "Red: " + k.slice(4) : (nombreConductor(k) || "Sin asignar")))}
       ${barras("Mejores clientes", agrupar(ok, r => r.cliente_id, k => cliNom[k] || "—"), 10)}
     </div>
-    <p class="muted small">Ingresos y ticket consideran servicios finalizados. Canal, tipo, conductor y clientes consideran todo servicio no cancelado del período (valor registrado). El costo operativo usa $410 por km recorrido con taxímetro.</p>`;
+    ${""}<p class="muted small">Ingresos y ticket consideran servicios finalizados. Canal, tipo, conductor y clientes consideran todo servicio no cancelado del período (valor registrado). El costo operativo usa $410 por km recorrido con taxímetro.</p>`;
 }
 $("rp-per").addEventListener("change", cargarReportes);
+// Cierres diarios (solo vehículos propios)
+let rpCierres = [];
+async function pintarCierres(desde, hasta, filas) {
+  const d0 = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(desde)), d1 = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(new Date(hasta).getTime() - 1000));
+  const { data: cs, error } = await sb.from("cierres_diarios").select("*").gte("fecha", d0).lte("fecha", d1).order("fecha", { ascending: false });
+  if (error) { $("rp-cierres").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+  rpCierres = (cs || []).map(c => {
+    const fk = filas.filter(r => r.estado === "finalizada" && r.vehiculo_id === c.vehiculo_id && dia(r.fecha_hora) === c.fecha);
+    const ingFK = fk.reduce((a, r) => a + (r.total || 0), 0), gasFK = fk.reduce((a, r) => a + (r.gastos || 0), 0);
+    const ing = ingFK + c.cabify_ingreso + c.otras_ingreso, costos = gasFK + c.cabify_peajes + c.combustible + c.otros_gastos;
+    const ref = ing - c.km_recorridos * 410 - gasFK - c.cabify_peajes;
+    return { c, nFK: fk.length, ingFK, gasFK, ing, costos, gan: ing - costos, ref, patente: (vehiculos.find(v => v.id === c.vehiculo_id) || {}).patente || "—", cond: etiquetaConductor(c.conductor_id) || "—" };
+  });
+  if (!rpCierres.length) { $("rp-cierres").innerHTML = '<p class="muted">Aún no hay cierres en este período. Los conductores de vehículos propios lo hacen en su app: Billetera → Cierre del día.</p>'; return; }
+  const T = k => rpCierres.reduce((a, x) => a + (typeof k === "function" ? k(x) : x[k]), 0);
+  const km = T(x => x.c.km_recorridos), pk = (v, kk) => kk ? clp(Math.round(v / kk)) : "—";
+  $("rp-cierres").innerHTML = `
+    <div class="rp-kpis">
+      <div class="pay"><small class="muted">Km totales</small><b>${km.toLocaleString("es-CL")}</b><span class="small muted">${rpCierres.length} cierre(s)</span></div>
+      <div class="pay"><small class="muted">Ingresos</small><b>${clp(T("ing"))}</b><span class="small muted">Flota-K ${clp(T("ingFK"))} · Cabify ${clp(T(x => x.c.cabify_ingreso))} · otras ${clp(T(x => x.c.otras_ingreso))}</span></div>
+      <div class="pay"><small class="muted">Gastos directos</small><b>${clp(T("costos"))}</b><span class="small muted">costo ${pk(T("costos"), km)}/km</span></div>
+      <div class="pay"><small class="muted">Ganancia</small><b>${clp(T("gan"))}</b><span class="small muted">ingreso ${pk(T("ing"), km)}/km · ganancia ${pk(T("gan"), km)}/km</span></div>
+      <div class="pay"><small class="muted">Con costo de referencia $410/km</small><b class="${T("ref") < 0 ? "warn" : ""}">${clp(T("ref"))}</b><span class="small muted">${pk(T("ref"), km)}/km</span></div>
+    </div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Día</th><th>Vehículo</th><th>Conductor</th><th>Km</th><th>Flota-K</th><th>Cabify</th><th>Otras</th><th>Gastos</th><th>Ganancia</th><th>Costo/km</th><th>Ganancia/km</th><th>Ref. $410/km</th></tr></thead><tbody>
+    ${rpCierres.map(x => `<tr><td>${esc(new Date(x.c.fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" }))}</td><td>${esc(x.patente)}</td><td>${esc(x.cond)}</td><td>${x.c.km_recorridos}</td>
+      <td>${clp(x.ingFK)} <span class="muted small">(${x.nFK})</span></td><td>${clp(x.c.cabify_ingreso)} <span class="muted small">(${x.c.cabify_viajes})</span></td><td>${clp(x.c.otras_ingreso)}</td><td>${clp(x.costos)}</td><td><b>${clp(x.gan)}</b></td>
+      <td>${pk(x.costos, x.c.km_recorridos)}</td><td>${pk(x.gan, x.c.km_recorridos)}</td><td class="${x.ref < 0 ? "warn" : ""}">${clp(x.ref)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+$("rp-cierres-xlsx").addEventListener("click", () => {
+  if (!window.XLSX || !rpCierres.length) return;
+  const aoa = [["Día", "Vehículo", "Conductor", "Odómetro inicio", "Odómetro fin", "Km", "Servicios Flota-K", "Ingreso Flota-K", "Gastos Flota-K (TAG/peajes)", "Viajes Cabify", "Ingreso Cabify", "Peajes Cabify", "Otras apps", "Ingreso otras", "Combustible", "Otros gastos", "Ingresos", "Gastos directos", "Ganancia", "Costo/km", "Ganancia/km", "Resultado con $410/km", "Notas"],
+    ...rpCierres.map(x => [x.c.fecha, x.patente, x.cond, x.c.km_inicio, x.c.km_fin, x.c.km_recorridos, x.nFK, x.ingFK, x.gasFK, x.c.cabify_viajes, x.c.cabify_ingreso, x.c.cabify_peajes, x.c.otras_detalle || "", x.c.otras_ingreso, x.c.combustible, x.c.otros_gastos, x.ing, x.costos, x.gan,
+      x.c.km_recorridos ? Math.round(x.costos / x.c.km_recorridos) : "", x.c.km_recorridos ? Math.round(x.gan / x.c.km_recorridos) : "", x.ref, x.c.notas || ""])];
+  const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
+  XLSX.utils.book_append_sheet(wb, ws, "Cierres"); XLSX.writeFile(wb, `Flota-K_cierres_${hoyChile()}.xlsx`);
+});
 $("rp-xlsx").addEventListener("click", () => {
   if (!window.XLSX || !rpFilas.length) return;
   const aoa = [["Fecha", "Código", "Estado", "Canal", "Servicio", "Pasajero", "Conductor / red", "Total", "Gastos", "Pagado"],
