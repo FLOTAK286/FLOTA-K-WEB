@@ -5,6 +5,14 @@
 - Llave de firma de la app Android en GitHub (secretos FK_KEYSTORE_PASS y FK_KEYSTORE_B64).
 - Enlace de reseñas de la ficha de Google (`resenaGoogle` en `assets/config.js`).
 
+## 9 nov 2026 · Flota, documentos y app del conductor con perfil (pendiente de publicar)
+- Base de datos (`etapa8_vehiculos_documentos_conductor`): vehículo con marca, modelo, año, color y foto; foto y teléfono del conductor; tabla de documentos con vencimiento y estado (pendiente, aprobado, rechazado); archivos en Supabase Storage (`fotos` público, `documentos` privado); conductor conectado/desconectado; chat del conductor con la central. Probado con datos que se deshacen.
+- Panel, pestaña **Flota** (administrador): tarjetas de conductores (foto, conectado, teléfono, vehículo, estado de documentos) y vehículos (foto, conductor fijo, documentos, dar de baja). Agregar vehículo con **marca autocompletada, modelos de esa marca, año y color de lista** y foto. Tabla de documentos con filtros (vencidos o por vencer, por revisar), ver archivo, aprobar o rechazar. Aviso arriba si hay documentos vencidos o por revisar. Las fotos se achican antes de subir.
+- Panel, pestaña **Central**: mensajes de los conductores con contador de no leídos; el despacho responde desde ahí.
+- Mapa en vivo: los conductores desconectados aparecen en gris como "Desconectado".
+- App del conductor: botón **Conectado / Desconectado** (desconectado no comparte ubicación, salvo con un servicio en curso; al cerrar sesión se desconecta). Pestaña **Billetera** (antes Ganancias). Pestaña **Perfil**: foto, teléfono, calificación, su vehículo con documentos, **sus documentos y "Subir documento"** (queda en revisión), **chat con la central** (con aviso de mensajes nuevos), llamar a la central, cambiar contraseña y cerrar sesión.
+- El enlace del pasajero no cambió por ahora (decisión del dueño).
+
 ## 9 nov 2026 · Cuentas de empresa (pendiente de publicar)
 - Base de datos (`etapa7_cuentas_empresa`): cada reserva guarda la empresa a la que se cobra (se toma del pasajero al crearla) y un **centro de costo**; la empresa tiene días de pago y si el convenio está activo. Probado con datos que se deshacen.
 - "Clientes y cobros" ahora tiene **Personas / Empresas**. En Empresas: crear empresa (razón social, RUT, contacto, correo de facturación, días de pago), **pasajeros autorizados** (buscar y agregar o quitar), servicios del período con su centro de costo, resumen por centro de costo, marcar pagados, **planilla Excel para facturar** (con RUT y resumen por centro de costo) y "Cobrar por correo" al correo de facturación.

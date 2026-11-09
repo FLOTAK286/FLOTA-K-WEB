@@ -84,11 +84,13 @@
 
   <section id="app" hidden>
     <div class="sticky-top">
-      <div><h1 style="font-size:1.6rem">Mis servicios</h1><p class="muted small" id="who"></p></div>
+      <div><h1 style="font-size:1.6rem">Mis servicios</h1><p class="muted small" id="who"></p>
+        <button type="button" class="conexion" id="con" aria-pressed="false"><span class="sw"></span><span id="con-txt">Desconectado</span></button></div>
       <div class="tabs" role="tablist" style="border:0">
         <button role="tab" data-v="hoy" aria-selected="true">Hoy</button>
         <button role="tab" data-v="prox" aria-selected="false">Próximos</button>
-        <button role="tab" data-v="gan" aria-selected="false">Ganancias</button>
+        <button role="tab" data-v="gan" aria-selected="false">Billetera</button>
+        <button role="tab" data-v="perfil" aria-selected="false">Perfil <span class="badge" id="b-central" hidden></span></button>
       </div>
     </div>
     <div class="panel install" id="upd" hidden style="margin-top:12px">
@@ -150,23 +152,24 @@ $("login-form").addEventListener("submit", async e => {
   const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
 });
-$("logout").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+$("logout").addEventListener("click", async () => { if (yo && yo.disponible) await sb.rpc("conductor_disponible", { p_disponible: false }); await sb.auth.signOut(); location.reload(); });
 $("reload").addEventListener("click", () => cargar());
 
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
-  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce").eq("id", session.user.id).maybeSingle();
+  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path").eq("id", session.user.id).maybeSingle();
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; window.__fkListo = true; return; }
   yo = data; window.__fkListo = true;
-  const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, conductor_habitual");
+  const { data: vs } = await sb.from("vehiculos").select("*");
   const { data: emp } = await sb.from("empresas").select("taxi_bajada, taxi_cada_200m, taxi_cada_60s, valor_tag").limit(1).maybeSingle();
   tar = emp || { taxi_bajada: 2400, taxi_cada_200m: 180, taxi_cada_60s: 180, valor_tag: 900 };
   (vs || []).forEach(v => vehiculos[v.id] = v);
   const mio = (vs || []).find(v => v.conductor_habitual === yo.id);
   $("who").textContent = yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
-  cargar();
+  pintarConexion();
+  cargar(); revisarCentral(); setInterval(revisarCentral, 20000);
   iniciarGPS();
   revisarVersionApp(); setInterval(revisarVersionApp, 6 * 3600e3);
   setInterval(cargar, 60000);
@@ -189,8 +192,9 @@ async function cargar() {
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   items = data || [];
+  if (enServicio()) enviarUbicacion(); // con un servicio en curso se comparte aunque esté desconectado
   await cargarCalificaciones(); revisarMensajes();
-  if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
+  if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
   pintar();
 }
@@ -278,8 +282,135 @@ async function pintarGanancias() {
     <p class="small muted">Montos de lo cobrado al cliente (valor del servicio más gastos como TAG, peajes o estacionamiento). Servicios cancelados no se cuentan.</p>`;
 }
 
+// ---- Conectado / desconectado: desconectado no recibe servicios nuevos ni comparte ubicación (salvo un servicio en curso)
+function pintarConexion() {
+  $("con").setAttribute("aria-pressed", String(!!yo.disponible));
+  $("con").classList.toggle("on", !!yo.disponible);
+  $("con-txt").textContent = yo.disponible ? "Conectado · recibiendo servicios" : "Desconectado · toque para conectarse";
+}
+$("con").addEventListener("click", async () => {
+  const nuevo = !yo.disponible;
+  $("con").disabled = true;
+  const { error } = await sb.rpc("conductor_disponible", { p_disponible: nuevo });
+  $("con").disabled = false;
+  if (error) return alert(errText(error));
+  yo.disponible = nuevo; pintarConexion();
+  if (navigator.vibrate) navigator.vibrate(40);
+  if (nuevo) { gpsBloqueado = false; iniciarGPS(); enviarUbicacion(true); } else if (!enServicio()) gpsEstado("", "Desconectado: no está compartiendo su ubicación.");
+});
+
+// ---- Perfil: datos, vehículo, documentos, central y contraseña
+const DOCS = { licencia: "Licencia de conducir", cedula: "Cédula de identidad", antecedentes: "Certificado de antecedentes", hoja_vida: "Hoja de vida del conductor",
+  permiso_circulacion: "Permiso de circulación", revision_tecnica: "Revisión técnica", soap: "SOAP", seguro: "Seguro", padron: "Padrón", otro: "Otro" };
+const fotoUrl = path => path ? sb.storage.from("fotos").getPublicUrl(path).data.publicUrl : null;
+function estadoDoc(d) {
+  if (d.estado === "rechazado") return { c: "roja", t: "Rechazado: súbalo de nuevo" };
+  if (d.vence) { const dias = Math.floor((new Date(d.vence + "T23:59:59-03:00") - Date.now()) / 864e5);
+    if (dias < 0) return { c: "roja", t: `Vencido hace ${-dias} día(s)` }; if (dias <= 30) return { c: "amarilla", t: `Vence en ${dias} día(s)` }; }
+  if (d.estado === "pendiente") return { c: "gris", t: "En revisión" };
+  return { c: "verde", t: "Vigente" };
+}
+let centralChat = null, centralMsgs = [];
+const vistoCentral = () => { try { return Number(localStorage.getItem("fk_central_visto")) || 0; } catch (_) { return 0; } };
+async function revisarCentral() {
+  const { data } = await sb.from("soporte_mensajes").select("id, autor, texto, creado_en").eq("conductor_id", yo.id).order("id").limit(500);
+  const antes = centralMsgs.length; centralMsgs = data || [];
+  const nuevos = centralMsgs.filter(m => m.autor === "central" && m.id > vistoCentral());
+  if (vista === "perfil" && centralChat) { centralChat.pintar(centralMsgs.map(m => ({ ...m, autor: m.autor === "central" ? "despacho" : "conductor" }))); marcarCentralVisto(); return; }
+  $("b-central").hidden = !nuevos.length; $("b-central").textContent = nuevos.length;
+  if (nuevos.length && antes && centralMsgs.length > antes) {
+    if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+    if (LN) LN.schedule({ notifications: [{ id: 1900000000 + (nuevos[nuevos.length - 1].id % 99999999), title: "Central Flota-K", body: nuevos[nuevos.length - 1].texto }] }).catch(() => {});
+  }
+}
+function marcarCentralVisto() {
+  const ult = centralMsgs.reduce((a, m) => Math.max(a, m.id), 0);
+  try { localStorage.setItem("fk_central_visto", String(ult)); } catch (_) {}
+  $("b-central").hidden = true;
+}
+async function pintarPerfil() {
+  $("list").innerHTML = '<p class="muted">Cargando…</p>';
+  const veh = Object.values(vehiculos).find(v => v.conductor_habitual === yo.id && v.activo !== false);
+  const [{ data: docs }, { data: cs }] = await Promise.all([
+    sb.from("documentos").select("*").order("creado_en", { ascending: false }),
+    sb.from("calificaciones").select("estrellas").eq("conductor_id", yo.id).eq("autor", "pasajero")
+  ]);
+  if (vista !== "perfil") return;
+  const prom = cs && cs.length ? cs.reduce((a, c) => a + c.estrellas, 0) / cs.length : null;
+  const misDocs = (docs || []).filter(d => d.conductor_id === yo.id), docsVeh = (docs || []).filter(d => veh && d.vehiculo_id === veh.id);
+  const filaDoc = d => { const e = estadoDoc(d); return `<div class="doc-fila"><div><b>${esc(DOCS[d.tipo] || d.tipo)}</b>${d.numero ? ` <span class="muted small">${esc(d.numero)}</span>` : ""}<br><span class="small muted">${d.vence ? "Vence " + esc(new Date(d.vence + "T12:00:00").toLocaleDateString("es-CL")) : "Sin vencimiento"}</span></div><span class="alerta ${e.c}">${esc(e.t)}</span></div>`; };
+  $("list").innerHTML = `
+    <div class="svc perfil">
+      <div style="display:flex;gap:14px;align-items:center">
+        <div class="fl-foto">${yo.foto_path ? `<img src="${esc(fotoUrl(yo.foto_path))}" alt="Su foto">` : `<span>${esc(yo.nombre[0])}</span>`}</div>
+        <div><div class="who">${esc(yo.nombre)}</div><div class="small muted">${esc(yo.telefono || "")}</div>
+          ${prom != null ? `<div>${FKChat.fijas(Math.round(prom))} <b>${prom.toFixed(1).replace(".", ",")}</b> <span class="small muted">(${cs.length} calificación(es))</span></div>` : '<div class="small muted">Aún sin calificaciones</div>'}</div>
+      </div>
+      <p class="small muted" style="margin:0">La foto y el teléfono los actualiza la central.</p>
+    </div>
+    <div class="svc">
+      <b>Mi vehículo</b>
+      ${veh ? `<div style="display:flex;gap:12px;align-items:center">${veh.foto_path ? `<img class="foto-auto" src="${esc(fotoUrl(veh.foto_path))}" alt="Foto del vehículo">` : ""}
+        <div><div class="who">${esc([veh.marca, veh.modelo].filter(Boolean).join(" ") || veh.descripcion || "Vehículo")}</div><div class="small muted">${esc([veh.anio, veh.color].filter(Boolean).join(" · "))}</div><div class="code">${esc(veh.patente)}</div></div></div>
+        ${docsVeh.length ? docsVeh.map(filaDoc).join("") : '<p class="small muted" style="margin:0">La central aún no registra documentos de este vehículo.</p>'}`
+        : '<p class="small muted" style="margin:0">No tiene un vehículo fijo asignado. Lo asigna la central.</p>'}
+    </div>
+    <div class="svc">
+      <b>Mis documentos</b>
+      ${misDocs.length ? misDocs.map(filaDoc).join("") : '<p class="small muted" style="margin:0">Aún no hay documentos. Suba su licencia, cédula y certificado de antecedentes.</p>'}
+      <details class="subir-doc"><summary class="btn ghost">+ Subir documento</summary>
+        <div class="list" style="margin-top:8px">
+          <div class="f"><label for="pd-tipo">Documento</label><select id="pd-tipo">${["licencia", "cedula", "antecedentes", "hoja_vida", "otro"].map(t => `<option value="${t}">${esc(DOCS[t])}</option>`).join("")}</select></div>
+          <div class="f"><label for="pd-num">Número o clase (opcional)</label><input id="pd-num" maxlength="80"></div>
+          <div class="f"><label for="pd-vence">Fecha de vencimiento</label><input id="pd-vence" type="date"></div>
+          <div class="f"><label for="pd-arch">Foto o PDF del documento</label><input id="pd-arch" type="file" accept="image/*,application/pdf"></div>
+          <button class="btn" id="pd-ok" type="button">Enviar a revisión</button>
+        </div></details>
+    </div>
+    <div class="svc">
+      <b>Central Flota-K</b>
+      <span class="small muted">Escriba a la central: dudas, problemas en ruta, cambios. Para una urgencia, llame.</span>
+      <div id="central-box"></div>
+      <a class="btn ghost" href="tel:+56922275399">Llamar a la central</a>
+    </div>
+    <div class="svc">
+      <b>Seguridad</b>
+      <details><summary class="btn ghost">Cambiar contraseña</summary>
+        <div class="list" style="margin-top:8px"><div class="f"><label for="pw-n">Nueva contraseña (mínimo 8 caracteres)</label><input id="pw-n" type="password" autocomplete="new-password" minlength="8"></div>
+        <button class="btn" id="pw-ok" type="button">Guardar contraseña</button></div></details>
+      <button class="btn ghost" id="salir2" type="button">Cerrar sesión</button>
+    </div>
+    <div class="msg" id="pf-msg" hidden></div>`;
+  centralChat = FKChat.montar($("central-box"), { yo: "conductor", placeholder: "Escriba a la central", enviar: async t => {
+    const r = await sb.rpc("enviar_soporte", { p_texto: t }); if (!r.error) revisarCentral(); return r; } });
+  centralChat.pintar(centralMsgs.map(m => ({ ...m, autor: m.autor === "central" ? "despacho" : "conductor" }))); marcarCentralVisto();
+  $("pd-ok").addEventListener("click", async () => {
+    const f = $("pd-arch").files[0];
+    if (!f) return msg("pf-msg", "Adjunte una foto o PDF del documento.", "err");
+    if (f.size > 10 * 1024 * 1024) return msg("pf-msg", "El archivo supera 10 MB.", "err");
+    $("pd-ok").disabled = true;
+    try {
+      let b = f, ext = f.type === "application/pdf" ? "pdf" : "jpg";
+      if (ext === "jpg") { const img = await createImageBitmap(f); const k = Math.min(1, 1600 / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = img.width * k; c.height = img.height * k; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); b = await new Promise(r => c.toBlob(x => r(x || f), "image/jpeg", 0.85)); }
+      const path = `${yo.empresa_id}/${yo.id}/${$("pd-tipo").value}-${Date.now()}.${ext}`;
+      const up = await sb.storage.from("documentos").upload(path, b, { contentType: ext === "pdf" ? "application/pdf" : "image/jpeg" });
+      if (up.error) throw up.error;
+      const { error } = await sb.from("documentos").insert({ empresa_id: yo.empresa_id, conductor_id: yo.id, tipo: $("pd-tipo").value, numero: $("pd-num").value.trim() || null, vence: $("pd-vence").value || null, archivo_path: path, estado: "pendiente", creado_por: yo.id });
+      if (error) throw error;
+      await pintarPerfil(); msg("pf-msg", "Documento enviado. La central lo revisará.", "ok");
+    } catch (e) { msg("pf-msg", errText(e), "err"); $("pd-ok").disabled = false; }
+  });
+  $("pw-ok").addEventListener("click", async () => {
+    const pw = $("pw-n").value; if (pw.length < 8) return msg("pf-msg", "La contraseña debe tener al menos 8 caracteres.", "err");
+    const { error } = await sb.auth.updateUser({ password: pw });
+    msg("pf-msg", error ? errText(error) : "Contraseña cambiada.", error ? "err" : "ok");
+  });
+  $("salir2").addEventListener("click", async () => { if (yo.disponible) await sb.rpc("conductor_disponible", { p_disponible: false }); await sb.auth.signOut(); location.reload(); });
+}
+
 function pintar() {
   if (vista === "gan") return pintarGanancias();
+  if (vista === "perfil") return pintarPerfil();
   const hoy = diaKey(new Date().toISOString());
   // "Hoy" = lo de hoy más todo lo de las próximas 12 horas (vuelos de madrugada).
   const enHoy = r => diaKey(r.fecha_hora) === hoy || new Date(r.fecha_hora).getTime() < Date.now() + 12 * 3600e3;
@@ -465,6 +596,7 @@ function iniciarGPS() {
 }
 async function enviarUbicacion(forzar) {
   if (!ultimaPos || enviando) return;
+  if (yo && !yo.disponible && !enServicio()) { gpsEstado("", "Desconectado: no está compartiendo su ubicación. Conéctese para recibir servicios."); return; }
   const cada = enServicio() ? 15000 : 60000;
   if (!forzar && Date.now() - ultimoEnvio < cada) return;
   enviando = true;
