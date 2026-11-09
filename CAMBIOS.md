@@ -1,5 +1,14 @@
 # Cambios
 
+## 9 nov 2026 · Calificaciones y mensajes (pendiente de publicar)
+- **Calificaciones:**
+  - El pasajero califica al conductor (1 a 5 estrellas + comentario) desde su enlace de seguimiento cuando el servicio finaliza (una vez, hasta 30 días). Si da 5 estrellas y está configurado `resenaGoogle` en `assets/config.js`, se le invita a dejar reseña en Google (pendiente: enlace de reseñas de la ficha de Google).
+  - El conductor califica al pasajero en su app (interno: el pasajero no lo ve) y ve cómo lo calificaron.
+  - Panel: calificaciones en la ficha de la reserva (con "Marcar revisada"), filtro "Calificación baja por revisar", promedio por cliente en "Clientes y cobros" y promedio por conductor en el mapa. En "Ganancias", el conductor ve su promedio de 90 días.
+- **Mensajes por servicio** entre pasajero, conductor y despacho (sin compartir números): abiertos desde que hay conductor asignado hasta 3 horas después de finalizar. El conductor ve un contador de no leídos, vibración y notificación en la app Android. El despacho los ve y puede escribir como "Flota-K" desde la ficha; filtro "Con mensajes (últimas 24 horas)".
+- **App Android de prueba** (mientras falta la llave): https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android-prueba/flota-k-conductor.apk
+- Probado en base de datos (bloqueos: doble calificación, enlace falso, personas ajenas, chat cerrado o vacío) y en las tres pantallas con datos de prueba.
+
 ## 9 nov 2026 · Pestaña "Ganancias" en la app del conductor (pendiente de publicar)
 - Muestra lo generado hoy, esta semana (desde el lunes) y este mes, con cantidad de servicios, gastos incluidos y lo que falta por cobrar. Debajo, la lista de servicios finalizados del mes (pagado / por cobrar).
 - Cada conductor ve solo sus servicios (probado en base de datos).

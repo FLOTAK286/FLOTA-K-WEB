@@ -16,7 +16,13 @@
 <header class="top"><div class="wrap"><a class="brand" href="/">FLOTA<span>·K</span></a><a class="btn small" href="https://wa.me/56922275399" target="_blank" rel="noopener">WhatsApp</a></div></header>
 <main class="app">
   <h1>Seguimiento de su reserva</h1>
+  <section class="panel" id="calif-panel" hidden></section>
   <section class="panel" id="box"><p class="muted">Cargando…</p></section>
+  <section class="panel" id="chat-panel" hidden>
+    <h2 style="margin:0">Mensajes con su conductor</h2>
+    <p class="muted small" style="margin:0">Para coordinar el encuentro sin compartir números. Su conductor y Flota-K leen estos mensajes.</p>
+    <div id="chat"></div>
+  </section>
   <p class="muted small">¿Necesita cambiar algo? Escríbanos por WhatsApp al +56 9 2227 5399 indicando su código de reserva.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -24,6 +30,7 @@
 <script src="/assets/app.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
+<script src="/assets/chat.js"></script>
 <script>
 const { sb, esc, fecha, pill, ESTADOS } = FK;
 const box = document.getElementById("box");
@@ -62,6 +69,50 @@ async function cargar() {
     <p class="muted small">${enCurso ? "La ubicación se actualiza sola cada 15 segundos." : "Esta página se actualiza sola cada minuto. Cuando su conductor vaya en camino, aquí verá su ubicación en el mapa."}</p>`;
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
+  conductorAsignado = !!r.o_conductor;
+  mensajes();
+  if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
+}
+
+// ---- Mensajes con el conductor
+let chat = null, chatAbierto = null, conductorAsignado = false;
+async function mensajes() {
+  const { data, error } = await sb.rpc("ver_mensajes_publico", { p_token: token });
+  if (error || !data || !data.length) return;
+  const abierto = !!data[0].o_abierto, msgs = data.filter(m => m.o_id).map(m => ({ id: m.o_id, autor: m.o_autor, texto: m.o_texto, creado_en: m.o_creado }));
+  if (!abierto && !msgs.length) { $("chat-panel").hidden = true; return; }
+  $("chat-panel").hidden = false;
+  if (!chat || chatAbierto !== abierto) {
+    chatAbierto = abierto;
+    chat = FKChat.montar($("chat"), { yo: "pasajero", abierto, placeholder: "Ej.: Estoy en la puerta 3", enviar: async t => {
+      const r = await sb.rpc("enviar_mensaje_publico", { p_token: token, p_texto: t }); if (!r.error) mensajes(); return r; } });
+  }
+  chat.pintar(msgs);
+}
+setInterval(() => { if (conductorAsignado && !document.hidden) mensajes(); }, 10000);
+
+// ---- Calificación del servicio (una vez finalizado)
+let califMostrada = false;
+async function calificacion() {
+  if (califMostrada) return; califMostrada = true;
+  const panel = $("calif-panel"); panel.hidden = false;
+  const { data } = await sb.rpc("ver_calificacion_publica", { p_token: token });
+  if (data && data.length) { panel.innerHTML = `<h2 style="margin:0">¡Gracias por su calificación!</h2><p style="margin:0">${FKChat.fijas(data[0].o_estrellas)}</p>${data[0].o_comentario ? `<p class="muted" style="margin:0">"${esc(data[0].o_comentario)}"</p>` : ""}`; return; }
+  let n = 0;
+  panel.innerHTML = `<h2 style="margin:0">¿Cómo estuvo su viaje?</h2><p class="muted small" style="margin:0">Califique a su conductor. Nos ayuda a mejorar.</p>
+    <div id="cal-est"></div>
+    <textarea id="cal-com" rows="2" maxlength="1000" placeholder="Comentario (opcional)" aria-label="Comentario"></textarea>
+    <div class="actions"><button class="btn" id="cal-ok" type="button" disabled>Enviar calificación</button></div><p class="msg err" id="cal-err" hidden></p>`;
+  FKChat.estrellas($("cal-est"), v => { n = v; $("cal-ok").disabled = false; });
+  $("cal-ok").addEventListener("click", async () => {
+    $("cal-ok").disabled = true;
+    const { error } = await sb.rpc("calificar_conductor_publico", { p_token: token, p_estrellas: n, p_comentario: $("cal-com").value });
+    if (error) { $("cal-err").hidden = false; $("cal-err").textContent = FK.errText(error); $("cal-ok").disabled = false; return; }
+    const g = window.FK_CONFIG && window.FK_CONFIG.resenaGoogle;
+    panel.innerHTML = `<h2 style="margin:0">¡Gracias por su calificación!</h2><p style="margin:0">${FKChat.fijas(n)}</p>` +
+      (n === 5 && g ? `<p style="margin:0">¿Nos ayuda con una reseña en Google? Toma un minuto y ayuda a otros pasajeros a encontrarnos.</p><div class="actions"><a class="btn" href="${esc(g)}" target="_blank" rel="noopener">Dejar reseña en Google</a></div>` : "") +
+      (n <= 3 ? `<p class="muted" style="margin:0">Lamentamos que no haya sido una buena experiencia. Revisaremos su comentario y, si quiere, escríbanos por WhatsApp al +56 9 2227 5399.</p>` : "");
+  });
 }
 
 async function ubicar() {

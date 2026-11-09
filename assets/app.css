@@ -86,3 +86,19 @@ dialog .panel { border: 0; }
 .gps.ok .dot { background: #3ecf7f; animation: fkpulse 1.6s infinite; }
 .gps.err .dot { background: #e5533d; }
 @keyframes fkpulse { 50% { opacity: .35; } }
+
+/* Mensajes y calificaciones */
+.chat { display: grid; gap: 8px; }
+.chat-msgs { max-height: 320px; overflow-y: auto; display: grid; gap: 6px; padding: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; align-content: start; }
+.burbuja { max-width: 85%; padding: 7px 11px; border-radius: 12px; font-size: .95rem; line-height: 1.35; overflow-wrap: anywhere; }
+.burbuja small { display: block; opacity: .75; font-size: .74rem; margin-bottom: 1px; }
+.burbuja.yo { justify-self: end; background: var(--gold); color: #17130a; border-bottom-right-radius: 3px; }
+.burbuja.otro { justify-self: start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+.burbuja.otro.desp { border-color: var(--gold); }
+.chat-form { display: flex; gap: 6px; }
+.chat-form input { flex: 1; min-width: 0; }
+.estrellas button { font-size: 2.1rem; line-height: 1; background: none; border: 0; color: #8a8d93; cursor: pointer; padding: 0 3px; }
+.estrellas button.on { color: var(--gold); }
+.estrellas.fijas { color: var(--gold); letter-spacing: 1px; white-space: nowrap; }
+.estrellas.fijas .off { color: #8a8d93; }
+.badge { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #e5533d; color: #fff; font-size: .78rem; font-weight: 700; text-align: center; margin-left: 4px; }

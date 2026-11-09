@@ -89,6 +89,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="/assets/chat.js"></script>
 <script>
 const { sb, esc, clp, pill, errText, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -97,6 +98,7 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, ho
 const diaTxt = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
 const diaKey = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
 let yo = null, vista = "hoy", items = [], vehiculos = {}, pendiente = null, obsAbierta = null, tar = null;
+let msgsPor = {}, calPor = {}, chatAbiertoId = null, chatVivo = null, califAbierto = null, califSel = {};
 
 const SIG = {
   asignada:  { e: "en_camino",  t: "Voy en camino",       c: "go" },
@@ -161,10 +163,64 @@ async function cargar() {
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   items = data || [];
-  if (pendiente || obsAbierta || vista === "gan") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
+  await cargarCalificaciones(); revisarMensajes();
+  if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
   pintar();
 }
+
+// ---- Calificaciones: el conductor califica al pasajero al terminar (interno, el pasajero no lo ve)
+async function cargarCalificaciones() {
+  const ids = items.filter(r => r.estado === "finalizada").map(r => r.id);
+  if (!ids.length) return;
+  const { data } = await sb.from("calificaciones").select("reserva_id, autor, estrellas, comentario").in("reserva_id", ids);
+  calPor = {}; (data || []).forEach(c => { (calPor[c.reserva_id] = calPor[c.reserva_id] || {})[c.autor] = c; });
+}
+function califHtml(r) {
+  const c = calPor[r.id] || {};
+  const delPasajero = c.pasajero ? `<p class="small" style="margin:0">El pasajero lo calificó: ${FKChat.fijas(c.pasajero.estrellas)}${c.pasajero.comentario ? ` · "${esc(c.pasajero.comentario)}"` : ""}</p>` : "";
+  if (c.conductor) return `<div class="pay">${delPasajero}<p class="small" style="margin:0">Usted calificó al pasajero: ${FKChat.fijas(c.conductor.estrellas)}</p></div>`;
+  return `<div class="confirm"><b>Califique al pasajero</b><span class="small muted">Es interno: el pasajero no lo ve.</span><div class="cal-est"></div>
+    ${califAbierto === r.id ? `<textarea class="cal-com" rows="2" maxlength="1000" placeholder="Comentario (opcional): puntualidad, trato, etc."></textarea>
+    <div class="actions"><button class="btn cal-ok" type="button">Guardar calificación</button><button class="btn ghost cal-no" type="button">Cancelar</button></div>` : ""}${delPasajero}</div>`;
+}
+
+// ---- Mensajes con el pasajero (se revisan cada 15 s; avisa con vibración y notificación)
+const LN = NATIVO_TEMPRANO() ? window.Capacitor.registerPlugin("LocalNotifications") : null;
+function NATIVO_TEMPRANO() { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+const leidoKey = id => "fk_leido_" + id;
+const leido = id => { try { return Number(localStorage.getItem(leidoKey(id))) || 0; } catch (_) { return 0; } };
+function marcarLeido(id) {
+  const ult = (msgsPor[id] || []).reduce((a, m) => Math.max(a, m.id), 0);
+  try { localStorage.setItem(leidoKey(id), String(ult)); } catch (_) {}
+  pintarBadges();
+}
+function pintarBadges() {
+  document.querySelectorAll("[data-badge]").forEach(b => {
+    const id = b.dataset.badge, n = (msgsPor[id] || []).filter(m => m.autor !== "conductor" && m.id > leido(id)).length;
+    b.hidden = !n || chatAbiertoId === id; b.textContent = n;
+  });
+}
+let avisados = new Set(), primeraRevision = true;
+async function revisarMensajes() {
+  const ids = items.filter(r => r.estado !== "cancelada").map(r => r.id);
+  if (!ids.length) return;
+  const { data } = await sb.from("mensajes").select("id, reserva_id, autor, texto, creado_en").in("reserva_id", ids).order("id");
+  msgsPor = {}; (data || []).forEach(m => (msgsPor[m.reserva_id] = msgsPor[m.reserva_id] || []).push(m));
+  const nuevos = (data || []).filter(m => m.autor !== "conductor" && m.id > leido(m.reserva_id) && !avisados.has(m.id));
+  nuevos.forEach(m => avisados.add(m.id));
+  if (nuevos.length && !primeraRevision) {
+    if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+    if (LN) nuevos.slice(-3).forEach(m => {
+      const r = items.find(x => x.id === m.reserva_id);
+      LN.schedule({ notifications: [{ id: m.id % 2000000000, title: (m.autor === "despacho" ? "Flota-K" : (r ? r.nombre_pasajero : "Pasajero")) + " · mensaje", body: m.texto }] }).catch(() => {});
+    });
+  }
+  primeraRevision = false;
+  if (chatVivo && chatAbiertoId) { chatVivo.pintar(msgsPor[chatAbiertoId] || []); marcarLeido(chatAbiertoId); }
+  pintarBadges();
+}
+setInterval(() => { if (yo) revisarMensajes(); }, 15000);
 
 // ---- Ganancias: lo generado por servicios finalizados (hoy, semana, mes)
 async function pintarGanancias() {
@@ -182,8 +238,11 @@ async function pintarGanancias() {
   const caja = (titulo, v) => `<div class="pay" style="display:grid;gap:2px"><small class="muted" style="text-transform:uppercase;letter-spacing:.06em">${titulo}</small>
     <span class="time" style="font-size:1.7rem">${clp(v.t)}</span><span class="small muted">${v.n} servicio(s)${v.g ? ` · incluye ${clp(v.g)} en gastos` : ""}${v.p ? ` · ${clp(v.p)} por cobrar` : ""}</span></div>`;
   const delMes = rows.filter(x => diaKey(x.fecha_hora) >= mes);
+  const { data: cs } = await sb.from("calificaciones").select("estrellas").eq("conductor_id", yo.id).eq("autor", "pasajero").gte("creado_en", new Date(Date.now() - 90 * 864e5).toISOString());
+  if (vista !== "gan") return;
+  const prom = cs && cs.length ? cs.reduce((a, c) => a + c.estrellas, 0) / cs.length : null;
   $("list").innerHTML = `
-    <div style="display:grid;gap:10px">${caja("Hoy", suma(hoy))}${caja("Esta semana (desde el lunes)", suma(lunes))}${caja("Este mes", suma(mes))}</div>
+    <div style="display:grid;gap:10px">${prom != null ? `<div class="pay"><small class="muted" style="text-transform:uppercase;letter-spacing:.06em">Su calificación (últimos 90 días)</small><br><span class="time" style="font-size:1.7rem">${prom.toFixed(1).replace(".", ",")}</span> ${FKChat.fijas(Math.round(prom))} <span class="small muted">· ${cs.length} calificación(es)</span></div>` : ""}${caja("Hoy", suma(hoy))}${caja("Esta semana (desde el lunes)", suma(lunes))}${caja("Este mes", suma(mes))}</div>
     <h3 style="margin:14px 0 4px">Servicios finalizados del mes</h3>
     ${delMes.length ? delMes.map(x => `<div class="card" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
       <div><b>${esc(new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "numeric", month: "short" }))} · ${esc(hora(x.fecha_hora))}</b> <span class="muted small">${esc(x.codigo)}</span><br>
@@ -225,6 +284,8 @@ function pintar() {
         ? `<div class="confirm"><b>Observación</b><textarea class="obs-txt" rows="3" maxlength="1000" placeholder="Ej: el pasajero pidió una parada adicional"></textarea><div class="actions"><button class="btn obs-ok" type="button">Guardar observación</button><button class="btn ghost obs-no" type="button">Cancelar</button></div></div>`
         : `<button class="btn ghost obs" type="button">+ Observación</button>`}
       <div class="contact">
+        <button class="btn ghost chat-btn" type="button" style="grid-column:1/-1">${chatAbiertoId === r.id ? "Cerrar mensajes" : "Mensajes con el pasajero"}<span class="badge" data-badge="${esc(r.id)}" hidden></span></button>
+        ${chatAbiertoId === r.id ? '<div class="chat-box" style="grid-column:1/-1"></div>' : ""}
         <a class="btn ghost" href="tel:${esc(tel(r.telefono))}">Llamar</a>
         <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>
       </div>
@@ -244,9 +305,11 @@ function pintar() {
             <div class="actions"><button class="btn end ok" type="button">Finalizar servicio</button><button class="btn ghost no" type="button">Volver</button></div></div>`
           : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
         : `<button class="btn big ${s.c} next" type="button" data-e="${s.e}">${esc(s.t)}</button>`) : ""}
+      ${fin ? califHtml(r) : ""}
       <div class="msg err" hidden></div>
     </article>`;
   }).join("");
+  setTimeout(pintarBadges, 0);
   $("list").querySelectorAll(".svc").forEach(card => {
     const id = card.dataset.id;
     card.querySelector(".next")?.addEventListener("click", ev => {
@@ -289,6 +352,21 @@ function pintar() {
       $("list").prepend(done); setTimeout(() => done.remove(), 6000);
     });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
+    card.querySelector(".chat-btn")?.addEventListener("click", () => { chatAbiertoId = chatAbiertoId === id ? null : id; chatVivo = null; pintar(); });
+    if (chatAbiertoId === id && card.querySelector(".chat-box")) {
+      chatVivo = FKChat.montar(card.querySelector(".chat-box"), { yo: "conductor", placeholder: "Ej.: Estoy afuera, auto azul", enviar: async t => {
+        const res = await sb.rpc("enviar_mensaje", { p_reserva: id, p_texto: t }); if (!res.error) revisarMensajes(); return res; } });
+      chatVivo.pintar(msgsPor[id] || []); marcarLeido(id);
+    }
+    const ce = card.querySelector(".cal-est");
+    if (ce) FKChat.estrellas(ce, n => { califSel[id] = n; califAbierto = id; pintar(); }, califSel[id] || 0);
+    card.querySelector(".cal-ok")?.addEventListener("click", async () => {
+      const box = card.querySelector(".msg");
+      const { error } = await sb.rpc("conductor_calificar", { p_reserva: id, p_estrellas: califSel[id], p_comentario: card.querySelector(".cal-com").value });
+      if (error) { box.hidden = false; box.textContent = errText(error); return; }
+      califAbierto = null; await cargarCalificaciones(); pintar();
+    });
+    card.querySelector(".cal-no")?.addEventListener("click", () => { califAbierto = null; delete califSel[id]; pintar(); });
     card.querySelector(".obs")?.addEventListener("click", () => { obsAbierta = id; pintar(); card.isConnected || $("list").querySelector(`[data-id="${id}"] .obs-txt`)?.focus(); });
     card.querySelector(".obs-no")?.addEventListener("click", () => { obsAbierta = null; pintar(); });
     card.querySelector(".obs-ok")?.addEventListener("click", async () => {

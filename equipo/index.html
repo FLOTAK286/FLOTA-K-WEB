@@ -59,6 +59,8 @@
             <option value="pendientes">Pendientes de confirmar</option>
             <option value="observ">Con observación por revisar</option>
             <option value="porcobrar">Finalizados por cobrar</option>
+            <option value="califbaja">Calificación baja por revisar (3★ o menos)</option>
+            <option value="mensajes">Con mensajes (últimas 24 horas)</option>
           </select></div>
         <div class="f" style="flex:1;min-width:180px"><label for="buscar">Buscar</label><input id="buscar" placeholder="Nombre, código, teléfono o comuna"></div>
       </div>
@@ -125,7 +127,7 @@
           <div class="f" style="flex:1;min-width:180px"><label for="cl-buscar">Buscar cliente</label><input id="cl-buscar" placeholder="Nombre, teléfono o correo"></div>
           <label class="chk" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="cl-saldo" checked> Solo con saldo pendiente</label>
         </div>
-        <div class="tblwrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Servicios</th><th>Total</th><th>Pagado</th><th>Pendiente</th></tr></thead><tbody id="cl-tbody"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
+        <div class="tblwrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Servicios</th><th>Calificación</th><th>Total</th><th>Pagado</th><th>Pendiente</th></tr></thead><tbody id="cl-tbody"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
         <p class="muted small" id="cl-resumen"></p>
       </div>
       <div id="cl-ficha" hidden></div>
@@ -193,6 +195,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
+<script src="/assets/chat.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -311,6 +314,30 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
+// ---- Calificaciones y mensajes en la ficha de la reserva
+async function pintarCalificaciones(r) {
+  const { data } = await sb.from("calificaciones").select("id, autor, estrellas, comentario, revisada, creado_en").eq("reserva_id", r.id);
+  const p = (data || []).find(c => c.autor === "pasajero"), c = (data || []).find(c => c.autor === "conductor");
+  const linea = (t, x) => x ? `<p style="margin:0"><b>${t}:</b> ${FKChat.fijas(x.estrellas)}${x.comentario ? ` · "${esc(x.comentario)}"` : ""}${x.estrellas <= 3 && !x.revisada ? ` <button class="btn ghost sm rev" data-c="${x.id}" type="button">Marcar revisada</button>` : x.estrellas <= 3 ? ' <span class="small muted">(revisada)</span>' : ""}</p>` : `<p class="muted small" style="margin:0">${t}: aún sin calificar.</p>`;
+  $("calif-box").innerHTML = r.estado === "finalizada" || data?.length ? `<h3 style="margin:6px 0 0">Calificaciones</h3>${linea("El pasajero al conductor", p)}${linea("El conductor al pasajero (interno)", c)}` : "";
+  $("calif-box").querySelectorAll(".rev").forEach(b => b.onclick = async () => {
+    const { error } = await sb.from("calificaciones").update({ revisada: true }).eq("id", b.dataset.c);
+    if (error) return msg("d-msg", errText(error), "err"); pintarCalificaciones(r);
+  });
+}
+let timerMsj = null;
+async function pintarMensajes(r) {
+  clearInterval(timerMsj);
+  const chat = FKChat.montar($("msj-box"), { yo: "despacho", placeholder: "Mensaje de Flota-K al pasajero y al conductor", enviar: async t => {
+    const res = await sb.rpc("enviar_mensaje", { p_reserva: r.id, p_texto: t }); if (!res.error) cargarMsj(); return res; } });
+  const cargarMsj = async () => {
+    if (!$("det").open) { clearInterval(timerMsj); return; }
+    const { data } = await sb.from("mensajes").select("id, autor, texto, creado_en").eq("reserva_id", r.id).order("id");
+    chat.pintar(data || []);
+  };
+  cargarMsj(); timerMsj = setInterval(cargarMsj, 10000);
+}
+
 // ---- Mapa en vivo: dónde está cada conductor y si está disponible, ocupado o con un servicio próximo
 let mapaEq = null, pinesEq = {}, timerMapa = null, centradoEq = false;
 const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
@@ -320,12 +347,14 @@ async function cargarMapa() {
   setTimeout(() => mapaEq.invalidateSize(), 60);
   if (!conductores.length) await cargarRecursos();
   const desde = new Date(Date.now() - 12 * 3600e3).toISOString(), hasta = new Date(Date.now() + 36 * 3600e3).toISOString();
-  const [{ data: us, error }, { data: rs }] = await Promise.all([
+  const [{ data: us, error }, { data: rs }, { data: ks }] = await Promise.all([
     sb.from("ubicaciones").select("conductor_id, reserva_id, lat, lng, precision_m, velocidad_kmh, actualizado_en"),
     sb.from("reservas").select("id, codigo, estado, fecha_hora, nombre_pasajero, origen, destino, conductor_id")
       .not("conductor_id", "is", null).in("estado", ["confirmada", "asignada", "en_camino", "en_lugar", "a_bordo"])
-      .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora")
+      .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora"),
+    sb.from("calificaciones").select("conductor_id, estrellas").eq("autor", "pasajero").gte("creado_en", new Date(Date.now() - 90 * 864e5).toISOString()).limit(10000)
   ]);
+  const califCond = {}; (ks || []).forEach(k => { const x = califCond[k.conductor_id] = califCond[k.conductor_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   if (error) { $("mp-lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const ids = new Set([...conductores.map(c => c.id), ...(us || []).map(u => u.conductor_id)]);
   const filas = [...ids].map(id => {
@@ -361,7 +390,7 @@ async function cargarMapa() {
     (filas.length ? filas.map(f => `
     <div class="card" data-c="${esc(f.id)}" style="cursor:pointer;display:grid;gap:4px">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
-        <div><b>${esc(f.nom)}</b> <span class="muted small">${f.u ? "ubicación " + FKMapa.hace(f.u.actualizado_en) : "nunca ha compartido ubicación"}</span></div>
+        <div><b>${esc(f.nom)}</b> ${califCond[f.id] ? califTxt(califCond[f.id]) : ""} <span class="muted small">${f.u ? "ubicación " + FKMapa.hace(f.u.actualizado_en) : "nunca ha compartido ubicación"}</span></div>
         <span class="mp-est ${f.est}">${esc(f.txt)}</span>
       </div>
       ${f.sinSenal ? `<span class="small">${f.actual ? '<span class="mp-est viejo">Sin señal</span> ' : ""}${f.u ? "La app está cerrada o el teléfono sin internet." : "Debe instalar y abrir la app del conductor."}</span>` : ""}
@@ -386,6 +415,14 @@ async function cargarReservas() {
   else if (f === "pendientes") q = q.eq("estado", "recibida").order("fecha_hora").limit(200);
   else if (f === "observ") q = q.not("observacion_conductor", "is", null).eq("observacion_revisada", false).order("fecha_hora", { ascending: false }).limit(200);
   else if (f === "porcobrar") q = q.eq("estado", "finalizada").eq("pagado", false).order("fecha_hora", { ascending: false }).limit(200);
+  else if (f === "califbaja" || f === "mensajes") {
+    const { data: x } = f === "califbaja"
+      ? await sb.from("calificaciones").select("reserva_id").lte("estrellas", 3).eq("revisada", false).limit(500)
+      : await sb.from("mensajes").select("reserva_id").gte("creado_en", new Date(Date.now() - 864e5).toISOString()).limit(1000);
+    const ids = [...new Set((x || []).map(c => c.reserva_id))];
+    if (!ids.length) { cache = []; pintar(); return; }
+    q = q.in("id", ids).order("fecha_hora", { ascending: false });
+  }
   else q = q.lt("fecha_hora", ahora.toISOString()).order("fecha_hora", { ascending: false }).limit(200);
   const { data, error } = await q;
   if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -458,12 +495,17 @@ async function abrir(id) {
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
     <div id="cobro-box"></div>
+    <div id="calif-box"></div>
+    <h3 style="margin:6px 0 0">Mensajes</h3>
+    <p class="small muted" style="margin:0">Conversación entre pasajero y conductor. Lo que escriba aquí le llega a ambos como "Flota-K".</p>
+    <div id="msj-box"></div>
     <h3 style="margin:6px 0 0">Historial</h3>
     <ul class="timeline">${(ev || []).map(e => `<li><b>${esc(ESTADOS[e.estado]?.t || e.estado)}</b> · <span class="muted small">${esc(fecha(e.creado_en))}</span>${e.nota ? `<br>${esc(e.nota)}` : ""}</li>`).join("")}</ul>`;
   $("det").showModal();
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
   pintarCobro(r);
+  pintarCalificaciones(r); pintarMensajes(r);
   $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
   const margen = () => {
     const p = r.precio ?? r.tarifa_web, c = $("a-costo").value === "" ? null : Number($("a-costo").value);
@@ -626,13 +668,17 @@ async function pintarCobro(r) {
 // ---- Clientes y cobros
 let clientes = [], cobros = [];
 async function cargarClientes() {
-  const [{ data: cs }, { data: vs }] = await Promise.all([
+  const [{ data: cs }, { data: vs }, { data: ks }] = await Promise.all([
     sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id").order("nombre"),
+    sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000),
     sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000)
   ]);
-  clientes = cs || []; cobros = vs || [];
+  clientes = cs || []; cobros = vs || []; califCli = {};
+  (ks || []).forEach(k => { const x = califCli[k.cliente_id] = califCli[k.cliente_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   pintarClientes();
 }
+let califCli = {};
+const califTxt = x => x ? `${(x.s / x.n).toFixed(1).replace(".", ",")} ★ <span class="muted small">(${x.n})</span>` : '<span class="muted small">—</span>';
 function resumenCliente(id) {
   const fin = cobros.filter(x => x.cliente_id === id && x.estado === "finalizada");
   const total = fin.reduce((a, x) => a + (x.total || 0), 0);
@@ -646,8 +692,8 @@ function pintarClientes() {
     .sort((a, b) => b.r.pendiente - a.r.pendiente);
   $("cl-tbody").innerHTML = filas.length ? filas.map(({ c, r }) => `
     <tr data-id="${esc(c.id)}" style="cursor:pointer"><td><b>${esc(c.nombre)}</b><br><span class="muted small">${esc(c.telefono || c.correo || "")}</span></td>
-    <td>${r.servicios}</td><td>${clp(r.total)}</td><td>${clp(r.pagado)}</td><td>${r.pendiente > 0 ? `<b class="warn">${clp(r.pendiente)}</b>` : clp(0)}</td></tr>`).join("")
-    : `<tr><td colspan="5" class="muted">${soloSaldo ? "No hay clientes con saldo pendiente." : "No hay clientes."}</td></tr>`;
+    <td>${r.servicios}</td><td>${califTxt(califCli[c.id])}</td><td>${clp(r.total)}</td><td>${clp(r.pagado)}</td><td>${r.pendiente > 0 ? `<b class="warn">${clp(r.pendiente)}</b>` : clp(0)}</td></tr>`).join("")
+    : `<tr><td colspan="6" class="muted">${soloSaldo ? "No hay clientes con saldo pendiente." : "No hay clientes."}</td></tr>`;
   const tot = filas.reduce((a, x) => a + x.r.pendiente, 0);
   $("cl-resumen").textContent = `Total pendiente de cobro: ${clp(tot)}. El saldo considera solo servicios finalizados.`;
   $("cl-tbody").querySelectorAll("tr[data-id]").forEach(tr => tr.addEventListener("click", () => fichaCliente(tr.dataset.id)));
