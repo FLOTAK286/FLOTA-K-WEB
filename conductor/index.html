@@ -87,7 +87,7 @@ const TZ = "America/Santiago";
 const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 const diaTxt = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
 const diaKey = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
-let yo = null, vista = "hoy", items = [], vehiculos = {}, pendiente = null;
+let yo = null, vista = "hoy", items = [], vehiculos = {}, pendiente = null, obsAbierta = null, tar = null;
 
 const SIG = {
   asignada:  { e: "en_camino",  t: "Voy en camino",       c: "go" },
@@ -123,6 +123,8 @@ async function iniciar(session) {
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; return; }
   yo = data;
   const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, conductor_habitual");
+  const { data: emp } = await sb.from("empresas").select("taxi_bajada, taxi_cada_200m, taxi_cada_60s, valor_tag").limit(1).maybeSingle();
+  tar = emp || { taxi_bajada: 2400, taxi_cada_200m: 180, taxi_cada_60s: 180, valor_tag: 900 };
   (vs || []).forEach(v => vehiculos[v.id] = v);
   const mio = (vs || []).find(v => v.conductor_habitual === yo.id);
   $("who").textContent = yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
@@ -143,11 +145,12 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   items = data || [];
+  if (pendiente || obsAbierta) return; // no borrar lo que el conductor está escribiendo
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
   pintar();
 }
@@ -175,14 +178,32 @@ function pintar() {
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
         <div class="nav"><a class="btn ghost sm" href="${waze(r.destino)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino)}" target="_blank" rel="noopener">Google Maps</a></div></div>
       ${r.comentarios ? `<p class="small"><b>Nota:</b> ${esc(r.comentarios)}</p>` : ""}
-      <div class="pay">${cobro != null ? `Valor: <b>${clp(cobro)}</b>` : "Valor por confirmar"}${r.forma_pago ? ` · ${esc(r.forma_pago)}` : ""}${r.pagado ? " · <b>Pagado</b>" : ""}</div>
+      <div class="pay">${r.tipo_cobro === "taximetro"
+        ? `<b>Taxímetro</b> · se calcula al finalizar (bajada ${clp(tar.taxi_bajada)}, ${clp(tar.taxi_cada_200m)} cada 200 m, ${clp(tar.taxi_cada_60s)} cada 60 s)`
+        : (cobro != null ? `<b>Tarifa fija: ${clp(cobro)}</b> · no se modifica` : "Tarifa fija por confirmar")}${r.forma_pago ? ` · ${esc(r.forma_pago)}` : ""}${r.pagado ? " · <b>Pagado</b>" : ""}</div>
+      ${r.observacion_conductor ? `<p class="small"><b>Sus observaciones:</b> ${esc(r.observacion_conductor).replace(/\n/g, "<br>")}</p>` : ""}
+      ${obsAbierta === r.id
+        ? `<div class="confirm"><b>Observación</b><textarea class="obs-txt" rows="3" maxlength="1000" placeholder="Ej: el pasajero pidió una parada adicional"></textarea><div class="actions"><button class="btn obs-ok" type="button">Guardar observación</button><button class="btn ghost obs-no" type="button">Cancelar</button></div></div>`
+        : `<button class="btn ghost obs" type="button">+ Observación</button>`}
       <div class="contact">
         <a class="btn ghost" href="tel:${esc(tel(r.telefono))}">Llamar</a>
         <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>
       </div>
       ${veh ? `<p class="small muted">Vehículo: ${esc(veh.descripcion || "")} · ${esc(veh.patente)}</p>` : ""}
       ${s && !fin ? (pendiente === r.id
-        ? `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><input class="nota" placeholder="Nota opcional (ej: pagó en efectivo)" maxlength="500"><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`
+        ? (r.tipo_cobro === "taximetro" ? `<div class="confirm taxi">
+            <b>Finalizar con taxímetro</b>
+            <div class="row2"><div class="f"><label>Metros recorridos</label><input class="tx-m" type="number" min="0" step="1" inputmode="numeric" placeholder="Ej: 12500"></div>
+            <div class="f"><label>Minutos de espera</label><input class="tx-s" type="number" min="0" step="1" inputmode="numeric" value="0"></div></div>
+            <div class="row2"><div class="f"><label>TAG (pórticos, ${clp(tar.valor_tag)} c/u)</label><input class="tx-tag" type="number" min="0" step="1" inputmode="numeric" value="0"></div>
+            <div class="f"><label>Peajes ($)</label><input class="tx-peaje" type="number" min="0" step="10" inputmode="numeric" value="0"></div></div>
+            <div class="row2"><div class="f"><label>Estacionamiento ($)</label><input class="tx-est" type="number" min="0" step="10" inputmode="numeric" value="0"></div>
+            <div class="f"><label>Otro gasto ($)</label><input class="tx-otro" type="number" min="0" step="10" inputmode="numeric" value="0"></div></div>
+            <div class="f"><label>Detalle del otro gasto</label><input class="tx-otro-d" maxlength="200"></div>
+            <div class="f"><label>Observación (opcional)</label><textarea class="nota" rows="2" maxlength="1000"></textarea></div>
+            <div class="pay tx-total">Total: —</div>
+            <div class="actions"><button class="btn end ok" type="button">Finalizar servicio</button><button class="btn ghost no" type="button">Volver</button></div></div>`
+          : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
         : `<button class="btn big ${s.c} next" type="button" data-e="${s.e}">${esc(s.t)}</button>`) : ""}
       <div class="msg err" hidden></div>
     </article>`;
@@ -194,8 +215,50 @@ function pintar() {
       if (e === "finalizada") { pendiente = id; pintar(); return; }
       avanzar(card, id, e);
     });
-    card.querySelector(".ok")?.addEventListener("click", () => avanzar(card, id, "finalizada", card.querySelector(".nota").value));
+    const r = items.find(x => x.id === id);
+    const num = sel => Math.max(0, Math.round(Number(card.querySelector(sel)?.value) || 0));
+    const calc = () => {
+      const m = num(".tx-m"), seg = num(".tx-s") * 60;
+      const base = tar.taxi_bajada + Math.floor(m / 200) * tar.taxi_cada_200m + Math.floor(seg / 60) * tar.taxi_cada_60s;
+      const gastos = num(".tx-tag") * tar.valor_tag + num(".tx-peaje") + num(".tx-est") + num(".tx-otro");
+      return { m, seg, base, gastos, total: base + gastos };
+    };
+    if (card.querySelector(".taxi")) {
+      const upd = () => { const c = calc(); card.querySelector(".tx-total").innerHTML = `Taxímetro ${clp(c.base)} + gastos ${clp(c.gastos)} = <b>${clp(c.total)}</b>`; };
+      card.querySelectorAll(".taxi input").forEach(i => i.addEventListener("input", upd)); upd();
+    }
+    card.querySelector(".ok")?.addEventListener("click", async () => {
+      const box = card.querySelector(".msg");
+      let args = { p_reserva: id, p_observacion: card.querySelector(".nota")?.value || null };
+      if (r.tipo_cobro === "taximetro") {
+        const c = calc();
+        if (!(c.m > 0)) { box.hidden = false; box.textContent = "Ingrese los metros recorridos."; return; }
+        const gastos = [];
+        if (num(".tx-tag")) gastos.push({ tipo: "tag", cantidad: num(".tx-tag") });
+        if (num(".tx-peaje")) gastos.push({ tipo: "peaje", monto: num(".tx-peaje") });
+        if (num(".tx-est")) gastos.push({ tipo: "estacionamiento", monto: num(".tx-est") });
+        if (num(".tx-otro")) gastos.push({ tipo: "otro", monto: num(".tx-otro"), descripcion: card.querySelector(".tx-otro-d").value });
+        args = { ...args, p_metros: c.m, p_segundos: c.seg, p_gastos: gastos };
+      }
+      card.querySelectorAll("button").forEach(b => b.disabled = true);
+      const { data, error } = await sb.rpc("conductor_finalizar", args);
+      if (error) { box.hidden = false; box.textContent = errText(error); card.querySelectorAll("button").forEach(b => b.disabled = false); return; }
+      if (navigator.vibrate) navigator.vibrate(80);
+      pendiente = null; r.estado = "finalizada";
+      pintar(); cargar();
+      const done = document.createElement("p"); done.className = "msg ok"; done.textContent = `Servicio finalizado. Total registrado: ${clp(data)}.`;
+      $("list").prepend(done); setTimeout(() => done.remove(), 6000);
+    });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
+    card.querySelector(".obs")?.addEventListener("click", () => { obsAbierta = id; pintar(); card.isConnected || $("list").querySelector(`[data-id="${id}"] .obs-txt`)?.focus(); });
+    card.querySelector(".obs-no")?.addEventListener("click", () => { obsAbierta = null; pintar(); });
+    card.querySelector(".obs-ok")?.addEventListener("click", async () => {
+      const t = card.querySelector(".obs-txt").value.trim(); const box = card.querySelector(".msg");
+      if (!t) { box.hidden = false; box.textContent = "Escriba la observación."; return; }
+      const { error } = await sb.rpc("conductor_observacion", { p_reserva: id, p_texto: t });
+      if (error) { box.hidden = false; box.textContent = errText(error); return; }
+      obsAbierta = null; cargar();
+    });
   });
 }
 

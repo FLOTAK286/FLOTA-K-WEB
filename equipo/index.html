@@ -42,6 +42,7 @@
       <button role="tab" data-tab="reservas" aria-selected="true">Reservas</button>
       <button role="tab" data-tab="agenda" aria-selected="false">Agenda</button>
       <button role="tab" data-tab="nueva" aria-selected="false">Nueva reserva</button>
+      <button role="tab" data-tab="clientes" aria-selected="false">Clientes y cobros</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
@@ -54,6 +55,8 @@
             <option value="proximas" selected>Próximas</option>
             <option value="historial">Historial</option>
             <option value="pendientes">Pendientes de confirmar</option>
+            <option value="observ">Con observación por revisar</option>
+            <option value="porcobrar">Finalizados por cobrar</option>
           </select></div>
         <div class="f" style="flex:1;min-width:180px"><label for="buscar">Buscar</label><input id="buscar" placeholder="Nombre, código, teléfono o comuna"></div>
       </div>
@@ -97,12 +100,25 @@
         <div class="row3">
           <div class="f"><label for="n-veh">Vehículo</label><select id="n-veh"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
           <div class="f"><label for="n-precio">Precio acordado</label><input id="n-precio" type="number" min="0" step="1000" inputmode="numeric"></div>
-          <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+          <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+          <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
         </div>
         <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
         <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
       </form>
+    </div>
+
+    <div data-pane="clientes" class="panel" style="margin-top:14px" hidden>
+      <div id="cl-lista">
+        <div class="actions">
+          <div class="f" style="flex:1;min-width:180px"><label for="cl-buscar">Buscar cliente</label><input id="cl-buscar" placeholder="Nombre, teléfono o correo"></div>
+          <label class="chk" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="cl-saldo" checked> Solo con saldo pendiente</label>
+        </div>
+        <div class="tblwrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Servicios</th><th>Total</th><th>Pagado</th><th>Pendiente</th></tr></thead><tbody id="cl-tbody"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
+        <p class="muted small" id="cl-resumen"></p>
+      </div>
+      <div id="cl-ficha" hidden></div>
     </div>
 
     <div data-pane="equipo" class="panel" style="margin-top:14px" hidden>
@@ -118,6 +134,15 @@
       <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
       <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
       <div id="pend" class="muted">—</div>
+      <h3 style="margin:8px 0 0">Tarifas del taxímetro</h3>
+      <form id="tf" class="row3" novalidate>
+        <div class="f"><label for="t-bajada">Bajada de bandera</label><input id="t-bajada" type="number" min="0" step="10"></div>
+        <div class="f"><label for="t-200">Cada 200 metros</label><input id="t-200" type="number" min="0" step="10"></div>
+        <div class="f"><label for="t-60">Cada 60 segundos de espera</label><input id="t-60" type="number" min="0" step="10"></div>
+        <div class="f"><label for="t-tag">Valor por pórtico TAG</label><input id="t-tag" type="number" min="0" step="10"></div>
+        <div class="actions"><button class="btn" type="submit">Guardar tarifas</button></div>
+      </form>
+      <div id="t-msg" class="msg" hidden></div>
       <h3 style="margin:8px 0 0">Vehículos</h3>
       <form id="vf" class="row3" novalidate>
         <div class="f"><label for="v-pat">Patente</label><input id="v-pat" required placeholder="ABCD12"></div>
@@ -155,6 +180,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -267,6 +293,8 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "reservas") cargarReservas();
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "agenda") cargarAgenda();
+  if (b.dataset.tab === "clientes") { $("cl-ficha").hidden = true; $("cl-lista").hidden = false; cargarClientes(); }
+  if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
 // ---- Reservas
@@ -279,6 +307,8 @@ async function cargarReservas() {
   if (f === "hoy") q = q.gte("fecha_hora", ini.toISOString()).lt("fecha_hora", fin.toISOString()).order("fecha_hora");
   else if (f === "proximas") q = q.gte("fecha_hora", ahora.toISOString()).neq("estado", "cancelada").order("fecha_hora").limit(200);
   else if (f === "pendientes") q = q.eq("estado", "recibida").order("fecha_hora").limit(200);
+  else if (f === "observ") q = q.not("observacion_conductor", "is", null).eq("observacion_revisada", false).order("fecha_hora", { ascending: false }).limit(200);
+  else if (f === "porcobrar") q = q.eq("estado", "finalizada").eq("pagado", false).order("fecha_hora", { ascending: false }).limit(200);
   else q = q.lt("fecha_hora", ahora.toISOString()).order("fecha_hora", { ascending: false }).limit(200);
   const { data, error } = await q;
   if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -324,7 +354,11 @@ async function abrir(id) {
     </dl>
     <div class="row2">
       <div class="f"><label for="d-precio">Precio final</label><input id="d-precio" type="number" min="0" step="1000" value="${esc(r.precio ?? "")}"></div>
-      <div class="f"><label for="d-pago">Forma de pago</label><input id="d-pago" value="${esc(r.forma_pago || "")}"></div>
+      <div class="f"><label for="d-pago">Forma de pago</label><select id="d-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="f"><label for="d-cobro">Tipo de cobro</label><select id="d-cobro" ${r.estado === "finalizada" ? "disabled" : ""}><option value="fija" ${r.tipo_cobro !== "taximetro" ? "selected" : ""}>Tarifa fija</option><option value="taximetro" ${r.tipo_cobro === "taximetro" ? "selected" : ""}>Taxímetro</option></select></div>
+      <div></div>
     </div>
     <div class="row2">
       <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
@@ -346,10 +380,13 @@ async function abrir(id) {
     <h3 style="margin:6px 0 0">Estado y cobro</h3>
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
+    <div id="cobro-box"></div>
     <h3 style="margin:6px 0 0">Historial</h3>
     <ul class="timeline">${(ev || []).map(e => `<li><b>${esc(ESTADOS[e.estado]?.t || e.estado)}</b> · <span class="muted small">${esc(fecha(e.creado_en))}</span>${e.nota ? `<br>${esc(e.nota)}` : ""}</li>`).join("")}</ul>`;
   $("det").showModal();
+  $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
+  pintarCobro(r);
   $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
   const margen = () => {
     const p = r.precio ?? r.tarifa_web, c = $("a-costo").value === "" ? null : Number($("a-costo").value);
@@ -386,8 +423,9 @@ async function abrir(id) {
     msg("d-msg", "Guardando…");
     const precio = $("d-precio").value === "" ? null : Number($("d-precio").value);
     const pago = $("d-pago").value.trim() || null;
-    if (precio !== r.precio || pago !== r.forma_pago) {
-      const { error } = await sb.from("reservas").update({ precio, forma_pago: pago }).eq("id", r.id);
+    const cobro = $("d-cobro").value;
+    if (precio !== r.precio || pago !== r.forma_pago || cobro !== r.tipo_cobro) {
+      const { error } = await sb.from("reservas").update({ precio, forma_pago: pago, tipo_cobro: cobro }).eq("id", r.id);
       if (error) return msg("d-msg", errText(error), "err");
     }
     const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: $("d-estado").value, p_nota: $("d-nota").value });
@@ -440,6 +478,201 @@ async function cargarAgenda() {
   $("agenda").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
 }
 
+// ---- Cobro de una reserva (ficha)
+const GASTO = { tag: "TAG", peaje: "Peaje", estacionamiento: "Estacionamiento", otro: "Otro" };
+let empresaTarifas = null;
+async function tarifas() {
+  if (!empresaTarifas) { const { data } = await sb.from("empresas").select("id, nombre, taxi_bajada, taxi_cada_200m, taxi_cada_60s, valor_tag").eq("id", yo.empresa_id).single(); empresaTarifas = data; }
+  return empresaTarifas;
+}
+const metrosTxt = m => m == null ? "—" : (m / 1000).toLocaleString("es-CL", { maximumFractionDigits: 2 }) + " km";
+const segTxt = s => s == null ? "—" : Math.floor(s / 60) + " min" + (s % 60 ? " " + (s % 60) + " s" : "");
+async function pintarCobro(r) {
+  const box = $("cobro-box"); if (!box) return;
+  const [{ data: c }, { data: gs }] = await Promise.all([
+    sb.from("v_cobro").select("*").eq("id", r.id).single(),
+    sb.from("reserva_gastos").select("id, tipo, cantidad, monto, descripcion").eq("reserva_id", r.id).order("id")
+  ]);
+  if (!c) return;
+  const admin = yo.rol === "admin";
+  const t = await tarifas();
+  box.innerHTML = `
+    <h3 style="margin:6px 0 0">Cobro</h3>
+    <dl class="kv">
+      <dt>Tipo</dt><dd>${c.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija"}</dd>
+      ${c.tipo_cobro === "taximetro" ? `<dt>Taxímetro</dt><dd>${metrosTxt(c.taxi_metros)} · espera ${segTxt(c.taxi_segundos)}</dd>` : ""}
+      <dt>Valor base</dt><dd>${clp(c.valor_base)}</dd>
+      <dt>Gastos</dt><dd>${(gs || []).length ? gs.map(g => `${esc(GASTO[g.tipo])}${g.cantidad > 1 ? " x" + g.cantidad : ""}${g.descripcion ? " (" + esc(g.descripcion) + ")" : ""}: ${clp(g.monto)}${admin ? ` <button class="linkbtn gdel" data-g="${g.id}" type="button">quitar</button>` : ""}`).join("<br>") : "—"}</dd>
+      <dt><b>Total</b></dt><dd><b>${clp(c.total)}</b></dd>
+      <dt>Pago</dt><dd>${c.pagado ? `<span class="pill s-ok">Pagado</span> ${esc(c.pagado_medio || "")} · ${esc(new Date(c.pagado_en).toLocaleDateString("es-CL"))}` : `<span class="pill s-new">Pendiente</span>`}</dd>
+      <dt>Observación del conductor</dt><dd>${c.observacion_conductor ? esc(c.observacion_conductor).replace(/\n/g, "<br>") + (c.observacion_revisada ? ' <span class="muted small">(revisada)</span>' : "") : "—"}</dd>
+    </dl>
+    ${admin ? `
+    ${c.observacion_conductor && !c.observacion_revisada ? `<div class="actions"><button class="btn ghost sm" id="obs-ok" type="button">Marcar observación como revisada</button></div>` : ""}
+    <div class="row3">
+      <div class="f"><label for="g-tipo">Agregar gasto</label><select id="g-tipo"><option value="tag">TAG (${clp(t.valor_tag)} c/u)</option><option value="peaje">Peaje</option><option value="estacionamiento">Estacionamiento</option><option value="otro">Otro</option></select></div>
+      <div class="f"><label for="g-monto">Monto o cantidad de TAG</label><input id="g-monto" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="f"><label for="g-desc">Detalle</label><input id="g-desc" maxlength="200"></div>
+    </div>
+    <div class="actions"><button class="btn ghost sm" id="g-add" type="button">Agregar gasto</button></div>
+    <div class="row3">
+      <div class="f"><label for="p-medio">Medio de pago</label><select id="p-medio"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+      <div class="f"><label for="p-fecha">Fecha de pago</label><input id="p-fecha" type="date" value="${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date())}"></div>
+      <div class="actions" style="align-self:end">${c.pagado ? `<button class="btn ghost" id="p-undo" type="button">Deshacer pago</button>` : `<button class="btn" id="p-ok" type="button">Marcar pagado</button>`}</div>
+    </div>` : `<p class="muted small">Solo el administrador puede agregar gastos y marcar pagos.</p>`}
+    <div id="c-msg" class="msg" hidden></div>`;
+  if (!admin) return;
+  const recargar = () => pintarCobro(r);
+  $("obs-ok")?.addEventListener("click", async () => {
+    const { error } = await sb.from("reservas").update({ observacion_revisada: true }).eq("id", r.id);
+    if (error) return msg("c-msg", errText(error), "err"); recargar();
+  });
+  box.querySelectorAll(".gdel").forEach(b => b.addEventListener("click", async () => {
+    const { error } = await sb.from("reserva_gastos").delete().eq("id", b.dataset.g);
+    if (error) return msg("c-msg", errText(error), "err"); recargar();
+  }));
+  $("g-add").addEventListener("click", async () => {
+    const tipo = $("g-tipo").value, n = Number($("g-monto").value);
+    if (!(n > 0)) return msg("c-msg", tipo === "tag" ? "Indique cuántos pórticos TAG." : "Indique el monto.", "err");
+    const fila = tipo === "tag" ? { cantidad: Math.round(n), monto: Math.round(n) * t.valor_tag } : { cantidad: 1, monto: Math.round(n) };
+    const { error } = await sb.from("reserva_gastos").insert({ empresa_id: yo.empresa_id, reserva_id: r.id, tipo, ...fila, descripcion: $("g-desc").value.trim() || null, creado_por: yo.id });
+    if (error) return msg("c-msg", errText(error), "err"); recargar();
+  });
+  const pagar = async val => {
+    const { error } = await sb.rpc("marcar_pagado", { p_reservas: [r.id], p_pagado: val, p_medio: $("p-medio").value, p_fecha: $("p-fecha").value || null });
+    if (error) return msg("c-msg", errText(error), "err"); recargar();
+  };
+  $("p-ok")?.addEventListener("click", () => pagar(true));
+  $("p-undo")?.addEventListener("click", () => pagar(false));
+}
+
+// ---- Clientes y cobros
+let clientes = [], cobros = [];
+async function cargarClientes() {
+  const [{ data: cs }, { data: vs }] = await Promise.all([
+    sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id").order("nombre"),
+    sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000)
+  ]);
+  clientes = cs || []; cobros = vs || [];
+  pintarClientes();
+}
+function resumenCliente(id) {
+  const fin = cobros.filter(x => x.cliente_id === id && x.estado === "finalizada");
+  const total = fin.reduce((a, x) => a + (x.total || 0), 0);
+  const pagado = fin.filter(x => x.pagado).reduce((a, x) => a + (x.total || 0), 0);
+  return { servicios: cobros.filter(x => x.cliente_id === id).length, finalizados: fin.length, total, pagado, pendiente: total - pagado };
+}
+function pintarClientes() {
+  const t = $("cl-buscar").value.trim().toLowerCase(), soloSaldo = $("cl-saldo").checked;
+  const filas = clientes.map(c => ({ c, r: resumenCliente(c.id) }))
+    .filter(({ c, r }) => (!t || [c.nombre, c.telefono, c.correo].join(" ").toLowerCase().includes(t)) && (!soloSaldo || r.pendiente > 0))
+    .sort((a, b) => b.r.pendiente - a.r.pendiente);
+  $("cl-tbody").innerHTML = filas.length ? filas.map(({ c, r }) => `
+    <tr data-id="${esc(c.id)}" style="cursor:pointer"><td><b>${esc(c.nombre)}</b><br><span class="muted small">${esc(c.telefono || c.correo || "")}</span></td>
+    <td>${r.servicios}</td><td>${clp(r.total)}</td><td>${clp(r.pagado)}</td><td>${r.pendiente > 0 ? `<b class="warn">${clp(r.pendiente)}</b>` : clp(0)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">${soloSaldo ? "No hay clientes con saldo pendiente." : "No hay clientes."}</td></tr>`;
+  const tot = filas.reduce((a, x) => a + x.r.pendiente, 0);
+  $("cl-resumen").textContent = `Total pendiente de cobro: ${clp(tot)}. El saldo considera solo servicios finalizados.`;
+  $("cl-tbody").querySelectorAll("tr[data-id]").forEach(tr => tr.addEventListener("click", () => fichaCliente(tr.dataset.id)));
+}
+$("cl-buscar").addEventListener("input", pintarClientes);
+$("cl-saldo").addEventListener("change", pintarClientes);
+
+function fichaCliente(id) {
+  const c = clientes.find(x => x.id === id); if (!c) return;
+  const admin = yo.rol === "admin";
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+  $("cl-lista").hidden = true; $("cl-ficha").hidden = false;
+  $("cl-ficha").innerHTML = `
+    <div class="actions"><button class="btn ghost sm" id="cl-volver" type="button">◀ Volver a clientes</button></div>
+    <h2 style="margin-top:10px">${esc(c.nombre)}</h2>
+    <p class="muted">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}</p>
+    <div class="row3">
+      <div class="f"><label for="cf-desde">Desde</label><input id="cf-desde" type="date"></div>
+      <div class="f"><label for="cf-hasta">Hasta</label><input id="cf-hasta" type="date" value="${hoy}"></div>
+      <div class="f"><label for="cf-ver">Mostrar</label><select id="cf-ver"><option value="pend">Pendientes de pago</option><option value="todos">Todos los finalizados</option></select></div>
+    </div>
+    <div id="cf-res" class="small" style="margin-top:6px"></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr>${admin ? '<th><input type="checkbox" id="cf-all" aria-label="Seleccionar todos"></th>' : ""}<th>Fecha</th><th>Código</th><th>Trayecto</th><th>Total</th><th>Pago</th></tr></thead><tbody id="cf-tbody"></tbody></table></div>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn" id="cf-xlsx" type="button">Descargar planilla Excel</button>
+      ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
+    </div>
+    <div id="cf-msg" class="msg" hidden></div>`;
+  $("cl-volver").onclick = () => { $("cl-ficha").hidden = true; $("cl-lista").hidden = false; cargarClientes(); };
+  const filtrar = () => {
+    const d = $("cf-desde").value, h = $("cf-hasta").value, ver = $("cf-ver").value;
+    const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date(iso));
+    return cobros.filter(x => x.cliente_id === id && x.estado === "finalizada" && (!d || dia(x.fecha_hora) >= d) && (!h || dia(x.fecha_hora) <= h) && (ver === "todos" || !x.pagado))
+      .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
+  };
+  const pintar = () => {
+    const rows = filtrar();
+    $("cf-tbody").innerHTML = rows.length ? rows.map(x => `<tr>${admin ? `<td>${x.pagado ? "" : `<input type="checkbox" class="cf-sel" value="${esc(x.id)}" aria-label="Seleccionar ${esc(x.codigo)}">`}</td>` : ""}
+      <td>${esc(fecha(x.fecha_hora))}</td><td class="code">${esc(x.codigo)}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td>${clp(x.total)}</td>
+      <td>${x.pagado ? `<span class="pill s-ok">Pagado</span>` : `<span class="pill s-new">Pendiente</span>`}</td></tr>`).join("")
+      : `<tr><td colspan="6" class="muted">No hay servicios en este período.</td></tr>`;
+    const tot = rows.reduce((a, x) => a + (x.total || 0), 0), pend = rows.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
+    $("cf-res").innerHTML = `${rows.length} servicio(s) · total ${clp(tot)} · <b>pendiente ${clp(pend)}</b>`;
+  };
+  ["cf-desde", "cf-hasta", "cf-ver"].forEach(i => $(i).addEventListener("change", pintar));
+  $("cf-all")?.addEventListener("change", e => $("cf-tbody").querySelectorAll(".cf-sel").forEach(x => x.checked = e.target.checked));
+  $("cf-pagar")?.addEventListener("click", async () => {
+    const ids = [...$("cf-tbody").querySelectorAll(".cf-sel:checked")].map(x => x.value);
+    if (!ids.length) return msg("cf-msg", "Seleccione los servicios pagados.", "err");
+    const { data, error } = await sb.rpc("marcar_pagado", { p_reservas: ids, p_pagado: true, p_medio: $("cf-medio").value, p_fecha: null });
+    if (error) return msg("cf-msg", errText(error), "err");
+    msg("cf-msg", `${data} servicio(s) marcados como pagados.`, "ok");
+    const { data: vs } = await sb.from("v_cobro").select("*").eq("cliente_id", id);
+    cobros = cobros.filter(x => x.cliente_id !== id).concat(vs || []); pintar();
+  });
+  $("cf-xlsx").addEventListener("click", () => planilla(c, filtrar(), $("cf-desde").value, $("cf-hasta").value));
+  pintar();
+}
+
+async function planilla(c, rows, desde, hasta) {
+  if (!rows.length) return msg("cf-msg", "No hay servicios para la planilla en este período.", "err");
+  if (!window.XLSX) return msg("cf-msg", "No se pudo cargar el generador de planillas. Revise su conexión e intente de nuevo.", "err");
+  const { data: gs } = await sb.from("reserva_gastos").select("reserva_id, tipo, cantidad, monto, descripcion").in("reserva_id", rows.map(x => x.id));
+  const det = id => (gs || []).filter(g => g.reserva_id === id).map(g => `${GASTO[g.tipo]}${g.cantidad > 1 ? " x" + g.cantidad : ""}${g.descripcion ? " (" + g.descripcion + ")" : ""} $${g.monto.toLocaleString("es-CL")}`).join("; ");
+  const fd = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: "America/Santiago" });
+  const fh = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const total = rows.reduce((a, x) => a + (x.total || 0), 0), pend = rows.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
+  const aoa = [
+    ["FK Servicios SpA · Flota-K"], ["Detalle de servicios para cobro"], [],
+    ["Cliente", c.nombre], ["Contacto", [c.telefono, c.correo].filter(Boolean).join(" · ")],
+    ["Período", `${desde ? fd(desde + "T12:00:00") : "Inicio"} al ${hasta ? fd(hasta + "T12:00:00") : "hoy"}`], ["Emitido", fd(new Date().toISOString())], [],
+    ["Fecha", "Hora", "Código", "Pasajero", "Origen", "Destino", "Tipo de cobro", "Detalle taxímetro", "Valor base", "Gastos", "Detalle de gastos", "Total", "Estado de pago", "Respaldo (seguimiento)"],
+    ...rows.map(x => [fd(x.fecha_hora), fh(x.fecha_hora), x.codigo, x.nombre_pasajero, x.origen, x.destino,
+      x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija",
+      x.tipo_cobro === "taximetro" ? `${metrosTxt(x.taxi_metros)} · espera ${segTxt(x.taxi_segundos)}` : "",
+      x.valor_base || 0, x.gastos || 0, det(x.id), x.total || 0, x.pagado ? `Pagado ${x.pagado_medio || ""}` : "Pendiente",
+      location.origin + "/seguimiento/?t=" + x.token_seguimiento]),
+    [], ["", "", "", "", "", "", "", "", "", "", "TOTAL", total], ["", "", "", "", "", "", "", "", "", "", "PENDIENTE DE PAGO", pend], [],
+    ["Pago por transferencia. Consultas: gerencia@fk-servicios.com · WhatsApp +56 9 2227 5399"]
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [10, 7, 11, 22, 30, 30, 13, 24, 11, 10, 34, 11, 16, 60].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Servicios");
+  const nombre = `Flota-K_${c.nombre.replace(/[^\wÁÉÍÓÚáéíóúÑñ]+/g, "_")}_${hasta || "hoy"}.xlsx`;
+  XLSX.writeFile(wb, nombre);
+  msg("cf-msg", `Planilla descargada: ${nombre}`, "ok");
+}
+
+// ---- Tarifas (admin)
+async function cargarTarifas() {
+  const t = await tarifas();
+  $("t-bajada").value = t.taxi_bajada; $("t-200").value = t.taxi_cada_200m; $("t-60").value = t.taxi_cada_60s; $("t-tag").value = t.valor_tag;
+}
+$("tf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const v = { taxi_bajada: Number($("t-bajada").value), taxi_cada_200m: Number($("t-200").value), taxi_cada_60s: Number($("t-60").value), valor_tag: Number($("t-tag").value) };
+  if (Object.values(v).some(n => !(n >= 0))) return msg("t-msg", "Revise los valores.", "err");
+  const { error } = await sb.from("empresas").update(v).eq("id", yo.empresa_id);
+  if (error) return msg("t-msg", errText(error), "err");
+  empresaTarifas = null; msg("t-msg", "Tarifas guardadas. Se aplican a los próximos servicios con taxímetro.", "ok");
+});
+
 // ---- Nueva reserva
 $("nf").addEventListener("submit", async e => {
   e.preventDefault();
@@ -451,7 +684,7 @@ $("nf").addEventListener("submit", async e => {
     empresa_id: yo.empresa_id, nombre_pasajero: $("n-nombre").value.trim(), telefono: $("n-tel").value.trim(),
     correo: $("n-mail").value.trim().toLowerCase() || null, fecha_hora: fh, origen: $("n-origen").value.trim(), destino: $("n-destino").value.trim(),
     vuelo: $("n-vuelo").value.trim() || null, pasajeros: Number($("n-pax").value) || 1, maletas: $("n-maletas").value === "" ? null : Number($("n-maletas").value),
-    tipo_servicio: $("n-tipo").value, vehiculo: $("n-veh").value, canal: $("n-canal").value,
+    tipo_servicio: $("n-tipo").value, vehiculo: $("n-veh").value, canal: $("n-canal").value, tipo_cobro: $("n-cobro").value,
     precio: $("n-precio").value === "" ? null : Number($("n-precio").value), forma_pago: $("n-pago").value || null,
     comentarios: $("n-com").value.trim() || null, estado: "confirmada"
   };
