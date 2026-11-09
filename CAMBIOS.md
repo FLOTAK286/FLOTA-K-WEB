@@ -1,5 +1,12 @@
 # Cambios
 
+## 9 nov 2026 · App Android del conductor (pendiente de publicar)
+- App Android instalable (`app-android/`, hecha con Capacitor, gratis). Abre fk-servicios.com/conductor, así que todo cambio a la página llega solo a la app sin reinstalar.
+- **Sigue enviando la ubicación con Waze, Cabify u otra app abierta**, con una notificación fija "Flota-K Conductor · Compartiendo su ubicación…". Si el permiso está bloqueado, el botón "Activar" abre los ajustes de la app.
+- GitHub arma el archivo automáticamente (`.github/workflows/app-android.yml`) cada vez que cambia `app-android/`. Descarga: https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk
+- Nota: el aviso de permisos de Android no aparece si otra app muestra una burbuja encima (por ejemplo, Cabify). Se da el permiso desde Ajustes → Apps → Flota-K Conductor → Permisos → Ubicación.
+- Pendiente: cada armado usa una firma distinta; si algún día hay que reinstalar, se desinstala la anterior primero (casi nunca hará falta, porque las mejoras llegan por la página).
+
 ## 9 nov 2026 · Etapa 5: ubicación en vivo del conductor (pendiente de publicar)
 - **App del conductor:** al abrirla, comparte su ubicación (cada 15 s con un servicio en curso, cada minuto sin servicio). Muestra un aviso verde "Compartiendo ubicación…" o, si está bloqueada, cómo activarla. Durante el servicio mantiene la pantalla encendida.
 - **Pasajero (/seguimiento):** cuando el servicio está "En camino", "Llegó al lugar" o "A bordo", ve un mapa con el auto, actualizado cada 15 s. Fuera de esos estados no ve nada (privacidad del conductor).
