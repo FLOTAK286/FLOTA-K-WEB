@@ -83,10 +83,16 @@ async function cargar() {
       ${r.o_conductor ? "" : '<dt>Conductor</dt><dd>Por asignar</dd>'}
     </dl>
     ${pasos}
-    ${!["finalizada", "cancelada"].includes(r.o_estado) ? '<div class="actions"><button class="btn ghost sm" type="button" id="ics">📅 Agregar a mi calendario</button></div>' : ""}
+    ${!["finalizada", "cancelada"].includes(r.o_estado) ? '<div class="actions"><button class="btn ghost sm" type="button" id="ics">📅 Agregar a mi calendario</button><button class="btn ghost sm" type="button" id="compartir">🔗 Compartir mi viaje</button></div>' : ""}
     ${r.o_estado === "finalizada" || r.o_tipo_servicio === "ida" ? `<div class="actions"><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/56922275399?text=${encodeURIComponent(`Hola Flota-K, quiero reservar mi regreso (reserva ${r.o_codigo}): desde ${r.o_destino} a ${r.o_origen}. Fecha y hora: `)}">↩ Reservar mi regreso</a></div>` : ""}
     <p class="muted small">${enCurso ? "La ubicación se actualiza sola cada 15 segundos." : "Esta página se actualiza sola cada minuto. Cuando su conductor vaya en camino, aquí verá su ubicación en el mapa."}</p>`;
   $("ics")?.addEventListener("click", calendario);
+  $("compartir")?.addEventListener("click", async () => {
+    // Para que un familiar vea el viaje en vivo (por seguridad o para coordinar la llegada)
+    const t = `Sigue mi traslado con Flota-K en vivo (${r.o_origen} → ${r.o_destino}):`;
+    if (navigator.share) { try { await navigator.share({ title: "Mi traslado Flota-K", text: t, url: location.href }); return; } catch (_) {} }
+    window.open("https://wa.me/?text=" + encodeURIComponent(t + " " + location.href), "_blank", "noopener");
+  });
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
   mensajes();

@@ -180,7 +180,7 @@ dialog .panel { border: 0; }
 .nuevo { display: grid; gap: 6px; border: 2px solid #2f8a5b; background: #2f8a5b18; border-radius: 8px; padding: 10px 12px; animation: fkpulse 1.6s 3; }
 .espera { border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; font-size: .95rem; }
 .espera.pasada { border-color: #e5533d; background: #e5533d18; }
-.aviso-fijo { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 50; box-shadow: 0 6px 20px rgba(0,0,0,.35); cursor: pointer; }
+.aviso-fijo { position: fixed; left: 12px; right: 12px; top: 12px; z-index: 50; box-shadow: 0 6px 20px rgba(0,0,0,.35); cursor: pointer; }
 .rapidos { display: flex; flex-wrap: wrap; gap: 6px; }
 .rapidos .chip { font-size: .85rem; }
 html.grande { font-size: 118%; }
@@ -199,3 +199,4 @@ html.grande { font-size: 118%; }
 .patente { display: inline-block; font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; letter-spacing: .08em; border: 2px solid var(--fg); border-radius: 4px; padding: 0 8px; width: fit-content; }
 .eta { font-size: 1.15rem; margin: 0; padding: 10px 12px; border-radius: 6px; background: var(--gold); color: #17130a; }
 #ayuda-temas .btn.on { border-color: var(--gold); background: var(--gold); color: #17130a; }
+.tb-resumen { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .92rem; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }

@@ -65,6 +65,23 @@ try { const t = localStorage.getItem("fk_tema") || "dark"; document.documentElem
   .confirm { display: grid; gap: 8px; background: var(--bg); border: 1px solid var(--gold); border-radius: 6px; padding: 12px; }
   .sticky-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
   .install { border-color: var(--gold); }
+  /* Deslizar para confirmar */
+  .swipe { --avance: 0%; position: relative; height: 64px; border-radius: 999px; background: linear-gradient(90deg, rgba(255,255,255,.18) var(--avance), transparent var(--avance)), #2f8a5b; color: #fff; display: flex; align-items: center; justify-content: center; user-select: none; touch-action: none; overflow: hidden; }
+  .swipe.end { background: linear-gradient(90deg, rgba(0,0,0,.12) var(--avance), transparent var(--avance)), #d4a64a; color: #17130a; }
+  .swipe-txt { font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; text-transform: uppercase; letter-spacing: .03em; padding-left: 50px; }
+  .swipe-thumb { position: absolute; left: 4px; top: 4px; width: 56px; height: 56px; border-radius: 50%; background: #fff; color: #17130a; display: grid; place-items: center; font-size: 1.6rem; cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .swipe:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  /* Modo en ruta: lo esencial en grande */
+  .svc.en-ruta .pay, .svc.en-ruta .obs, .svc.en-ruta .facts, .svc.en-ruta > p.small, .svc.en-ruta .place .nav { display: none; }
+  .svc.en-ruta .place span { font-size: 1.35rem; font-weight: 700; }
+  .svc.en-ruta .who { font-size: 1.5rem; }
+  .svc.en-ruta .btn.navegar { font-size: 1.25rem; padding: 16px; }
+  .falta { display: inline-block; width: fit-content; font-weight: 700; font-size: .9rem; padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+  .falta.pronto { background: #d4a64a; color: #17130a; border-color: #d4a64a; }
+  .meta { display: grid; gap: 6px; }
+  .barra { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .barra span { display: block; height: 100%; background: #3ecf7f; }
+  .sin-red { position: fixed; top: 0; left: 0; right: 0; z-index: 60; background: #e5533d; color: #fff; text-align: center; padding: 8px 12px; font-weight: 700; font-size: .9rem; }
   /* Diseño app de conductor */
   body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
   header.top .brand small { display: none; }
@@ -206,6 +223,7 @@ async function iniciar(session) {
   if (yo.foto_path) $("av").innerHTML = `<img src="${esc(sb.storage.from("fotos").getPublicUrl(yo.foto_path).data.publicUrl)}" alt="">`; else $("av").innerHTML = `<span>${esc((yo.nombre || "K")[0])}</span>`;
   $("av").onclick = () => irA("perfil");
   gananciaHoy(); setInterval(gananciaHoy, 5 * 60000);
+  revisarDocs(); setInterval(revisarDocs, 6 * 3600e3);
   $("who").textContent = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre.split(" ")[0] + (mio ? ` · ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
   pintarConexion();
@@ -243,6 +261,20 @@ async function cargar() {
   pintar();
 }
 
+// Deslizar para confirmar: evita toques accidentales mientras maneja (también funciona con Enter)
+let detallesRuta = false;
+function activarSwipe(el, alConfirmar) {
+  const th = el.querySelector(".swipe-thumb"); let x0 = null, dx = 0, hecho = false;
+  const max = () => el.clientWidth - th.offsetWidth - 8;
+  const mover = x => { dx = Math.max(0, Math.min(max(), x - x0)); th.style.transform = `translateX(${dx}px)`; el.style.setProperty("--avance", (dx / max() * 100) + "%"); };
+  const fin = () => { if (x0 === null) return; x0 = null; th.style.transition = "transform .2s";
+    if (dx >= max() * 0.85 && !hecho) { hecho = true; th.style.transform = `translateX(${max()}px)`; if (navigator.vibrate) navigator.vibrate(40); alConfirmar(); }
+    else { th.style.transform = "translateX(0)"; el.style.setProperty("--avance", "0%"); } };
+  th.addEventListener("pointerdown", e => { x0 = e.clientX; th.style.transition = "none"; th.setPointerCapture(e.pointerId); e.preventDefault(); });
+  th.addEventListener("pointermove", e => { if (x0 !== null) mover(e.clientX); });
+  th.addEventListener("pointerup", fin); th.addEventListener("pointercancel", fin);
+  el.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && !hecho) { e.preventDefault(); hecho = true; alConfirmar(); } });
+}
 function enlazarCabecera() {
   $("ver-todos")?.addEventListener("click", () => irA("hoy"));
   document.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => irA(b.dataset.sub)));
@@ -268,6 +300,16 @@ async function mapaInicio(r) {
   }
   const pts = [pinYo && pinYo.getLatLng(), pinDest && pinDest.getLatLng()].filter(Boolean);
   if (pts.length === 2) mapaIni.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); else if (pts.length === 1) mapaIni.setView(pts[0], 14);
+}
+// Aviso de documentos vencidos o por vencer (se revisa al abrir y cada 6 horas)
+let alertaDocs = "";
+async function revisarDocs() {
+  const { data } = await sb.from("documentos").select("tipo, vence, estado, conductor_id, vehiculo_id").not("vence", "is", null);
+  const NOM = { licencia: "licencia", cedula: "cédula", antecedentes: "certificado de antecedentes", hoja_vida: "hoja de vida", permiso_circulacion: "permiso de circulación", revision_tecnica: "revisión técnica", soap: "SOAP", seguro: "seguro", padron: "padrón", otro: "documento" };
+  const avisos = (data || []).map(d => ({ d, dias: Math.floor((new Date(d.vence + "T23:59:59-03:00") - Date.now()) / 864e5) })).filter(x => x.dias <= 30 && x.d.estado !== "rechazado")
+    .sort((a, b) => a.dias - b.dias).map(x => x.dias < 0 ? `Su ${NOM[x.d.tipo]} venció hace ${-x.dias} día(s)` : `Su ${NOM[x.d.tipo]} vence en ${x.dias} día(s)`);
+  alertaDocs = avisos.length ? `<div class="msg ${avisos[0].includes("venció") ? "err" : ""}" style="margin:0">📄 ${esc(avisos.join(" · "))}. Renuévelo y súbalo en Perfil → Mis documentos.</div>` : "";
+  if (vista === "inicio") pintar();
 }
 // Ganancia de hoy (en el encabezado)
 async function gananciaHoy() {
@@ -380,6 +422,7 @@ setInterval(() => { if (yo) revisarMensajes(); }, 15000);
 
 // ---- Ganancias: lo generado por servicios finalizados (hoy, semana, mes)
 async function pintarGanancias() {
+  let meta = 0; try { meta = Number(localStorage.getItem("fk_meta")) || 0; } catch (_) {}
   $("list").innerHTML = '<p class="muted">Cargando…</p>';
   const { data, error } = await sb.from("v_cobro").select("id, codigo, fecha_hora, nombre_pasajero, origen, destino, tipo_cobro, valor_base, gastos, total, pagado")
     .eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", new Date(Date.now() - 45 * 864e5).toISOString()).order("fecha_hora", { ascending: false });
@@ -405,8 +448,12 @@ async function pintarGanancias() {
       <span class="small">${esc(x.nombre_pasajero)} · ${esc(x.origen)} → ${esc(x.destino)}</span><br>
       <span class="small muted">${x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija"}${x.gastos ? ` · gastos ${clp(x.gastos)}` : ""}</span></div>
       <div style="text-align:right"><b>${clp(x.total)}</b><br><span class="small ${x.pagado ? "muted" : ""}">${x.pagado ? "Pagado" : "Por cobrar"}</span></div></div>`).join("") : '<p class="muted">Aún no hay servicios finalizados este mes.</p>'}
+    <div class="pay meta"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Meta del mes</b>
+      <label class="small">Meta: $ <input id="meta-in" type="number" min="0" step="50000" inputmode="numeric" style="width:120px;padding:4px 6px" value="${meta || ""}" placeholder="Ej.: 2000000"></label></div>
+      ${meta ? `<div class="barra"><span style="width:${Math.min(100, Math.round(suma(mes).t / meta * 100))}%"></span></div><span class="small">${clp(suma(mes).t)} de ${clp(meta)} · ${Math.min(100, Math.round(suma(mes).t / meta * 100))}%${suma(mes).t < meta ? ` · faltan ${clp(meta - suma(mes).t)}` : " · ¡Meta cumplida!"}</span>` : '<span class="small muted">Escriba una meta para ver su avance.</span>'}</div>
     <div class="actions"><button class="btn ghost" type="button" id="liq">Liquidación del mes</button><button class="btn ghost" type="button" id="liq-mail">Enviarme la liquidación por correo</button></div>
     <p class="small muted">Montos de lo cobrado al cliente (valor del servicio más gastos como TAG, peajes o estacionamiento). Servicios cancelados no se cuentan.</p>`;
+  $("meta-in").addEventListener("change", ev => { try { localStorage.setItem("fk_meta", String(Number(ev.target.value) || "")); } catch (_) {} pintarGanancias(); });
   // Liquidación del mes: detalle para imprimir o guardar como PDF (en el navegador) o enviarse por correo (en la app)
   const mesTxt = new Date().toLocaleDateString("es-CL", { timeZone: TZ, month: "long", year: "numeric" });
   const tot = delMes.reduce((a, x) => a + (x.total || 0), 0), gas = delMes.reduce((a, x) => a + (x.gastos || 0), 0);
@@ -578,7 +625,7 @@ function pintar() {
     const principal = items.find(r => EN_CURSO.includes(r.estado)) || items.filter(r => !["finalizada", "cancelada"].includes(r.estado)).sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))[0];
     lista = principal ? [principal] : [];
     const pendientes = items.filter(r => !["finalizada", "cancelada"].includes(r.estado) && enHoy(r)).length;
-    cabecera = `<div class="inicio-tit"><b>${principal ? (EN_CURSO.includes(principal.estado) ? "Servicio en curso" : "Próximo servicio") : "Sin servicios pendientes"}</b>${pendientes > 1 ? ` <button type="button" class="linkbtn" id="ver-todos">Ver los ${pendientes} de hoy →</button>` : ""}</div>`;
+    cabecera = alertaDocs + `<div class="inicio-tit"><b>${principal ? (EN_CURSO.includes(principal.estado) ? "Servicio en curso" : "Próximo servicio") : "Sin servicios pendientes"}</b>${pendientes > 1 ? ` <button type="button" class="linkbtn" id="ver-todos">Ver los ${pendientes} de hoy →</button>` : ""}</div>`;
     mapaInicio(principal);
     if (!principal) { $("list").innerHTML = cabecera + `<p class="muted">${yo.disponible ? "Está conectado. Cuando la central le asigne un servicio, le avisaremos con sonido." : "Está desconectado. Conéctese arriba para recibir servicios."}</p>`; return; }
   } else {
@@ -598,8 +645,14 @@ function pintar() {
     if (vista === "hoy" && fin && !yaRealizados) { yaRealizados = true; head = '<h3 style="margin:14px 0 0">Realizados</h3>'; }
     ultimoDia = diaKey(r.fecha_hora);
     const msgWa = `Hola ${r.nombre_pasajero.split(" ")[0]}, le saluda ${yo.nombre.split(" ")[0]} de Flota-K, su conductor para hoy a las ${hora(r.fecha_hora)}.`;
-    return `${head}<article class="svc ${fin ? "done" : ""}" data-id="${esc(r.id)}">
+    const enRuta = vista === "inicio" && EN_CURSO.includes(r.estado) && !detallesRuta;
+    const falta = Math.round((new Date(r.fecha_hora) - Date.now()) / 60000);
+    const cuenta = ["recibida", "confirmada", "asignada"].includes(r.estado) && falta > -60 && falta < 24 * 60
+      ? `<span class="falta ${falta <= 45 ? "pronto" : ""}">${falta > 0 ? (falta >= 60 ? `Sale en ${Math.floor(falta / 60)} h ${falta % 60} min` : `Sale en ${falta} min`) : `Atrasado ${-falta} min`}</span>` : "";
+    return `${head}<article class="svc ${fin ? "done" : ""} ${enRuta ? "en-ruta" : ""}" data-id="${esc(r.id)}">
       <div class="top" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="time">${esc(hora(r.fecha_hora))}</span>${pill(r.estado)}</div>
+      ${cuenta}
+      ${vista === "inicio" && EN_CURSO.includes(r.estado) ? `<button type="button" class="linkbtn det-ruta">${detallesRuta ? "Ver pantalla simple" : "Ver detalles"}</button>` : ""}
       ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
       ${!fin ? `<a class="btn navegar" href="${waze(r.estado === "a_bordo" ? r.destino : r.origen)}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>` : ""}
@@ -639,7 +692,7 @@ function pintar() {
             <div class="pay tx-total">Total: —</div>
             <div class="actions"><button class="btn end ok" type="button">Finalizar servicio</button><button class="btn ghost no" type="button">Volver</button></div></div>`
           : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
-        : `<button class="btn big ${s.c} next" type="button" data-e="${s.e}">${esc(s.t)}</button>`) : ""}
+        : `<div class="swipe ${s.c} next" role="button" tabindex="0" data-e="${s.e}" aria-label="${esc(s.t)} (deslice o presione Enter)"><span class="swipe-txt">Deslice → ${esc(s.t)}</span><span class="swipe-thumb">➜</span></div>`) : ""}
       ${fin ? califHtml(r) : ""}
       <div class="msg err" hidden></div>
     </article>`;
@@ -647,8 +700,10 @@ function pintar() {
   setTimeout(pintarBadges, 0); enlazarCabecera();
   $("list").querySelectorAll(".svc").forEach(card => {
     const id = card.dataset.id;
-    card.querySelector(".next")?.addEventListener("click", ev => {
-      const e = ev.currentTarget.dataset.e;
+    card.querySelector(".det-ruta")?.addEventListener("click", () => { detallesRuta = !detallesRuta; pintar(); });
+    const nx = card.querySelector(".next");
+    if (nx) activarSwipe(nx, () => {
+      const e = nx.dataset.e;
       if (e === "finalizada") { pendiente = id; pintar(); return; }
       avanzar(card, id, e);
     });
@@ -857,6 +912,15 @@ function mostrarFalla(t) {
 window.addEventListener("error", e => { if (!yo) mostrarFalla(e.message); });
 window.addEventListener("unhandledrejection", e => { if (!yo) mostrarFalla(e.reason && (e.reason.message || e.reason)); });
 setTimeout(() => { if (!yo && $("login").hidden && $("noaccess").hidden) mostrarFalla("la app no respondió a tiempo. Revise su internet."); }, 15000);
+
+// Aviso de "Sin conexión"
+function estadoRed() {
+  let b = $("sin-red");
+  if (navigator.onLine) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement("div"); b.id = "sin-red"; b.className = "sin-red"; b.textContent = "Sin conexión a internet: los cambios se enviarán cuando vuelva la señal."; document.body.appendChild(b); }
+}
+window.addEventListener("online", () => { estadoRed(); if (yo) { cargar(); enviarUbicacion(true); } });
+window.addEventListener("offline", estadoRed);
 
 let iniciado = false;
 sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });

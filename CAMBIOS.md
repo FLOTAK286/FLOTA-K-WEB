@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Mejoras de uso en ruta (pendiente de publicar)
+- **Conductor:** deslizar para confirmar (Voy en camino, Llegué, Pasajero a bordo, Finalizar; también con Enter); **modo en ruta** en el Inicio con el servicio en curso (lo esencial en grande; "Ver detalles"); **cuenta regresiva** "Sale en X min" / "Atrasado"; **aviso de documentos** vencidos o por vencer (30 días) al abrir; **meta del mes** en la Billetera con barra de avance; aviso **"Sin conexión"**; el recordatorio en pantalla ahora aparece arriba (no tapa la barra).
+- **Pasajero:** botón **"Compartir mi viaje"** (enlace en vivo para un familiar).
+- **Despacho:** **resumen del día** sobre el tablero (servicios de hoy, valor, finalizados, en curso, sin asignar y conductores conectados).
+- Pendiente (requiere cuenta del dueño): estado del vuelo dentro de la app con un servicio de vuelos (AeroDataBox o AviationStack).
+
 ## 9 nov 2026 · Rediseño de la app del conductor (pendiente de publicar)
 - **Inicio con mapa:** su posición (con su número de móvil) y el punto al que debe ir (retiro, o destino si el pasajero va a bordo), y la tarjeta del servicio en curso o del **próximo** (ya no el último realizado). Enlace "Ver los N de hoy".
 - **Barra de navegación abajo:** Inicio · Servicios · Billetera · Perfil. Servicios con "Hoy" y "Próximos días"; primero lo pendiente y al final "Realizados" (sin botones de navegación).

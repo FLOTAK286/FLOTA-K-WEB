@@ -64,6 +64,7 @@
         </div>
         <span class="actions"><label class="chk small"><input type="checkbox" id="tb-vermapa"> Ver mapa al lado</label><span class="muted small" id="tb-act"></span></span>
       </div>
+      <div id="tb-resumen" class="tb-resumen"></div>
       <div id="tb-split"><div class="tblwrap"><table class="tbl tb"><thead><tr><th>Hora</th><th>Servicio</th><th>Pasajero</th><th>Trayecto</th><th>Vuelo</th><th>Conductor</th><th>Valor</th><th>Alertas</th></tr></thead><tbody id="tb-body"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody></table></div><div id="tb-mapa" class="mapa alto" hidden></div></div>
       <p class="muted small" style="margin:0">Muestra desde 12 horas atrás hasta 2 días adelante, más toda reserva por confirmar. Se actualiza solo cada 30 segundos. Toque una fila para abrir la ficha; el conductor se puede asignar directo en la fila.</p>
     </div>
@@ -1154,6 +1155,8 @@ function pintarDespacho() {
   const enCurso = r => ["en_camino", "en_lugar", "a_bordo"].includes(r.estado);
   const sinAsig = r => !r.conductor_id && !r.derivado_a && r.estado !== "finalizada";
   const hoyK = hoyChile(), diaK = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+  const deHoy = tablero.filter(r => diaK(r.fecha_hora) === hoyK);
+  $("tb-resumen").innerHTML = `<span><b>${deHoy.length}</b> servicio(s) hoy</span><span><b>${clp(deHoy.reduce((x, r) => x + (r.precio ?? r.tarifa_web ?? 0), 0))}</b> en valor</span><span><b>${deHoy.filter(r => r.estado === "finalizada").length}</b> finalizados</span><span><b>${tablero.filter(enCurso).length}</b> en curso</span><span class="${tablero.filter(sinAsig).length ? "warn" : ""}"><b>${tablero.filter(sinAsig).length}</b> sin asignar</span><span><b>${conductores.filter(c => c.disponible).length}</b> de ${conductores.length} conductor(es) conectado(s)</span>`;
   const cuenta = { atencion: tablero.filter(r => r._urg >= 2).length, sinasignar: tablero.filter(sinAsig).length, curso: tablero.filter(enCurso).length };
   Object.entries(cuenta).forEach(([k, n]) => $("c-" + k).textContent = n ? `(${n})` : "");
   const filtros = { todo: () => true, atencion: r => r._urg >= 2, sinasignar: sinAsig, curso: enCurso, hoy: r => diaK(r.fecha_hora) === hoyK };
