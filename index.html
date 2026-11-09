@@ -14,6 +14,11 @@
 .social a { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #333842; border-radius: 50%; color: #eceae4; }
 .social a:hover { color: #d4a64a; border-color: #d4a64a; }
 @media (max-width: 400px) { .social a { width: 30px; height: 30px; } .top-right { gap: 6px; } }
+
+.util { border-bottom: 1px solid #1d2026; }
+header.top .util-in { justify-content: flex-end !important; gap: 18px; padding-block: 5px !important; }
+.util a { color: #a3a6ad; text-decoration: none; font-size: .8rem; letter-spacing: .04em; }
+.util a:hover { color: #d4a64a; }
 </style>
 <title>Taxi y Traslados al Aeropuerto de Santiago (SCL) con tarifa fija | Flota-K</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -192,6 +197,7 @@ footer .wrap { display: grid; gap: 14px; }
 
 
 <header class="top">
+  <div class="util"><div class="wrap util-in"><a href="/cuenta/">Acceso clientes</a><a href="/equipo/">Acceso equipo</a></div></div>
   <div class="wrap">
     <a class="brand" href="#inicio">FLOTA<span>·K</span></a>
     <div class="top-right">
@@ -354,6 +360,7 @@ footer .wrap { display: grid; gap: 14px; }
       <button class="copy" type="button" id="copy-phone">Copiar número</button>
       <span>Correo: <strong style="color:var(--fg)">gerencia@fk-servicios.com</strong></span>
     </div>
+    <p><a href="/cuenta/">Acceso clientes</a> · <a href="/equipo/">Acceso equipo</a></p>
     <p>FK Servicios SpA · Santiago, Chile · Instagram <a href="https://www.instagram.com/fkservi/" target="_blank" rel="noopener">@fkservi</a> · TikTok <a href="https://www.tiktok.com/@fk_servicios" target="_blank" rel="noopener">@fk_servicios</a></p>
     <p style="font-size:.85rem">Tarifas 2026 en pesos chilenos. Valores dentro de la Región Metropolitana incluyen peajes y TAG, y el estacionamiento del aeropuerto durante el tiempo de espera incluido.</p>
   </div>

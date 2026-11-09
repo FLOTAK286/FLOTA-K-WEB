@@ -136,8 +136,12 @@ $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
   const v = $("email").value.trim();
   if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Ingrese un correo válido.", "err");
+  msg("login-msg", "Revisando…");
+  const { data: ok, error: e1 } = await sb.rpc("puede_ingresar_equipo", { p_correo: v });
+  if (e1) return msg("login-msg", errText(e1), "err");
+  if (!ok) return msg("login-msg", "Este correo no tiene acceso al equipo. Pida una invitación al administrador.", "err");
   msg("login-msg", "Enviando…");
-  const { error } = await FK.enviarEnlace(v, back);
+  const { error } = await FK.enviarEnlace(v, back, true);
   msg("login-msg", error ? errText(error) : "Revise su correo y toque el enlace para entrar.", error ? "err" : "ok");
 });
 $("google").addEventListener("click", async () => { const { error } = await FK.entrarConGoogle(back); if (error) msg("login-msg", errText(error), "err"); });

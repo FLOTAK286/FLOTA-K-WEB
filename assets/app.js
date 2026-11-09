@@ -37,8 +37,9 @@
     return new Date(guess - (asChile - guess)).toISOString();
   }
 
-  async function enviarEnlace(correo, volverA) {
-    return sb.auth.signInWithOtp({ email: correo.trim(), options: { emailRedirectTo: volverA, shouldCreateUser: true } });
+  // crear=false: solo pueden entrar cuentas que ya existen (no se registran usuarios nuevos).
+  async function enviarEnlace(correo, volverA, crear = false) {
+    return sb.auth.signInWithOtp({ email: correo.trim().toLowerCase(), options: { emailRedirectTo: volverA, shouldCreateUser: crear } });
   }
   async function entrarConGoogle(volverA) {
     return sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: volverA } });

@@ -20,6 +20,7 @@
   <section class="panel" id="login" hidden>
     <h2>Ingrese a su cuenta</h2>
     <p class="muted">Vea sus reservas y el estado de cada traslado. No necesita contraseña: le enviamos un enlace a su correo.</p>
+    <p class="msg">Muy pronto podrá crear su cuenta desde aquí. Por ahora, el ingreso está disponible solo para cuentas ya habilitadas. Para reservar, use el <a href="/#tarifas" style="color:var(--gold)">tarifario</a> o escríbanos por WhatsApp al +56 9 2227 5399.</p>
     <form id="login-form" class="f" novalidate>
       <label for="email">Correo</label>
       <input id="email" type="email" autocomplete="email" required placeholder="nombre@correo.cl">
@@ -58,8 +59,8 @@ $("login-form").addEventListener("submit", async e => {
   const v = $("email").value.trim();
   if (!/.+@.+\..+/.test(v)) { show("Ingrese un correo válido.", "err"); return; }
   show("Enviando…");
-  const { error } = await FK.enviarEnlace(v, back);
-  if (error) show(errText(error), "err");
+  const { error } = await FK.enviarEnlace(v, back, false);
+  if (error) show(/signup|not allowed|not found/i.test(error.message || "") ? "Este correo aún no tiene una cuenta habilitada. Muy pronto podrá crearla desde aquí." : errText(error), "err");
   else show("Listo. Revise su correo y toque el enlace para ingresar. Puede tardar un par de minutos; revise también la carpeta de spam.", "ok");
 });
 $("google").addEventListener("click", async () => {

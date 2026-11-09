@@ -1,5 +1,12 @@
 # Cambios
 
+## 9 nov 2026 · Publicación de la etapa 1 (aprobada por el dueño)
+- Publicadas /equipo, /cuenta y /seguimiento.
+- Página principal: franja superior y pie de página con "Acceso clientes" y "Acceso equipo".
+- **Registro de clientes desactivado por ahora** (pedido del dueño): en /cuenta solo pueden entrar cuentas ya existentes y se muestra un aviso de "muy pronto".
+- /equipo solo envía el enlace de ingreso a correos invitados por el administrador (función `puede_ingresar_equipo`).
+- Nota técnica: el bloqueo de registro se hace en la página. Para bloquearlo también en el servidor, más adelante se desactiva "Allow new users to sign up" en Supabase, una vez que el equipo tenga sus cuentas creadas.
+
 ## 9 nov 2026 · Etapa 1 (rama `etapa-1`, sin publicar)
 
 ### Qué se hizo
