@@ -1,5 +1,12 @@
 # Cambios
 
+## 9 nov 2026 · Etapa 5: ubicación en vivo del conductor (pendiente de publicar)
+- **App del conductor:** al abrirla, comparte su ubicación (cada 15 s con un servicio en curso, cada minuto sin servicio). Muestra un aviso verde "Compartiendo ubicación…" o, si está bloqueada, cómo activarla. Durante el servicio mantiene la pantalla encendida.
+- **Pasajero (/seguimiento):** cuando el servicio está "En camino", "Llegó al lugar" o "A bordo", ve un mapa con el auto, actualizado cada 15 s. Fuera de esos estados no ve nada (privacidad del conductor).
+- **Despacho (/equipo → "Mapa en vivo"):** todos los conductores en el mapa, con su servicio, pasajero, destino, velocidad y hace cuánto se actualizó (gris si lleva más de 3 min sin señal).
+- **Límite actual:** el navegador deja de enviar la ubicación cuando la app queda en segundo plano (por ejemplo, con Waze en pantalla completa). Soluciones: pantalla dividida en Android, o "Compartir viaje" de Waze. La solución definitiva es una app Android instalable (siguiente paso).
+- Mapa gratuito: Leaflet + OpenStreetMap. Probado en base de datos (el pasajero solo ve durante el servicio; ubicaciones inválidas o de personas que no conducen se rechazan) y en las tres pantallas con datos de prueba.
+
 ## 9 nov 2026 · Etapa 4: cobro, taxímetro, fichas de clientes y planilla (pendiente de publicar)
 - **Tipo de cobro por servicio:** "Tarifa fija" o "Taxímetro" (se elige al crear la reserva o en su ficha).
   - Tarifa fija: el conductor no puede cambiar el valor; solo deja una observación, que queda marcada "por revisar" en el panel.

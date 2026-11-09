@@ -72,6 +72,9 @@
       <p class="small muted" id="install-txt">Así la abre con un toque, como cualquier aplicación.</p>
       <div class="actions"><button class="btn sm" id="install-btn" type="button" hidden>Instalar</button><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
     </div>
+    <div class="gps" id="gps" style="margin-top:12px"><span class="dot"></span><span id="gps-txt">Ubicación: iniciando…</span><button class="btn ghost sm" id="gps-btn" type="button" hidden>Activar ubicación</button></div>
+    <details class="small muted" style="margin-top:6px"><summary>¿Y si uso Waze?</summary>
+      <p style="margin:6px 0 0">La ubicación se envía mientras esta app está abierta en pantalla. Si navega con Waze, la app deja de enviarla hasta que vuelva a abrirla. Opciones: 1) <b>pantalla dividida</b> en Android (Waze arriba y Flota-K abajo) y se envía todo el tiempo; 2) en Waze, toque <b>"Compartir viaje"</b> y envíe el enlace al pasajero por WhatsApp.</p></details>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
     <p class="muted small" id="updated" style="margin-top:10px"></p>
   </section>
@@ -130,6 +133,7 @@ async function iniciar(session) {
   $("who").textContent = yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
   cargar();
+  iniciarGPS();
   setInterval(cargar, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
 }
@@ -269,8 +273,50 @@ async function avanzar(card, id, estado, nota) {
   if (navigator.vibrate) navigator.vibrate(60);
   pendiente = null;
   const it = items.find(x => x.id === id); if (it) it.estado = estado;
-  pintar(); cargar();
+  pintar(); cargar(); enviarUbicacion(true);
 }
+
+// ---- Ubicación en vivo (se envía mientras la app está abierta)
+const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
+let geoId = null, gpsBloqueado = false, ultimaPos = null, ultimoEnvio = 0, enviando = false, wakeLock = null;
+const enServicio = () => items.some(r => EN_CURSO.includes(r.estado));
+function gpsEstado(clase, texto, boton) {
+  $("gps").className = "gps " + (clase || ""); $("gps-txt").textContent = texto; $("gps-btn").hidden = !boton;
+}
+function iniciarGPS() {
+  if (!("geolocation" in navigator)) return gpsEstado("err", "Este teléfono no permite compartir ubicación desde el navegador.");
+  if (geoId !== null) return;
+  geoId = navigator.geolocation.watchPosition(p => { ultimaPos = p; enviarUbicacion(); }, e => {
+    navigator.geolocation.clearWatch(geoId); geoId = null;
+    if (e.code === 1) gpsBloqueado = true;
+    if (e.code === 1) gpsEstado("err", "Ubicación bloqueada. Permita la ubicación para fk-servicios.com en los ajustes del navegador y toque Activar.", true);
+    else gpsEstado("err", "No se pudo obtener la ubicación (sin señal GPS). Se reintentará.", true);
+  }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+}
+async function enviarUbicacion(forzar) {
+  if (!ultimaPos || enviando) return;
+  const cada = enServicio() ? 15000 : 60000;
+  if (!forzar && Date.now() - ultimoEnvio < cada) return;
+  enviando = true;
+  const c = ultimaPos.coords, num = v => (v === null || v === undefined || isNaN(v)) ? null : Math.round(v);
+  const { error } = await sb.rpc("conductor_ubicacion", { p_lat: c.latitude, p_lng: c.longitude, p_precision: num(c.accuracy), p_rumbo: num(c.heading), p_velocidad: c.speed == null || isNaN(c.speed) ? null : Math.round(c.speed * 3.6) });
+  enviando = false;
+  if (error) return gpsEstado("err", "No se pudo enviar la ubicación: " + errText(error));
+  ultimoEnvio = Date.now();
+  gpsEstado("ok", (enServicio() ? "Compartiendo ubicación con el pasajero y el despacho" : "Ubicación visible para el despacho") + " · enviada " + hora(new Date().toISOString()));
+  pantallaEncendida();
+}
+async function pantallaEncendida() {
+  // Mantiene la pantalla encendida durante un servicio en curso, para que no se corte el envío.
+  if (!("wakeLock" in navigator)) return;
+  try {
+    if (enServicio() && !wakeLock && !document.hidden) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); }
+    else if (!enServicio() && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (_) {}
+}
+$("gps-btn").addEventListener("click", () => { gpsBloqueado = false; gpsEstado("", "Ubicación: iniciando…"); iniciarGPS(); });
+setInterval(() => { if (geoId === null && !gpsBloqueado && yo) iniciarGPS(); enviarUbicacion(); }, 15000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) { enviarUbicacion(true); pantallaEncendida(); } });
 
 // ---- Instalar como app
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/conductor/sw.js", { scope: "/conductor/" }).catch(() => {});

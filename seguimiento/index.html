@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="brand" href="/">FLOTA<span>·K</span></a><a class="btn small" href="https://wa.me/56922275399" target="_blank" rel="noopener">WhatsApp</a></div></header>
@@ -21,25 +22,35 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/assets/mapa.js"></script>
 <script>
 const { sb, esc, fecha, pill, ESTADOS } = FK;
 const box = document.getElementById("box");
 const ORDEN = ["recibida", "confirmada", "asignada", "en_camino", "en_lugar", "a_bordo", "finalizada"];
 const token = new URLSearchParams(location.search).get("t");
 
+const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
+let estado = null, mapa = null, pin = null, centrado = false, timerUb = null;
+
 async function cargar() {
   if (!token || !/^[0-9a-f-]{36}$/i.test(token)) { box.innerHTML = '<p class="msg err">El enlace de seguimiento no es válido. Revise el enlace que le enviamos.</p>'; return; }
   const { data, error } = await sb.rpc("ver_reserva_publica", { p_token: token });
   if (error || !data || !data.length) { box.innerHTML = '<p class="msg err">No encontramos esta reserva. Revise el enlace o escríbanos por WhatsApp.</p>'; return; }
   const r = data[0];
+  const cambio = r.o_estado !== estado; estado = r.o_estado;
+  if (!cambio && $("ub-box")) { return; } // mismo estado: solo se refresca la ubicación
   const i = ORDEN.indexOf(r.o_estado);
   const pasos = r.o_estado === "cancelada"
     ? '<p class="msg err">Esta reserva fue cancelada.</p>'
     : '<ol class="steps-track">' + ORDEN.map((e, k) => `<li class="${k < i ? "done" : k === i ? "done now" : ""}">${esc(ESTADOS[e].t)}</li>`).join("") + "</ol>";
+  const enCurso = EN_CURSO.includes(r.o_estado);
+  mapa = null; pin = null; centrado = false;
   box.innerHTML = `
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
       <h2>Reserva ${esc(r.o_codigo)}</h2>${pill(r.o_estado)}
     </div>
+    ${enCurso ? `<div id="ub-box"><h3 style="margin:0 0 6px">Ubicación de su conductor</h3><div id="mapa" class="mapa"></div><p class="muted small" id="ub-txt" style="margin-top:6px">Buscando la ubicación del conductor…</p></div>` : ""}
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.o_fecha_hora))}</dd>
       <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
@@ -48,8 +59,25 @@ async function cargar() {
       <dt>Vehículo</dt><dd>${r.o_patente ? `${esc(r.o_vehiculo || "")} · patente <b>${esc(r.o_patente)}</b>` : "Por asignar"}</dd>
     </dl>
     ${pasos}
-    <p class="muted small">Esta página se actualiza sola cada minuto.</p>`;
+    <p class="muted small">${enCurso ? "La ubicación se actualiza sola cada 15 segundos." : "Esta página se actualiza sola cada minuto. Cuando su conductor vaya en camino, aquí verá su ubicación en el mapa."}</p>`;
+  clearInterval(timerUb);
+  if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
 }
+
+async function ubicar() {
+  const txt = $("ub-txt"); if (!txt) return;
+  if (!mapa && window.L) mapa = FKMapa.crear($("mapa"));
+  const { data } = await sb.rpc("ver_ubicacion_publica", { p_token: token });
+  const u = data && data[0];
+  if (!u) { txt.textContent = "Su conductor aún no comparte su ubicación. Apenas lo haga, aparecerá aquí."; return; }
+  const viejo = Date.now() - new Date(u.o_actualizado) > 3 * 60e3;
+  if (!mapa) { txt.textContent = "No se pudo cargar el mapa. Revise su conexión."; return; }
+  if (!pin) pin = L.marker([u.o_lat, u.o_lng], { icon: FKMapa.icono("K", viejo), title: "Su conductor" }).addTo(mapa);
+  else { pin.setLatLng([u.o_lat, u.o_lng]); pin.setIcon(FKMapa.icono("K", viejo)); }
+  if (!centrado) { mapa.setView([u.o_lat, u.o_lng], 15); centrado = true; }
+  txt.textContent = `Última ubicación ${FKMapa.hace(u.o_actualizado)}` + (viejo ? ". El conductor puede estar sin señal o con la app en segundo plano; se actualizará apenas vuelva." : ".");
+}
+const $ = id => document.getElementById(id);
 cargar();
 setInterval(cargar, 60000);
 </script>

@@ -62,3 +62,17 @@ dialog .panel { border: 0; }
 .warn { color: #f0a19e; }
 
 .linkbtn { background: none; border: 0; padding: 0; color: var(--gold); text-decoration: underline; font: inherit; cursor: pointer; }
+
+/* Mapa en vivo */
+.mapa { height: 340px; border-radius: 6px; border: 1px solid var(--line); z-index: 0; background: #d9d9d9; }
+.mapa.alto { height: 460px; }
+.leaflet-container { font: inherit; }
+.fk-pin span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--gold); color: #17130a; font-family: var(--font-display); font-weight: 700; font-size: 1rem; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+.fk-pin.viejo span { background: #8a8d93; }
+.gps { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); font-size: .92rem; }
+.gps.ok { border-color: #2f8a5b; }
+.gps.err { border-color: #c0392b; }
+.gps .dot { width: 10px; height: 10px; border-radius: 50%; background: #8a8d93; flex: none; }
+.gps.ok .dot { background: #3ecf7f; animation: fkpulse 1.6s infinite; }
+.gps.err .dot { background: #e5533d; }
+@keyframes fkpulse { 50% { opacity: .35; } }
