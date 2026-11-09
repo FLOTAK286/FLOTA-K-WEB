@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flota-K Conductor</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0b0d">
+<link rel="manifest" href="/conductor/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/img/icono-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flota-K">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+<style>
+  .drv { max-width: 640px; }
+  .svc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 10px; }
+  .svc.done { opacity: .6; }
+  .svc .time { font-family: var(--font-display); font-weight: 700; font-size: 2rem; line-height: 1; }
+  .svc .who { font-size: 1.15rem; font-weight: 700; }
+  .place { display: grid; gap: 6px; border-left: 3px solid var(--gold); padding-left: 10px; }
+  .place small { color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: .75rem; }
+  .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .nav a, .contact a { font-size: .95rem; }
+  .contact { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .big { width: 100%; font-size: 1.35rem; padding: 18px; }
+  .big.go { background: #2f8a5b; color: #fff; }
+  .big.end { background: #d4a64a; color: #17130a; }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); }
+  .facts b { color: var(--fg); }
+  .pay { background: var(--bg); border: 1px dashed var(--gold); border-radius: 6px; padding: 10px 12px; }
+  .confirm { display: grid; gap: 8px; background: var(--bg); border: 1px solid var(--gold); border-radius: 6px; padding: 12px; }
+  .sticky-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .install { border-color: var(--gold); }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><span class="brand">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">CONDUCTOR</small></span><div class="userbar" id="userbar" hidden><button class="btn ghost sm" id="reload" type="button">Actualizar</button><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
+
+<main class="app drv">
+  <section class="panel" id="login" hidden>
+    <h2>Ingreso del conductor</h2>
+    <form id="login-form" class="f" novalidate>
+      <label for="email">Correo</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="pass" style="margin-top:6px">Contraseña</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <div class="actions" style="margin-top:8px"><button class="btn big" type="submit">Entrar</button></div>
+      <p class="small muted">¿Primera vez o olvidó su contraseña? Pida al administrador que lo invite y entre una vez por <a href="/equipo/" style="color:var(--gold)">fk-servicios.com/equipo</a> para crearla.</p>
+    </form>
+    <div id="login-msg" class="msg" hidden></div>
+  </section>
+
+  <section class="panel" id="noaccess" hidden>
+    <h2>Sin servicios asignables</h2>
+    <p>Su usuario no está habilitado como conductor. Pida al administrador que marque "Conduce" en su perfil.</p>
+  </section>
+
+  <section id="app" hidden>
+    <div class="sticky-top">
+      <div><h1 style="font-size:1.6rem">Mis servicios</h1><p class="muted small" id="who"></p></div>
+      <div class="tabs" role="tablist" style="border:0">
+        <button role="tab" data-v="hoy" aria-selected="true">Hoy</button>
+        <button role="tab" data-v="prox" aria-selected="false">Próximos</button>
+      </div>
+    </div>
+    <div class="panel install" id="install" hidden style="margin-top:12px">
+      <b>Instale la app en su teléfono</b>
+      <p class="small muted" id="install-txt">Así la abre con un toque, como cualquier aplicación.</p>
+      <div class="actions"><button class="btn sm" id="install-btn" type="button" hidden>Instalar</button><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
+    </div>
+    <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
+    <p class="muted small" id="updated" style="margin-top:10px"></p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script>
+const { sb, esc, clp, pill, errText, SERVICIOS } = FK;
+const $ = id => document.getElementById(id);
+const TZ = "America/Santiago";
+const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+const diaTxt = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
+const diaKey = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+let yo = null, vista = "hoy", items = [], vehiculos = {}, pendiente = null;
+
+const SIG = {
+  asignada:  { e: "en_camino",  t: "Voy en camino",       c: "go" },
+  confirmada:{ e: "en_camino",  t: "Voy en camino",       c: "go" },
+  recibida:  { e: "en_camino",  t: "Voy en camino",       c: "go" },
+  en_camino: { e: "en_lugar",   t: "Llegué al lugar",     c: "go" },
+  en_lugar:  { e: "a_bordo",    t: "Pasajero a bordo",    c: "go" },
+  a_bordo:   { e: "finalizada", t: "Finalizar servicio",  c: "end" }
+};
+
+function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = text; }
+const tel = t => (t || "").replace(/[^\d+]/g, "");
+const wa = t => { let d = (t || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d; return d; };
+const waze = q => "https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes";
+const gmaps = q => "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(q);
+
+// ---- Ingreso
+$("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const v = $("email").value.trim().toLowerCase(), pw = $("pass").value;
+  if (!/.+@.+\..+/.test(v) || !pw) return msg("login-msg", "Ingrese su correo y contraseña.", "err");
+  msg("login-msg", "Entrando…");
+  const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
+  if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
+});
+$("logout").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+$("reload").addEventListener("click", () => cargar());
+
+async function iniciar(session) {
+  $("login").hidden = true;
+  await sb.rpc("aceptar_invitacion");
+  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce").eq("id", session.user.id).maybeSingle();
+  if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; return; }
+  yo = data;
+  const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, conductor_habitual");
+  (vs || []).forEach(v => vehiculos[v.id] = v);
+  const mio = (vs || []).find(v => v.conductor_habitual === yo.id);
+  $("who").textContent = yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
+  $("userbar").hidden = false; $("app").hidden = false;
+  cargar();
+  setInterval(cargar, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
+}
+
+document.querySelectorAll('[data-v]').forEach(b => b.addEventListener("click", () => {
+  vista = b.dataset.v;
+  document.querySelectorAll('[data-v]').forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  pintar();
+}));
+
+async function cargar() {
+  if (!yo) return;
+  const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
+  const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
+  const { data, error } = await sb.from("reservas")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id")
+    .eq("conductor_id", yo.id).neq("estado", "cancelada")
+    .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
+  if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  items = data || [];
+  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
+  pintar();
+}
+
+function pintar() {
+  const hoy = diaKey(new Date().toISOString());
+  // "Hoy" = lo de hoy más todo lo de las próximas 12 horas (vuelos de madrugada).
+  const enHoy = r => diaKey(r.fecha_hora) === hoy || new Date(r.fecha_hora).getTime() < Date.now() + 12 * 3600e3;
+  const lista = items.filter(r => vista === "hoy" ? enHoy(r) : !enHoy(r));
+  if (!lista.length) { $("list").innerHTML = `<p class="muted">${vista === "hoy" ? "No tiene servicios para hoy." : "No tiene servicios próximos."}</p>`; return; }
+  let ultimoDia = "";
+  $("list").innerHTML = lista.map(r => {
+    const s = SIG[r.estado], fin = r.estado === "finalizada";
+    const veh = vehiculos[r.vehiculo_id];
+    const cobro = r.precio ?? r.tarifa_web;
+    const head = vista === "prox" && diaKey(r.fecha_hora) !== ultimoDia ? `<h3 style="margin:10px 0 0;text-transform:capitalize">${esc(diaTxt(r.fecha_hora))}</h3>` : "";
+    ultimoDia = diaKey(r.fecha_hora);
+    const msgWa = `Hola ${r.nombre_pasajero.split(" ")[0]}, le saluda ${yo.nombre.split(" ")[0]} de Flota-K, su conductor para hoy a las ${hora(r.fecha_hora)}.`;
+    return `${head}<article class="svc ${fin ? "done" : ""}" data-id="${esc(r.id)}">
+      <div class="top" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="time">${esc(hora(r.fecha_hora))}</span>${pill(r.estado)}</div>
+      <div class="who">${esc(r.nombre_pasajero)}</div>
+      <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="https://www.google.com/search?q=${encodeURIComponent(r.vuelo + " estado del vuelo")}" target="_blank" rel="noopener" style="color:var(--gold)"><b>${esc(r.vuelo)}</b></a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
+      <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>
+        <div class="nav"><a class="btn ghost sm" href="${waze(r.origen)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen)}" target="_blank" rel="noopener">Google Maps</a></div></div>
+      <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
+        <div class="nav"><a class="btn ghost sm" href="${waze(r.destino)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino)}" target="_blank" rel="noopener">Google Maps</a></div></div>
+      ${r.comentarios ? `<p class="small"><b>Nota:</b> ${esc(r.comentarios)}</p>` : ""}
+      <div class="pay">${cobro != null ? `Valor: <b>${clp(cobro)}</b>` : "Valor por confirmar"}${r.forma_pago ? ` · ${esc(r.forma_pago)}` : ""}${r.pagado ? " · <b>Pagado</b>" : ""}</div>
+      <div class="contact">
+        <a class="btn ghost" href="tel:${esc(tel(r.telefono))}">Llamar</a>
+        <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+      ${veh ? `<p class="small muted">Vehículo: ${esc(veh.descripcion || "")} · ${esc(veh.patente)}</p>` : ""}
+      ${s && !fin ? (pendiente === r.id
+        ? `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><input class="nota" placeholder="Nota opcional (ej: pagó en efectivo)" maxlength="500"><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`
+        : `<button class="btn big ${s.c} next" type="button" data-e="${s.e}">${esc(s.t)}</button>`) : ""}
+      <div class="msg err" hidden></div>
+    </article>`;
+  }).join("");
+  $("list").querySelectorAll(".svc").forEach(card => {
+    const id = card.dataset.id;
+    card.querySelector(".next")?.addEventListener("click", ev => {
+      const e = ev.currentTarget.dataset.e;
+      if (e === "finalizada") { pendiente = id; pintar(); return; }
+      avanzar(card, id, e);
+    });
+    card.querySelector(".ok")?.addEventListener("click", () => avanzar(card, id, "finalizada", card.querySelector(".nota").value));
+    card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
+  });
+}
+
+async function avanzar(card, id, estado, nota) {
+  card.querySelectorAll("button").forEach(b => b.disabled = true);
+  const { error } = await sb.rpc("conductor_avanzar", { p_reserva: id, p_estado: estado, p_nota: nota || null });
+  if (error) { const m = card.querySelector(".msg"); m.hidden = false; m.textContent = errText(error); card.querySelectorAll("button").forEach(b => b.disabled = false); return; }
+  if (navigator.vibrate) navigator.vibrate(60);
+  pendiente = null;
+  const it = items.find(x => x.id === id); if (it) it.estado = estado;
+  pintar(); cargar();
+}
+
+// ---- Instalar como app
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/conductor/sw.js", { scope: "/conductor/" }).catch(() => {});
+let promptInstalar = null;
+const yaInstalada = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+let ocultar = false; try { ocultar = localStorage.getItem("fk_install_x") === "1"; } catch (_) {}
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalar = e; if (!yaInstalada && !ocultar) { $("install").hidden = false; $("install-btn").hidden = false; } });
+if (!yaInstalada && !ocultar && /iphone|ipad/i.test(navigator.userAgent)) { $("install").hidden = false; $("install-txt").textContent = "En iPhone: toque el botón Compartir y luego \"Agregar a inicio\"."; }
+$("install-btn").addEventListener("click", async () => { if (!promptInstalar) return; promptInstalar.prompt(); await promptInstalar.userChoice; $("install").hidden = true; });
+$("install-x").addEventListener("click", () => { $("install").hidden = true; try { localStorage.setItem("fk_install_x", "1"); } catch (_) {} });
+
+let iniciado = false;
+sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
+sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else $("login").hidden = false; });
+</script>
+</body>
+</html>

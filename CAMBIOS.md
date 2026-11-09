@@ -1,5 +1,15 @@
 # Cambios
 
+## 9-10 nov 2026 · Vehículo en seguimiento, vehículo fijo por conductor y app del conductor (pendiente de publicar)
+- **Seguimiento:** el cliente ve modelo y patente del vehículo (probado con la reserva real FK-684D1C: Virtus azul SSHY88).
+- **Vehículo fijo por conductor:** en Equipo → Vehículos se elige el conductor de cada auto. Al asignar ese conductor, el vehículo se completa solo (en la ficha y en la base de datos). SSHY88 quedó asociado a Juan.
+- **App del conductor** (`/conductor/`), instalable en el teléfono:
+  - Pestañas Hoy (incluye las próximas 12 horas) y Próximos.
+  - Por servicio: hora, pasajero, pasajeros y maletas, vuelo, retiro y destino con Waze / Google Maps, nota, valor y forma de pago, Llamar y WhatsApp.
+  - Botón grande para avanzar: Voy en camino → Llegué al lugar → Pasajero a bordo → Finalizar (con confirmación y nota). Cada toque actualiza el seguimiento del cliente.
+  - Probado en base de datos: avanza, permite saltar pasos hacia adelante, bloquea retroceder y bloquea a otros usuarios.
+- Un conductor (rol conductor) que entra a /equipo ve el enlace a su app y puede crear su contraseña.
+
 ## 9 nov 2026 · Contraseña para el equipo (pendiente de publicar)
 - /equipo ahora pide **correo y contraseña**. La primera vez (o si se olvida) se usa "Enviarme un enlace al correo"; al entrar por el enlace, el panel ofrece crear la contraseña.
 - Botón **"Contraseña"** en la barra superior para cambiarla cuando se quiera.

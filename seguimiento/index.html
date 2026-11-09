@@ -45,6 +45,7 @@ async function cargar() {
       <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
       <dt>Destino</dt><dd>${esc(r.o_destino)}</dd>
       <dt>Conductor</dt><dd>${esc(r.o_conductor || "Por asignar")}</dd>
+      <dt>Vehículo</dt><dd>${r.o_patente ? `${esc(r.o_vehiculo || "")} · patente <b>${esc(r.o_patente)}</b>` : "Por asignar"}</dd>
     </dl>
     ${pasos}
     <p class="muted small">Esta página se actualiza sola cada minuto.</p>`;

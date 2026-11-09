@@ -127,7 +127,7 @@
         <div class="actions"><button class="btn" type="submit">Agregar vehículo</button></div>
       </form>
       <div id="v-msg" class="msg" hidden></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Vehículo</th><th>Tipo</th><th>Capacidad</th><th></th></tr></thead><tbody id="vehs"></tbody></table></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Vehículo</th><th>Tipo</th><th>Capacidad</th><th>Conductor</th><th></th></tr></thead><tbody id="vehs"></tbody></table></div>
       <p class="muted small">Qué puede hacer cada rol: <b>Administrador</b> todo, incluido el equipo. <b>Despachador</b> y <b>Telefonista</b> ven y gestionan reservas. <b>Conductor</b> solo verá sus servicios asignados (en la app del conductor, próxima etapa).</p>
     </div>
 
@@ -167,7 +167,7 @@ const hoyChile = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format
 async function cargarRecursos() {
   const [{ data: c }, { data: v }] = await Promise.all([
     sb.from("perfiles").select("id, nombre").eq("conduce", true).eq("activo", true).order("nombre"),
-    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad").eq("activo", true).order("patente")
+    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual").eq("activo", true).order("patente")
   ]);
   conductores = c || []; vehiculos = v || [];
 }
@@ -241,7 +241,14 @@ async function iniciar(session) {
   $("login").hidden = true;
   await sb.rpc("aceptar_invitacion");
   const { data } = await sb.from("perfiles").select("id, empresa_id, rol, nombre, activo").eq("id", session.user.id).maybeSingle();
-  if (!data || !data.activo || data.rol === "conductor") {
+  if (data && data.activo && data.rol === "conductor") {
+    $("noaccess").querySelector("h2").textContent = "Usted es conductor";
+    $("noaccess").querySelector("p").innerHTML = 'Sus servicios están en la app del conductor: <a href="/conductor/" style="color:var(--gold)"><b>fk-servicios.com/conductor</b></a>. Ábrala en su teléfono e instálela.';
+    $("noaccess").hidden = false;
+    if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
+    return;
+  }
+  if (!data || !data.activo) {
     $("na-mail").textContent = session.user.email; $("noaccess").hidden = false; return;
   }
   yo = data;
@@ -350,7 +357,10 @@ async function abrir(id) {
   };
   $("a-costo").oninput = margen; $("a-der").oninput = margen; margen();
   let confirmarChoque = false;
-  $("a-cond").onchange = () => { confirmarChoque = false; $("a-choque").hidden = true; $("a-save").textContent = "Guardar asignación"; };
+  $("a-cond").onchange = () => {
+    const v = vehiculos.find(x => x.conductor_habitual === $("a-cond").value);
+    if (v) $("a-veh").value = v.id;
+    confirmarChoque = false; $("a-choque").hidden = true; $("a-save").textContent = "Guardar asignación"; };
   $("a-save").onclick = async () => {
     const cond = $("a-cond").value || null, veh = $("a-veh").value || null;
     const der = $("a-der").value.trim() || null, costo = $("a-costo").value === "" ? null : Number($("a-costo").value);
@@ -477,8 +487,14 @@ async function cargarEquipo() {
       if (error) msg("i-msg", errText(error), "err"); else cargarEquipo();
     });
   });
-  const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, activo").order("patente");
-  $("vehs").innerHTML = (vs || []).map(v => `<tr data-id="${esc(v.id)}"><td><b>${esc(v.patente)}</b></td><td>${esc(v.descripcion || "—")}</td><td>${esc(v.tipo)}</td><td>${esc(v.capacidad)}</td><td><button class="btn ghost sm vtog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></td></tr>`).join("") || '<tr><td colspan="5" class="muted">Aún no hay vehículos.</td></tr>';
+  const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, activo, conductor_habitual").order("patente");
+  const { data: conds } = await sb.from("perfiles").select("id, nombre").eq("conduce", true).order("nombre");
+  $("vehs").innerHTML = (vs || []).map(v => `<tr data-id="${esc(v.id)}"><td><b>${esc(v.patente)}</b></td><td>${esc(v.descripcion || "—")}</td><td>${esc(v.tipo)}</td><td>${esc(v.capacidad)}</td><td><select class="vcond" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${(conds || []).map(c => `<option value="${c.id}" ${c.id === v.conductor_habitual ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></td><td><button class="btn ghost sm vtog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></td></tr>`).join("") || '<tr><td colspan="6" class="muted">Aún no hay vehículos.</td></tr>';
+  $("vehs").querySelectorAll("tr[data-id]").forEach(tr => tr.querySelector(".vcond").addEventListener("change", async ev => {
+    const v = vs.find(x => x.id === tr.dataset.id);
+    const { error } = await sb.from("vehiculos").update({ conductor_habitual: ev.target.value || null }).eq("id", v.id);
+    if (error) msg("v-msg", errText(error), "err"); else { msg("v-msg", `${v.patente}: conductor actualizado. Al asignar a ese conductor, el vehículo se pone solo.`, "ok"); cargarRecursos(); }
+  }));
   $("vehs").querySelectorAll("tr[data-id]").forEach(tr => tr.querySelector(".vtog").addEventListener("click", async () => {
     const v = vs.find(x => x.id === tr.dataset.id);
     const { error } = await sb.from("vehiculos").update({ activo: !v.activo }).eq("id", v.id);

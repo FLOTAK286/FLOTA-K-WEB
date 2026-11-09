@@ -1,0 +1,16 @@
+{
+  "name": "Flota-K Conductor",
+  "short_name": "Flota-K",
+  "description": "Servicios asignados del conductor de Flota-K",
+  "lang": "es-CL",
+  "start_url": "/conductor/",
+  "scope": "/conductor/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0b0d",
+  "theme_color": "#0a0b0d",
+  "icons": [
+    { "src": "/assets/img/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/assets/img/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

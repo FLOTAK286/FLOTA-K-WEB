@@ -19,10 +19,11 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 
 ## Arquitectura actual
 - **Hosting:** GitHub Pages (`main` = sitio publicado en fk-servicios.com). Sitio estático, sin paso de compilación.
-- **Páginas:** `/` (marketing + tarifario), `/aeropuerto/<comuna>/` (SEO), `/cuenta/` (cliente), `/equipo/` (panel interno), `/seguimiento/?t=<token>`.
+- **Páginas:** `/` (marketing + tarifario), `/aeropuerto/<comuna>/` (SEO), `/cuenta/` (cliente), `/equipo/` (panel interno), `/conductor/` (app instalable del conductor), `/seguimiento/?t=<token>`.
 - **Frontend:** HTML + JavaScript simple. supabase-js 2.45.4 desde jsDelivr. Código común en `assets/app.js`, estilos en `assets/site.css` y `assets/app.css`, configuración pública en `assets/config.js` (solo URL y clave `anon`).
 - **Base de datos:** Supabase, proyecto "FLOTAK Project" (`iejhmplstveockkjjbks`, región us-east-2). Migraciones en `supabase/migrations/` con el mismo número de versión que aparece en Supabase. Nunca editar una migración ya aplicada: crear una nueva.
-- **Ingreso:** enlace mágico al correo (sin clave). Google queda desactivado (`google: false` en config.js) hasta configurarlo.
+- **Ingreso:** equipo y conductores con correo + contraseña (la primera vez, enlace al correo desde /equipo para crearla). Clientes con enlace al correo, registro desactivado por ahora. Google desactivado (`google: false`).
+- **Despacho:** `asignar_reserva` (usa el vehículo habitual del conductor si no se elige otro), `conductor_avanzar` (solo sus servicios, solo hacia adelante). Límite de correos de Supabase sin SMTP propio: 2 por hora.
 - **Roles:** `admin`, `despachador`, `telefonista`, `conductor`. El admin invita por correo (`invitar_miembro`); al entrar a `/equipo` la persona acepta su invitación (`aceptar_invitacion`).
 
 ## Reglas de seguridad
