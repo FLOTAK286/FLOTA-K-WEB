@@ -46,6 +46,7 @@
       <button role="tab" data-tab="mapa" aria-selected="false">Mapa en vivo</button>
       <button role="tab" data-tab="nueva" aria-selected="false">Nueva reserva</button>
       <button role="tab" data-tab="clientes" aria-selected="false">Clientes y cobros</button>
+      <button role="tab" data-tab="reportes" aria-selected="false" id="tab-reportes" hidden>Reportes</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
@@ -139,6 +140,14 @@
         <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
       </form>
+    </div>
+
+    <div data-pane="reportes" class="panel" style="margin-top:14px" hidden>
+      <div class="actions" style="align-items:flex-end">
+        <div class="f"><label for="rp-per">Período</label><select id="rp-per"><option value="mes">Este mes</option><option value="mesant">Mes anterior</option><option value="30">Últimos 30 días</option><option value="anio">Este año</option></select></div>
+        <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
+      </div>
+      <div id="rp-body"><p class="muted">Cargando…</p></div>
     </div>
 
     <div data-pane="clientes" class="panel" style="margin-top:14px" hidden>
@@ -314,7 +323,7 @@ async function iniciar(session) {
   }
   yo = data;
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
-  $("tab-equipo").hidden = data.rol !== "admin";
+  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos();
   cargarDespacho(); timerDespacho = setInterval(() => { if (!document.hidden && pestanaActual() === "despacho") cargarDespacho(); }, 30000);
@@ -329,6 +338,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "mapa") { cargarMapa(); timerMapa = setInterval(cargarMapa, 15000); }
   if (b.dataset.tab === "reservas") cargarReservas();
   if (b.dataset.tab === "despacho") cargarDespacho();
+  if (b.dataset.tab === "reportes") cargarReportes();
   if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "agenda") cargarAgenda();
@@ -580,6 +590,72 @@ function refrescar() {
   if (t === "agenda") cargarAgenda(); else if (t === "despacho") cargarDespacho(); else cargarReservas();
 }
 const pestanaActual = () => document.querySelector('.tabs button[aria-selected="true"]').dataset.tab;
+
+// ---- Reportes del negocio (solo administrador)
+let rpFilas = [];
+function rangoReporte() {
+  const [y, m] = hoyChile().split("-").map(Number), p = $("rp-per").value;
+  const iso = (yy, mm) => FK.chileLocalToISO(`${yy}-${String(mm).padStart(2, "0")}-01T00:00`);
+  if (p === "mes") return { desde: iso(y, m), hasta: iso(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1), txt: "este mes" };
+  if (p === "mesant") return { desde: iso(m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1), hasta: iso(y, m), txt: "el mes anterior" };
+  if (p === "anio") return { desde: iso(y, 1), hasta: iso(y + 1, 1), txt: "este año" };
+  return { desde: new Date(Date.now() - 30 * 864e5).toISOString(), hasta: new Date(Date.now() + 864e5).toISOString(), txt: "los últimos 30 días" };
+}
+async function cargarReportes() {
+  const { desde, hasta, txt } = rangoReporte();
+  $("rp-body").innerHTML = '<p class="muted">Cargando…</p>';
+  const [{ data: rs, error }, { data: vs }] = await Promise.all([
+    sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000),
+    sb.from("v_cobro").select("id, total, gastos, pagado").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000)
+  ]);
+  if (error) { $("rp-body").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const tot = new Map((vs || []).map(v => [v.id, v]));
+  const filas = (rs || []).map(r => ({ ...r, total: (tot.get(r.id) || {}).total || 0, gastos: (tot.get(r.id) || {}).gastos || 0, pagado: (tot.get(r.id) || {}).pagado }));
+  const ok = filas.filter(r => r.estado !== "cancelada"), fin = ok.filter(r => r.estado === "finalizada");
+  rpFilas = ok;
+  const suma = a => a.reduce((s, r) => s + (r.total || 0), 0);
+  const ingreso = suma(fin), porCobrar = suma(ok.filter(r => !r.pagado)), cobrado = suma(ok.filter(r => r.pagado));
+  const deriv = fin.filter(r => r.derivado_a), margenDeriv = deriv.reduce((s, r) => s + (r.total - (r.costo_partner || 0)), 0);
+  const kmTaxi = fin.reduce((s, r) => s + (r.taxi_metros || 0), 0) / 1000;
+  const agrupar = (lista, clave, nombre) => {
+    const m = new Map(); lista.forEach(r => { const k = clave(r) || "—"; const x = m.get(k) || { k, n: 0, t: 0 }; x.n++; x.t += r.total || 0; m.set(k, x); });
+    return [...m.values()].sort((a, b) => b.t - a.t).map(x => ({ ...x, nombre: nombre ? nombre(x.k) : x.k }));
+  };
+  const barras = (titulo, lista, max = 8) => {
+    const top = lista.slice(0, max), mx = Math.max(1, ...top.map(x => x.t));
+    return `<div class="rp-caja"><h3>${titulo}</h3>${top.length ? top.map(x => `<div class="rp-bar"><span class="rp-n">${esc(x.nombre)}</span><span class="rp-track"><span style="width:${Math.max(2, x.t / mx * 100)}%"></span></span><span class="rp-v">${clp(x.t)} <span class="muted small">(${x.n})</span></span></div>`).join("") : '<p class="muted small">Sin datos.</p>'}</div>`;
+  };
+  const canales = { web: "Página web", whatsapp: "WhatsApp", telefono: "Teléfono", correo: "Correo", convenio: "Convenio empresa", otro: "Otro" };
+  const cliNom = {}; ok.forEach(r => cliNom[r.cliente_id] = cliNom[r.cliente_id] || r.nombre_pasajero);
+  const porDia = agrupar(fin, r => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(r.fecha_hora))).sort((a, b) => a.k.localeCompare(b.k));
+  const mxd = Math.max(1, ...porDia.map(x => x.t));
+  $("rp-body").innerHTML = `
+    <div class="rp-kpis">
+      <div class="pay"><small class="muted">Ingresos (finalizados)</small><b>${clp(ingreso)}</b><span class="small muted">${fin.length} servicio(s)</span></div>
+      <div class="pay"><small class="muted">Ticket promedio</small><b>${clp(fin.length ? Math.round(ingreso / fin.length) : 0)}</b><span class="small muted">por servicio</span></div>
+      <div class="pay"><small class="muted">Por cobrar</small><b>${clp(porCobrar)}</b><span class="small muted">cobrado ${clp(cobrado)}</span></div>
+      <div class="pay"><small class="muted">Servicios agendados</small><b>${ok.length}</b><span class="small muted">${filas.length - ok.length} cancelado(s)</span></div>
+      <div class="pay"><small class="muted">Derivados a la red</small><b>${clp(margenDeriv)}</b><span class="small muted">margen en ${deriv.length} servicio(s)</span></div>
+      ${kmTaxi ? `<div class="pay"><small class="muted">Taxímetro</small><b>${kmTaxi.toFixed(1).replace(".", ",")} km</b><span class="small muted">costo operativo estimado ${clp(Math.round(kmTaxi * 410))}</span></div>` : ""}
+    </div>
+    <div class="rp-caja"><h3>Ingresos por día (${esc(txt)})</h3>${porDia.length ? `<div class="rp-dias">${porDia.map(x => `<div class="rp-dia" title="${esc(x.k)}: ${clp(x.t)} (${x.n})"><span style="height:${Math.max(3, x.t / mxd * 100)}%"></span><small>${esc(x.k.slice(8))}</small></div>`).join("")}</div>` : '<p class="muted small">Sin servicios finalizados en el período.</p>'}</div>
+    <div class="rp-grid">
+      ${barras("Por canal", agrupar(ok, r => r.canal, k => canales[k] || k))}
+      ${barras("Por tipo de servicio", agrupar(ok, r => r.tipo_servicio, k => SERVICIOS[k] || k))}
+      ${barras("Por conductor", agrupar(ok, r => r.derivado_a ? "red:" + r.derivado_a : r.conductor_id, k => k.startsWith("red:") ? "Red: " + k.slice(4) : (nombreConductor(k) || "Sin asignar")))}
+      ${barras("Mejores clientes", agrupar(ok, r => r.cliente_id, k => cliNom[k] || "—"), 10)}
+    </div>
+    <p class="muted small">Ingresos y ticket consideran servicios finalizados. Canal, tipo, conductor y clientes consideran todo servicio no cancelado del período (valor registrado). El costo operativo usa $410 por km recorrido con taxímetro.</p>`;
+}
+$("rp-per").addEventListener("change", cargarReportes);
+$("rp-xlsx").addEventListener("click", () => {
+  if (!window.XLSX || !rpFilas.length) return;
+  const aoa = [["Fecha", "Código", "Estado", "Canal", "Servicio", "Pasajero", "Conductor / red", "Total", "Gastos", "Pagado"],
+    ...rpFilas.map(r => [new Date(r.fecha_hora).toLocaleString("es-CL", { timeZone: TZ }), r.codigo, ESTADOS[r.estado]?.t || r.estado, r.canal, SERVICIOS[r.tipo_servicio] || r.tipo_servicio, r.nombre_pasajero, r.derivado_a ? "Red: " + r.derivado_a : (nombreConductor(r.conductor_id) || ""), r.total, r.gastos, r.pagado ? "Sí" : "No"])];
+  const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [18, 11, 16, 12, 22, 24, 20, 10, 9, 8].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, "Servicios"); XLSX.writeFile(wb, `Flota-K_reporte_${hoyChile()}.xlsx`);
+});
 
 // ---- Tablero de despacho: una línea por servicio, lo urgente arriba
 let tablero = [], tbFiltro = "todo", timerDespacho = null, conocidasWeb = null;
@@ -846,6 +922,8 @@ function fichaCliente(id) {
     <div class="tblwrap"><table class="tbl"><thead><tr>${admin ? '<th><input type="checkbox" id="cf-all" aria-label="Seleccionar todos"></th>' : ""}<th>Fecha</th><th>Código</th><th>Trayecto</th><th>Total</th><th>Pago</th></tr></thead><tbody id="cf-tbody"></tbody></table></div>
     <div class="actions" style="margin-top:10px">
       <button class="btn" id="cf-xlsx" type="button">Descargar planilla Excel</button>
+      <button class="btn ghost" id="cf-wa" type="button">Cobrar por WhatsApp</button>
+      <button class="btn ghost" id="cf-mail" type="button">Cobrar por correo</button>
       ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
     </div>
     <div id="cf-msg" class="msg" hidden></div>`;
@@ -877,6 +955,27 @@ function fichaCliente(id) {
     cobros = cobros.filter(x => x.cliente_id !== id).concat(vs || []); pintar();
   });
   $("cf-xlsx").addEventListener("click", () => planilla(c, filtrar(), $("cf-desde").value, $("cf-hasta").value));
+  // Cobranza: arma el mensaje; usted lo revisa y lo envía desde su WhatsApp o su correo.
+  const textoCobro = () => {
+    const pend = filtrar().filter(x => !x.pagado);
+    if (!pend.length) return null;
+    const tot = pend.reduce((a, x) => a + (x.total || 0), 0);
+    const fd = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit" });
+    return `Estimado/a ${c.nombre.split(" ")[0]}:\n\nLe compartimos el detalle de servicios pendientes de pago con Flota-K:\n\n` +
+      pend.map(x => `• ${fd(x.fecha_hora)} · ${x.codigo} · ${x.origen} → ${x.destino}: ${clp(x.total)}`).join("\n") +
+      `\n\nTotal pendiente: ${clp(tot)}\n\nPuede pagar por transferencia. Si necesita la planilla con el detalle o los datos de transferencia, respóndanos y se los enviamos.\n\nGracias por preferirnos.\nFlota-K · Comprometidos con su traslado\nWhatsApp +56 9 2227 5399 · gerencia@fk-servicios.com`;
+  };
+  $("cf-wa").addEventListener("click", () => {
+    const t = textoCobro(); if (!t) return msg("cf-msg", "Este cliente no tiene servicios pendientes en el período.", "err");
+    let d = (c.telefono || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d;
+    if (!d) return msg("cf-msg", "El cliente no tiene teléfono registrado.", "err");
+    window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(t), "_blank", "noopener");
+  });
+  $("cf-mail").addEventListener("click", () => {
+    const t = textoCobro(); if (!t) return msg("cf-msg", "Este cliente no tiene servicios pendientes en el período.", "err");
+    if (!c.correo) return msg("cf-msg", "El cliente no tiene correo registrado. Agréguelo en una reserva o use WhatsApp.", "err");
+    location.href = "mailto:" + encodeURIComponent(c.correo) + "?subject=" + encodeURIComponent("Flota-K · Detalle de servicios pendientes de pago") + "&body=" + encodeURIComponent(t + "\n\n(Adjunte la planilla Excel descargada desde el panel)");
+  });
   pintar();
 }
 

@@ -128,3 +128,20 @@ dialog .panel { border: 0; }
 .alerta.roja { background: #e5533d; color: #fff; }
 .alerta.amarilla { background: #d4a64a; color: #17130a; }
 .alerta.gris { background: #8a8d9333; color: var(--fg); border: 1px solid #8a8d93; }
+
+/* Reportes */
+.rp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.rp-kpis .pay { display: grid; gap: 2px; }
+.rp-kpis b { font-family: var(--font-display); font-size: 1.6rem; }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.rp-caja { border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 6px; }
+.rp-caja h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.rp-bar { display: grid; grid-template-columns: minmax(90px, 1fr) 2fr auto; gap: 8px; align-items: center; font-size: .88rem; }
+.rp-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-track { background: var(--bg); border-radius: 3px; height: 10px; overflow: hidden; }
+.rp-track span { display: block; height: 100%; background: var(--gold); }
+.rp-v { white-space: nowrap; text-align: right; }
+.rp-dias { display: flex; gap: 3px; align-items: flex-end; height: 140px; overflow-x: auto; }
+.rp-dia { flex: 0 1 36px; min-width: 12px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.rp-dia span { width: 100%; background: var(--gold); border-radius: 2px 2px 0 0; }
+.rp-dia small { font-size: .65rem; color: var(--muted); }

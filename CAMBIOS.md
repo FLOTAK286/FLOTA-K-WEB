@@ -1,5 +1,9 @@
 # Cambios
 
+## 9 nov 2026 · Reportes y cobranza (pendiente de publicar)
+- Pestaña **"Reportes"** (solo administrador): ingresos de servicios finalizados, ticket promedio, por cobrar y cobrado, servicios agendados y cancelados, margen de lo derivado a la red, km de taxímetro con costo operativo estimado ($410/km). Gráfico de ingresos por día y desgloses por canal, tipo de servicio, conductor y mejores clientes. Períodos: este mes, mes anterior, últimos 30 días, este año. Descarga en Excel.
+- **Cobranza** en la ficha del cliente: "Cobrar por WhatsApp" y "Cobrar por correo" arman el mensaje con el detalle de servicios pendientes y el total; el envío lo hace el dueño desde su WhatsApp o su correo.
+
 ## 9 nov 2026 · Tablero de despacho compacto (pendiente de publicar)
 - Pestaña nueva **"Despacho"** (la primera al entrar): una línea por servicio con hora, código y estado, pasajero (pax y maletas), trayecto, vuelo, conductor y patente, valor y estado de pago, y alertas.
 - **Alertas:** Por confirmar (reserva web nueva, con sonido y título parpadeante), Sin asignar (rojo si faltan menos de 2 h), Debía salir (faltan 45 min o menos y no va en camino), Atrasado, Llegada tarde, Esperando (15 min o más en el lugar), Mensaje sin responder, Observación y Calificación baja.
