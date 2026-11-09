@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mi cuenta | Flota-K</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="brand" href="/">FLOTA<span>·K</span></a><a class="btn small" href="/#tarifas">Reservar</a></div></header>
+
+<main class="app">
+  <h1>Mi cuenta</h1>
+
+  <section class="panel" id="login" hidden>
+    <h2>Ingrese a su cuenta</h2>
+    <p class="muted">Vea sus reservas y el estado de cada traslado. No necesita contraseña: le enviamos un enlace a su correo.</p>
+    <form id="login-form" class="f" novalidate>
+      <label for="email">Correo</label>
+      <input id="email" type="email" autocomplete="email" required placeholder="nombre@correo.cl">
+      <div class="actions" style="margin-top:8px">
+        <button class="btn" type="submit">Enviarme el enlace</button>
+      </div>
+    </form>
+    <p class="divider" id="or" hidden>o</p>
+    <div class="actions"><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
+    <div id="login-msg" class="msg" hidden></div>
+    <p class="muted small">Si antes reservó como invitado con el mismo correo, sus reservas aparecerán en su cuenta. Usamos sus datos solo para coordinar sus traslados; para pedir su eliminación escriba a gerencia@fk-servicios.com.</p>
+  </section>
+
+  <section id="me" hidden>
+    <div class="userbar"><span id="who"></span><button class="btn ghost sm" type="button" id="logout">Cerrar sesión</button></div>
+    <div class="panel" style="margin-top:14px">
+      <h2>Mis reservas</h2>
+      <div id="list" class="list"><p class="muted">Cargando…</p></div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script>
+const { sb, esc, clp, fecha, pill, errText, SERVICIOS } = FK;
+const $ = id => document.getElementById(id);
+const back = location.origin + "/cuenta/";
+if (window.FK_CONFIG.google) { $("google").hidden = false; $("or").hidden = false; }
+
+function show(msg, kind) { const m = $("login-msg"); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = msg; }
+
+$("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const v = $("email").value.trim();
+  if (!/.+@.+\..+/.test(v)) { show("Ingrese un correo válido.", "err"); return; }
+  show("Enviando…");
+  const { error } = await FK.enviarEnlace(v, back);
+  if (error) show(errText(error), "err");
+  else show("Listo. Revise su correo y toque el enlace para ingresar. Puede tardar un par de minutos; revise también la carpeta de spam.", "ok");
+});
+$("google").addEventListener("click", async () => {
+  const { error } = await FK.entrarConGoogle(back);
+  if (error) show(errText(error), "err");
+});
+$("logout").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+
+async function cargar(session) {
+  $("login").hidden = true; $("me").hidden = false;
+  $("who").textContent = "Ingresó como " + session.user.email;
+  await sb.rpc("vincular_cuenta_cliente", { p_empresa: FK.empresa });
+  const { data, error } = await sb.from("reservas")
+    .select("codigo, estado, fecha_hora, origen, destino, tipo_servicio, pasajeros, precio, tarifa_web, token_seguimiento")
+    .order("fecha_hora", { ascending: false });
+  const list = $("list");
+  if (error) { list.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  if (!data.length) { list.innerHTML = `<p class="muted">Aún no tiene reservas. <a href="/#tarifas" style="color:var(--gold)">Reserve su traslado</a>.</p>`; return; }
+  list.innerHTML = data.map(r => `
+    <a class="card" href="/seguimiento/?t=${esc(r.token_seguimiento)}" style="text-decoration:none">
+      <div class="top"><span class="when">${esc(fecha(r.fecha_hora))}</span>${pill(r.estado)}</div>
+      <div>${esc(r.origen)} → ${esc(r.destino)}</div>
+      <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")}</span><span>${clp(r.precio ?? r.tarifa_web)}</span></div>
+    </a>`).join("");
+}
+
+sb.auth.onAuthStateChange((_ev, session) => { if (session) cargar(session); });
+sb.auth.getSession().then(({ data }) => { if (data.session) cargar(data.session); else $("login").hidden = false; });
+</script>
+</body>
+</html>

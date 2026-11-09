@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Equipo | Flota-K</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="brand" href="/equipo/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EQUIPO</small></a><div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
+
+<main class="app">
+  <!-- Ingreso -->
+  <section class="panel" id="login" hidden>
+    <h2>Ingreso del equipo</h2>
+    <p class="muted">Ingrese con el correo con que lo invitaron. Le enviaremos un enlace para entrar, sin contraseña.</p>
+    <form id="login-form" class="f" novalidate>
+      <label for="email">Correo</label>
+      <input id="email" type="email" autocomplete="email" required>
+      <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Enviarme el enlace</button><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
+    </form>
+    <div id="login-msg" class="msg" hidden></div>
+  </section>
+
+  <section class="panel" id="noaccess" hidden>
+    <h2>Sin acceso</h2>
+    <p>Su correo <b id="na-mail"></b> no tiene un rol asignado en Flota-K. Pida al administrador que lo invite desde la pestaña Equipo.</p>
+    <div class="actions"><button class="btn ghost" id="logout2" type="button">Salir</button></div>
+  </section>
+
+  <!-- Panel -->
+  <section id="app" hidden>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="reservas" aria-selected="true">Reservas</button>
+      <button role="tab" data-tab="nueva" aria-selected="false">Nueva reserva</button>
+      <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
+      <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
+    </nav>
+
+    <div data-pane="reservas" class="panel" style="margin-top:14px">
+      <div class="actions">
+        <div class="f" style="min-width:180px"><label for="filtro">Mostrar</label>
+          <select id="filtro">
+            <option value="hoy">Hoy</option>
+            <option value="proximas" selected>Próximas</option>
+            <option value="historial">Historial</option>
+            <option value="pendientes">Pendientes de confirmar</option>
+          </select></div>
+        <div class="f" style="flex:1;min-width:180px"><label for="buscar">Buscar</label><input id="buscar" placeholder="Nombre, código, teléfono o comuna"></div>
+      </div>
+      <div id="lista" class="list"><p class="muted">Cargando…</p></div>
+    </div>
+
+    <div data-pane="nueva" class="panel" style="margin-top:14px" hidden>
+      <h2>Registrar una reserva</h2>
+      <p class="muted">Para reservas que llegan por teléfono, WhatsApp o correo.</p>
+      <form id="nf" novalidate class="list">
+        <div class="row3">
+          <div class="f"><label for="n-nombre">Pasajero</label><input id="n-nombre" required></div>
+          <div class="f"><label for="n-tel">Teléfono</label><input id="n-tel" type="tel" required></div>
+          <div class="f"><label for="n-mail">Correo</label><input id="n-mail" type="email"></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="n-fecha">Fecha y hora de retiro</label><input id="n-fecha" type="datetime-local" required></div>
+          <div class="f"><label for="n-tipo">Servicio</label><select id="n-tipo"><option value="ida">Ida al aeropuerto</option><option value="regreso">Regreso desde el aeropuerto</option><option value="ida_vuelta">Ida y vuelta</option><option value="punto_a_punto">Punto a punto</option><option value="por_hora">Por hora</option></select></div>
+          <div class="f"><label for="n-canal">Llegó por</label><select id="n-canal"><option value="whatsapp">WhatsApp</option><option value="telefono">Teléfono</option><option value="correo">Correo</option><option value="convenio">Convenio empresa</option><option value="otro">Otro</option></select></div>
+        </div>
+        <div class="row2">
+          <div class="f"><label for="n-origen">Origen</label><input id="n-origen" required></div>
+          <div class="f"><label for="n-destino">Destino</label><input id="n-destino" required></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="n-vuelo">Vuelo</label><input id="n-vuelo"></div>
+          <div class="f"><label for="n-pax">Pasajeros</label><input id="n-pax" type="number" min="1" max="20" value="1"></div>
+          <div class="f"><label for="n-maletas">Maletas</label><input id="n-maletas" type="number" min="0" max="30" value="1"></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="n-veh">Vehículo</label><select id="n-veh"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
+          <div class="f"><label for="n-precio">Precio acordado</label><input id="n-precio" type="number" min="0" step="1000" inputmode="numeric"></div>
+          <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+        </div>
+        <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
+        <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
+        <div id="n-msg" class="msg" hidden></div>
+      </form>
+    </div>
+
+    <div data-pane="equipo" class="panel" style="margin-top:14px" hidden>
+      <h2>Equipo y roles</h2>
+      <p class="muted">Invite a una persona con su correo y elija su rol. Al ingresar por primera vez en esta página, queda con ese rol.</p>
+      <form id="inv" class="row3" novalidate>
+        <div class="f"><label for="i-mail">Correo</label><input id="i-mail" type="email" required></div>
+        <div class="f"><label for="i-nombre">Nombre</label><input id="i-nombre" required></div>
+        <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="admin">Administrador</option></select></div>
+        <div class="actions"><button class="btn" type="submit">Invitar</button></div>
+      </form>
+      <div id="i-msg" class="msg" hidden></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
+      <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
+      <div id="pend" class="muted">—</div>
+      <p class="muted small">Qué puede hacer cada rol: <b>Administrador</b> todo, incluido el equipo. <b>Despachador</b> y <b>Telefonista</b> ven y gestionan reservas. <b>Conductor</b> solo verá sus servicios asignados (en la app del conductor, próxima etapa).</p>
+    </div>
+
+    <div data-pane="reportar" class="panel" style="margin-top:14px" hidden>
+      <h2>Reportar una falla o sugerir una mejora</h2>
+      <form id="rf" class="list" novalidate>
+        <div class="f"><label for="r-texto">¿Qué pasó o qué mejorarías?</label><textarea id="r-texto" rows="4" maxlength="2000" required></textarea></div>
+        <div class="actions"><button class="btn" type="submit">Enviar</button></div>
+        <div id="r-msg" class="msg" hidden></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<dialog id="det"><div class="panel" id="det-body"></div></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script>
+const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
+const $ = id => document.getElementById(id);
+const back = location.origin + "/equipo/";
+if (window.FK_CONFIG.google) $("google").hidden = false;
+let yo = null, cache = [];
+
+function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = text; }
+
+// ---- Ingreso
+$("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const v = $("email").value.trim();
+  if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Ingrese un correo válido.", "err");
+  msg("login-msg", "Enviando…");
+  const { error } = await FK.enviarEnlace(v, back);
+  msg("login-msg", error ? errText(error) : "Revise su correo y toque el enlace para entrar.", error ? "err" : "ok");
+});
+$("google").addEventListener("click", async () => { const { error } = await FK.entrarConGoogle(back); if (error) msg("login-msg", errText(error), "err"); });
+const salir = async () => { await sb.auth.signOut(); location.href = back; };
+$("logout").addEventListener("click", salir); $("logout2").addEventListener("click", salir);
+
+async function iniciar(session) {
+  $("login").hidden = true;
+  await sb.rpc("aceptar_invitacion");
+  const { data } = await sb.from("perfiles").select("id, empresa_id, rol, nombre, activo").eq("id", session.user.id).maybeSingle();
+  if (!data || !data.activo || data.rol === "conductor") {
+    $("na-mail").textContent = session.user.email; $("noaccess").hidden = false; return;
+  }
+  yo = data;
+  $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
+  $("tab-equipo").hidden = data.rol !== "admin";
+  $("app").hidden = false;
+  cargarReservas();
+}
+
+// ---- Pestañas
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
+  if (b.dataset.tab === "reservas") cargarReservas();
+  if (b.dataset.tab === "equipo") cargarEquipo();
+}));
+
+// ---- Reservas
+async function cargarReservas() {
+  const f = $("filtro").value;
+  const ahora = new Date();
+  const ini = new Date(ahora); ini.setHours(0, 0, 0, 0);
+  const fin = new Date(ini); fin.setDate(fin.getDate() + 1);
+  let q = sb.from("reservas").select("*");
+  if (f === "hoy") q = q.gte("fecha_hora", ini.toISOString()).lt("fecha_hora", fin.toISOString()).order("fecha_hora");
+  else if (f === "proximas") q = q.gte("fecha_hora", ahora.toISOString()).neq("estado", "cancelada").order("fecha_hora").limit(200);
+  else if (f === "pendientes") q = q.eq("estado", "recibida").order("fecha_hora").limit(200);
+  else q = q.lt("fecha_hora", ahora.toISOString()).order("fecha_hora", { ascending: false }).limit(200);
+  const { data, error } = await q;
+  if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  cache = data; pintar();
+}
+function pintar() {
+  const t = $("buscar").value.trim().toLowerCase();
+  const rows = cache.filter(r => !t || [r.nombre_pasajero, r.codigo, r.telefono, r.comuna, r.origen, r.destino].join(" ").toLowerCase().includes(t));
+  $("lista").innerHTML = rows.length ? rows.map(r => `
+    <button class="card" type="button" data-id="${esc(r.id)}">
+      <div class="top"><span class="when">${esc(fecha(r.fecha_hora))}</span>${pill(r.estado)}</div>
+      <div><b>${esc(r.nombre_pasajero)}</b> · ${esc(r.telefono)}</div>
+      <div>${esc(r.origen)} → ${esc(r.destino)}</div>
+      <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")} · ${esc(r.canal)}</span><span>${clp(r.precio ?? r.tarifa_web)}</span></div>
+    </button>`).join("") : '<p class="muted">No hay reservas para mostrar.</p>';
+  $("lista").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
+}
+$("filtro").addEventListener("change", cargarReservas);
+$("buscar").addEventListener("input", pintar);
+
+async function abrir(id) {
+  const r = cache.find(x => x.id === id); if (!r) return;
+  const { data: ev } = await sb.from("reserva_eventos").select("estado, nota, creado_en").eq("reserva_id", id).order("creado_en", { ascending: false });
+  const opts = Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${k === r.estado ? "selected" : ""}>${esc(v.t)}</option>`).join("");
+  const seg = location.origin + "/seguimiento/?t=" + r.token_seguimiento;
+  $("det-body").innerHTML = `
+    <div class="top" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2>${esc(r.codigo)}</h2>${pill(r.estado)}</div>
+    <dl class="kv">
+      <dt>Fecha y hora</dt><dd>${esc(fecha(r.fecha_hora))}</dd>
+      <dt>Pasajero</dt><dd>${esc(r.nombre_pasajero)}</dd>
+      <dt>Teléfono</dt><dd>${esc(r.telefono)}</dd>
+      <dt>Correo</dt><dd>${esc(r.correo || "—")}</dd>
+      <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · ${esc(r.vehiculo || "")}</dd>
+      <dt>Origen</dt><dd>${esc(r.origen)}</dd>
+      <dt>Destino</dt><dd>${esc(r.destino)}</dd>
+      <dt>Vuelo</dt><dd>${esc(r.vuelo || "—")}</dd>
+      <dt>Pasajeros / maletas</dt><dd>${esc(r.pasajeros)} / ${esc(r.maletas ?? "—")}</dd>
+      <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
+      <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
+      <dt>Canal</dt><dd>${esc(r.canal)}</dd>
+      <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">Copiar</button></dd>
+    </dl>
+    <div class="row2">
+      <div class="f"><label for="d-precio">Precio final</label><input id="d-precio" type="number" min="0" step="1000" value="${esc(r.precio ?? "")}"></div>
+      <div class="f"><label for="d-pago">Forma de pago</label><input id="d-pago" value="${esc(r.forma_pago || "")}"></div>
+    </div>
+    <div class="row2">
+      <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
+      <div class="f"><label for="d-nota">Nota (queda en el historial)</label><input id="d-nota" maxlength="1000"></div>
+    </div>
+    <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
+    <div id="d-msg" class="msg" hidden></div>
+    <h3 style="margin:6px 0 0">Historial</h3>
+    <ul class="timeline">${(ev || []).map(e => `<li><b>${esc(ESTADOS[e.estado]?.t || e.estado)}</b> · <span class="muted small">${esc(fecha(e.creado_en))}</span>${e.nota ? `<br>${esc(e.nota)}` : ""}</li>`).join("")}</ul>`;
+  $("det").showModal();
+  $("d-close").onclick = () => $("det").close();
+  $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
+  $("d-save").onclick = async () => {
+    msg("d-msg", "Guardando…");
+    const precio = $("d-precio").value === "" ? null : Number($("d-precio").value);
+    const pago = $("d-pago").value.trim() || null;
+    if (precio !== r.precio || pago !== r.forma_pago) {
+      const { error } = await sb.from("reservas").update({ precio, forma_pago: pago }).eq("id", r.id);
+      if (error) return msg("d-msg", errText(error), "err");
+    }
+    const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: $("d-estado").value, p_nota: $("d-nota").value });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); cargarReservas();
+  };
+}
+
+// ---- Nueva reserva
+$("nf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const req = ["n-nombre", "n-tel", "n-fecha", "n-origen", "n-destino"];
+  const falta = req.find(id => !$(id).value.trim());
+  if (falta) return msg("n-msg", "Complete: " + $(falta).labels[0].textContent, "err");
+  const fh = FK.chileLocalToISO($("n-fecha").value);
+  const fila = {
+    empresa_id: yo.empresa_id, nombre_pasajero: $("n-nombre").value.trim(), telefono: $("n-tel").value.trim(),
+    correo: $("n-mail").value.trim().toLowerCase() || null, fecha_hora: fh, origen: $("n-origen").value.trim(), destino: $("n-destino").value.trim(),
+    vuelo: $("n-vuelo").value.trim() || null, pasajeros: Number($("n-pax").value) || 1, maletas: $("n-maletas").value === "" ? null : Number($("n-maletas").value),
+    tipo_servicio: $("n-tipo").value, vehiculo: $("n-veh").value, canal: $("n-canal").value,
+    precio: $("n-precio").value === "" ? null : Number($("n-precio").value), forma_pago: $("n-pago").value || null,
+    comentarios: $("n-com").value.trim() || null, estado: "confirmada"
+  };
+  const { data, error } = await sb.from("reservas").insert(fila).select("codigo").single();
+  if (error) return msg("n-msg", errText(error), "err");
+  msg("n-msg", `Reserva ${data.codigo} guardada como confirmada.`, "ok");
+  $("nf").reset();
+});
+
+// ---- Equipo y roles (solo admin)
+async function cargarEquipo() {
+  const { data: m } = await sb.from("perfiles").select("id, nombre, rol, activo").order("nombre");
+  $("miembros").innerHTML = (m || []).map(p => `
+    <tr data-id="${esc(p.id)}">
+      <td>${esc(p.nombre)}${p.id === yo.id ? ' <span class="muted small">(usted)</span>' : ""}</td>
+      <td><select class="rol" ${p.id === yo.id ? "disabled" : ""}>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}" ${k === p.rol ? "selected" : ""}>${v}</option>`).join("")}</select></td>
+      <td>${p.activo ? "Activo" : '<span class="muted">Desactivado</span>'}</td>
+      <td>${p.id === yo.id ? "" : `<button class="btn ghost sm tog" type="button">${p.activo ? "Desactivar" : "Activar"}</button>`}</td>
+    </tr>`).join("");
+  $("miembros").querySelectorAll("tr").forEach(tr => {
+    const id = tr.dataset.id, p = m.find(x => x.id === id);
+    tr.querySelector(".rol")?.addEventListener("change", async ev => {
+      const { error } = await sb.from("perfiles").update({ rol: ev.target.value }).eq("id", id);
+      if (error) msg("i-msg", errText(error), "err"); else msg("i-msg", `Rol de ${p.nombre} actualizado.`, "ok");
+    });
+    tr.querySelector(".tog")?.addEventListener("click", async () => {
+      const { error } = await sb.from("perfiles").update({ activo: !p.activo }).eq("id", id);
+      if (error) msg("i-msg", errText(error), "err"); else cargarEquipo();
+    });
+  });
+  const { data: inv } = await sb.from("invitaciones").select("correo, nombre, rol, creada_en").is("aceptada_en", null).order("creada_en", { ascending: false });
+  $("pend").innerHTML = inv && inv.length ? inv.map(i => `${esc(i.nombre)} · ${esc(i.correo)} · ${esc(ROLES[i.rol])}`).join("<br>") : "No hay invitaciones pendientes.";
+}
+$("inv").addEventListener("submit", async e => {
+  e.preventDefault();
+  const { data, error } = await sb.rpc("invitar_miembro", { p_correo: $("i-mail").value, p_nombre: $("i-nombre").value, p_rol: $("i-rol").value });
+  if (error) return msg("i-msg", errText(error), "err");
+  msg("i-msg", data === "agregado" ? "Persona agregada con su rol." : `Invitación creada. Pídale que entre a ${back} con ese correo.`, "ok");
+  $("inv").reset(); cargarEquipo();
+});
+
+// ---- Reportar
+$("rf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const t = $("r-texto").value.trim(); if (!t) return msg("r-msg", "Escriba su comentario.", "err");
+  const { error } = await sb.from("reportes").insert({ empresa_id: yo.empresa_id, usuario_id: yo.id, pantalla: "equipo", texto: t });
+  if (error) return msg("r-msg", errText(error), "err");
+  msg("r-msg", "Gracias, quedó registrado.", "ok"); $("rf").reset();
+});
+
+let iniciado = false;
+sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
+sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else $("login").hidden = false; });
+</script>
+</body>
+</html>

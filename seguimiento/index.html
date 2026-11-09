@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seguimiento de reserva | Flota-K</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="brand" href="/">FLOTA<span>·K</span></a><a class="btn small" href="https://wa.me/56922275399" target="_blank" rel="noopener">WhatsApp</a></div></header>
+<main class="app">
+  <h1>Seguimiento de su reserva</h1>
+  <section class="panel" id="box"><p class="muted">Cargando…</p></section>
+  <p class="muted small">¿Necesita cambiar algo? Escríbanos por WhatsApp al +56 9 2227 5399 indicando su código de reserva.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script>
+const { sb, esc, fecha, pill, ESTADOS } = FK;
+const box = document.getElementById("box");
+const ORDEN = ["recibida", "confirmada", "asignada", "en_camino", "en_lugar", "a_bordo", "finalizada"];
+const token = new URLSearchParams(location.search).get("t");
+
+async function cargar() {
+  if (!token || !/^[0-9a-f-]{36}$/i.test(token)) { box.innerHTML = '<p class="msg err">El enlace de seguimiento no es válido. Revise el enlace que le enviamos.</p>'; return; }
+  const { data, error } = await sb.rpc("ver_reserva_publica", { p_token: token });
+  if (error || !data || !data.length) { box.innerHTML = '<p class="msg err">No encontramos esta reserva. Revise el enlace o escríbanos por WhatsApp.</p>'; return; }
+  const r = data[0];
+  const i = ORDEN.indexOf(r.o_estado);
+  const pasos = r.o_estado === "cancelada"
+    ? '<p class="msg err">Esta reserva fue cancelada.</p>'
+    : '<ol class="steps-track">' + ORDEN.map((e, k) => `<li class="${k < i ? "done" : k === i ? "done now" : ""}">${esc(ESTADOS[e].t)}</li>`).join("") + "</ol>";
+  box.innerHTML = `
+    <div class="top" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <h2>Reserva ${esc(r.o_codigo)}</h2>${pill(r.o_estado)}
+    </div>
+    <dl class="kv">
+      <dt>Fecha y hora</dt><dd>${esc(fecha(r.o_fecha_hora))}</dd>
+      <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
+      <dt>Destino</dt><dd>${esc(r.o_destino)}</dd>
+      <dt>Conductor</dt><dd>${esc(r.o_conductor || "Por asignar")}</dd>
+    </dl>
+    ${pasos}
+    <p class="muted small">Esta página se actualiza sola cada minuto.</p>`;
+}
+cargar();
+setInterval(cargar, 60000);
+</script>
+</body>
+</html>
