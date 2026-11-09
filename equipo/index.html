@@ -136,6 +136,7 @@
           <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
           <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
         </div>
+        <div id="n-sugerida" class="small" hidden></div>
         <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
         <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
@@ -225,6 +226,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/chat.js"></script>
+<script src="/assets/tarifas.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -1069,6 +1071,7 @@ async function elegirCliente(id) {
     if (r.precio != null) $("n-precio").value = r.precio;
     const tipo = inv ? ({ ida: "regreso", regreso: "ida" }[r.tipo_servicio] || r.tipo_servicio) : r.tipo_servicio;
     if (tipo) $("n-tipo").value = tipo;
+    sugerirPrecio();
   };
   $("n-mismo")?.addEventListener("click", () => usar(r.origen, r.destino, false));
   $("n-inv")?.addEventListener("click", () => usar(r.destino, r.origen, true));
@@ -1087,6 +1090,24 @@ function detectarCliente() {
   $("n-usar").addEventListener("click", () => elegirCliente(c.id));
 }
 $("n-tel").addEventListener("change", detectarCliente);
+// Precio sugerido según el tarifario (misma tabla que el cotizador de la página principal)
+function sugerirPrecio() {
+  const T = window.FK_TARIFAS || [], tipo = $("n-tipo").value, van = $("n-veh").value === "van";
+  const box = $("n-sugerida");
+  if (!["ida", "regreso", "ida_vuelta"].includes(tipo)) { box.hidden = true; return; }
+  const dir = norm(tipo === "regreso" ? $("n-destino").value : $("n-origen").value);
+  if (dir.length < 3) { box.hidden = true; return; }
+  const base = z => norm(z.split(/ hasta | por | desde | - |,/)[0]).trim();
+  const cand = T.filter(z => dir.includes(base(z[0])) || norm(z[0]).includes(dir)).slice(0, 6);
+  if (!cand.length) { box.hidden = false; box.innerHTML = '<span class="muted">No encontré la comuna en el tarifario: escriba la comuna en la dirección (ej.: "…, Las Condes") o defina el precio a mano.</span>'; return; }
+  const col = van ? 3 : tipo === "regreso" ? 2 : 1;
+  box.hidden = false;
+  box.innerHTML = `<b>Tarifa sugerida${van ? " (van)" : tipo === "regreso" ? " (regreso)" : ""}${tipo === "ida_vuelta" ? " · ida; el regreso va al mismo valor" : ""}:</b> ` +
+    cand.map(z => `<button type="button" class="chip" data-p="${z[col]}">${esc(z[0])} · ${clp(z[col])}</button>`).join(" ");
+  box.querySelectorAll("[data-p]").forEach(b => b.addEventListener("click", () => { $("n-precio").value = b.dataset.p; box.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b)); }));
+}
+["n-origen", "n-destino"].forEach(i => $(i).addEventListener("input", sugerirPrecio));
+["n-tipo", "n-veh"].forEach(i => $(i).addEventListener("change", sugerirPrecio));
 $("n-mail").addEventListener("change", detectarCliente);
 
 $("nf").addEventListener("submit", async e => {
@@ -1107,7 +1128,7 @@ $("nf").addEventListener("submit", async e => {
   const { data, error } = await sb.from("reservas").insert(fila).select("codigo").single();
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", `Reserva ${data.codigo} guardada como confirmada.`, "ok");
-  $("nf").reset(); clienteSel = null; $("n-cli").hidden = true;
+  $("nf").reset(); clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true;
 });
 
 // ---- Equipo y roles (solo admin)
