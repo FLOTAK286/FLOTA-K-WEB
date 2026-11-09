@@ -1,5 +1,6 @@
 # Arma la app Android del conductor (archivo .apk) cada vez que cambia la carpeta app-android.
-# El archivo queda para descargar en: Releases → "App Flota-K Conductor (Android)".
+# Con la llave de firma (secretos FK_KEYSTORE_B64 / FK_KEYSTORE_PASS): versión oficial en el release "conductor-android".
+# Sin llave: versión de prueba en el release "conductor-android-prueba" (no reemplaza la oficial).
 name: App Android del conductor
 on:
   push:
@@ -21,7 +22,8 @@ jobs:
         with: { node-version: "20" }
       - run: npm ci
       - run: npx cap sync android
-      - name: Compilar con la firma fija de Flota-K (si está configurada)
+      - name: Compilar
+        id: build
         env:
           FK_KEYSTORE_B64: ${{ secrets.FK_KEYSTORE_B64 }}
           FK_KEYSTORE_PASS: ${{ secrets.FK_KEYSTORE_PASS }}
@@ -31,15 +33,23 @@ jobs:
             echo "$FK_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/flotak.jks"
             FK_KEYSTORE="$RUNNER_TEMP/flotak.jks" ./gradlew assembleRelease --no-daemon
             cp app/build/outputs/apk/release/app-release.apk ../flota-k-conductor.apk
+            echo "tag=conductor-android" >> "$GITHUB_OUTPUT"
+            echo "nombre=App Flota-K Conductor (Android)" >> "$GITHUB_OUTPUT"
+            echo "prueba=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Falta la llave de firma (secretos FK_KEYSTORE_B64 y FK_KEYSTORE_PASS). No se publica ninguna app sin firma fija."
-            exit 1
+            echo "::warning::Sin llave de firma: se arma una versión de PRUEBA (no se instala encima de la oficial)."
+            ./gradlew assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk ../flota-k-conductor.apk
+            echo "tag=conductor-android-prueba" >> "$GITHUB_OUTPUT"
+            echo "nombre=App Flota-K Conductor (PRUEBA, sin firma fija)" >> "$GITHUB_OUTPUT"
+            echo "prueba=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: conductor-android
-          name: App Flota-K Conductor (Android)
-          make_latest: true
+          tag_name: ${{ steps.build.outputs.tag }}
+          name: ${{ steps.build.outputs.nombre }}
+          prerelease: ${{ steps.build.outputs.prueba == 'true' }}
+          make_latest: ${{ steps.build.outputs.prueba != 'true' }}
           body: |
             App del conductor de Flota-K para Android. Sigue enviando la ubicación aunque se use Waze, Cabify u otra app.
             Descargue flota-k-conductor.apk desde el teléfono y ábralo para instalar (permita "instalar apps de esta fuente" si el teléfono lo pide).
