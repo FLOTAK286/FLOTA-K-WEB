@@ -40,7 +40,8 @@
   <!-- Panel -->
   <section id="app" hidden>
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="reservas" aria-selected="true">Reservas</button>
+      <button role="tab" data-tab="despacho" aria-selected="true">Despacho</button>
+      <button role="tab" data-tab="reservas" aria-selected="false">Reservas</button>
       <button role="tab" data-tab="agenda" aria-selected="false">Agenda</button>
       <button role="tab" data-tab="mapa" aria-selected="false">Mapa en vivo</button>
       <button role="tab" data-tab="nueva" aria-selected="false">Nueva reserva</button>
@@ -49,7 +50,22 @@
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
 
-    <div data-pane="reservas" class="panel" style="margin-top:14px">
+    <div data-pane="despacho" class="panel" style="margin-top:14px">
+      <div class="actions" style="justify-content:space-between;align-items:center">
+        <div class="chips" role="group" aria-label="Filtro del tablero">
+          <button type="button" class="chip on" data-f="todo">Todo</button>
+          <button type="button" class="chip" data-f="atencion">Requiere atención <span id="c-atencion"></span></button>
+          <button type="button" class="chip" data-f="sinasignar">Sin asignar <span id="c-sinasignar"></span></button>
+          <button type="button" class="chip" data-f="curso">En curso <span id="c-curso"></span></button>
+          <button type="button" class="chip" data-f="hoy">Hoy</button>
+        </div>
+        <span class="muted small" id="tb-act"></span>
+      </div>
+      <div class="tblwrap"><table class="tbl tb"><thead><tr><th>Hora</th><th>Servicio</th><th>Pasajero</th><th>Trayecto</th><th>Vuelo</th><th>Conductor</th><th>Valor</th><th>Alertas</th></tr></thead><tbody id="tb-body"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody></table></div>
+      <p class="muted small" style="margin:0">Muestra desde 12 horas atrás hasta 2 días adelante, más toda reserva por confirmar. Se actualiza solo cada 30 segundos. Toque una fila para abrir la ficha; el conductor se puede asignar directo en la fila.</p>
+    </div>
+
+    <div data-pane="reservas" class="panel" style="margin-top:14px" hidden>
       <div class="actions">
         <div class="f" style="min-width:180px"><label for="filtro">Mostrar</label>
           <select id="filtro">
@@ -301,7 +317,7 @@ async function iniciar(session) {
   $("tab-equipo").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos();
-  cargarReservas();
+  cargarDespacho(); timerDespacho = setInterval(() => { if (!document.hidden && pestanaActual() === "despacho") cargarDespacho(); }, 30000);
   if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
 }
 
@@ -312,6 +328,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   clearInterval(timerMapa);
   if (b.dataset.tab === "mapa") { cargarMapa(); timerMapa = setInterval(cargarMapa, 15000); }
   if (b.dataset.tab === "reservas") cargarReservas();
+  if (b.dataset.tab === "despacho") cargarDespacho();
   if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "agenda") cargarAgenda();
@@ -450,7 +467,7 @@ $("filtro").addEventListener("change", cargarReservas);
 $("buscar").addEventListener("input", pintar);
 
 async function abrir(id) {
-  const r = cache.find(x => x.id === id); if (!r) return;
+  const r = cache.find(x => x.id === id) || tablero.find(x => x.id === id); if (!r) return;
   const { data: ev } = await sb.from("reserva_eventos").select("estado, nota, creado_en").eq("reserva_id", id).order("creado_en", { ascending: false });
   const opts = Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${k === r.estado ? "selected" : ""}>${esc(v.t)}</option>`).join("");
   const seg = location.origin + "/seguimiento/?t=" + r.token_seguimiento;
@@ -464,7 +481,7 @@ async function abrir(id) {
       <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · ${esc(r.vehiculo || "")}</dd>
       <dt>Origen</dt><dd>${esc(r.origen)}</dd>
       <dt>Destino</dt><dd>${esc(r.destino)}</dd>
-      <dt>Vuelo</dt><dd>${esc(r.vuelo || "—")}</dd>
+      <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
       <dt>Pasajeros / maletas</dt><dd>${esc(r.pasajeros)} / ${esc(r.maletas ?? "—")}</dd>
       <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
       <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
@@ -559,9 +576,113 @@ async function abrir(id) {
 }
 
 function refrescar() {
-  const t = document.querySelector('.tabs button[aria-selected="true"]').dataset.tab;
-  if (t === "agenda") cargarAgenda(); else cargarReservas();
+  const t = pestanaActual();
+  if (t === "agenda") cargarAgenda(); else if (t === "despacho") cargarDespacho(); else cargarReservas();
 }
+const pestanaActual = () => document.querySelector('.tabs button[aria-selected="true"]').dataset.tab;
+
+// ---- Tablero de despacho: una línea por servicio, lo urgente arriba
+let tablero = [], tbFiltro = "todo", timerDespacho = null, conocidasWeb = null;
+const vueloLink = v => v ? `<a href="https://www.google.com/search?q=${encodeURIComponent(v + " estado del vuelo")}" target="_blank" rel="noopener" class="vuelo" title="Ver estado del vuelo en Google">✈ ${esc(v)}</a>` : '<span class="muted">—</span>';
+function alertasDe(r, extra) {
+  const ahora = Date.now(), t = new Date(r.fecha_hora).getTime(), min = Math.round((t - ahora) / 60000);
+  const sinAsig = !r.conductor_id && !r.derivado_a, a = [];
+  const antesDeSalir = ["recibida", "confirmada", "asignada"].includes(r.estado);
+  if (r.estado === "recibida") a.push({ n: 3, c: "roja", t: "Por confirmar" });
+  if (sinAsig && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
+  if (antesDeSalir && !sinAsig && !r.derivado_a && min <= 45 && min > 0) a.push({ n: 3, c: "roja", t: `Debía salir · faltan ${min} min` });
+  if (antesDeSalir && min <= 0) a.push({ n: 3, c: "roja", t: `Atrasado ${-min} min` });
+  if (r.estado === "en_camino" && min < -5) a.push({ n: 2, c: "amarilla", t: `Llegada tarde ${-min} min` });
+  if (r.estado === "en_lugar" && extra.enLugarDesde) {
+    const esp = Math.round((ahora - extra.enLugarDesde) / 60000);
+    if (esp >= 15) a.push({ n: 2, c: "amarilla", t: `Esperando ${esp} min` });
+  }
+  if (extra.msgSinResp) a.push({ n: 2, c: "amarilla", t: "Mensaje sin responder" });
+  if (r.observacion_conductor && !r.observacion_revisada) a.push({ n: 1, c: "gris", t: "Observación" });
+  if (extra.califBaja) a.push({ n: 2, c: "amarilla", t: "Calificación baja" });
+  return a;
+}
+async function cargarDespacho() {
+  const desde = new Date(Date.now() - 12 * 3600e3).toISOString(), hasta = new Date(Date.now() + 48 * 3600e3).toISOString();
+  const [{ data: rs, error }, { data: pend }] = await Promise.all([
+    sb.from("reservas").select("*").gte("fecha_hora", desde).lte("fecha_hora", hasta).neq("estado", "cancelada").order("fecha_hora"),
+    sb.from("reservas").select("*").eq("estado", "recibida").order("fecha_hora").limit(200)
+  ]);
+  if (error) { $("tb-body").innerHTML = `<tr><td colspan="8" class="msg err">${esc(errText(error))}</td></tr>`; return; }
+  const porId = new Map(); [...(rs || []), ...(pend || [])].forEach(r => porId.set(r.id, r));
+  tablero = [...porId.values()];
+  const ids = tablero.map(r => r.id);
+  const [{ data: ms }, { data: evs }, { data: cs }] = ids.length ? await Promise.all([
+    sb.from("mensajes").select("reserva_id, autor, id").in("reserva_id", ids).order("id"),
+    sb.from("reserva_eventos").select("reserva_id, estado, creado_en").in("reserva_id", ids).eq("estado", "en_lugar"),
+    sb.from("calificaciones").select("reserva_id, estrellas, revisada").in("reserva_id", ids).lte("estrellas", 3).eq("revisada", false)
+  ]) : [{ data: [] }, { data: [] }, { data: [] }];
+  const ultimoMsg = {}; (ms || []).forEach(m => ultimoMsg[m.reserva_id] = m);
+  const enLugar = {}; (evs || []).forEach(e => enLugar[e.reserva_id] = Math.max(enLugar[e.reserva_id] || 0, new Date(e.creado_en).getTime()));
+  const baja = new Set((cs || []).map(c => c.reserva_id));
+  tablero.forEach(r => {
+    r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id) });
+    r._urg = r._al.reduce((a, x) => Math.max(a, x.n), 0);
+  });
+  // Aviso sonoro cuando llega una reserva nueva por confirmar
+  const web = new Set(tablero.filter(r => r.estado === "recibida").map(r => r.id));
+  if (conocidasWeb && [...web].some(id => !conocidasWeb.has(id))) avisoNuevo();
+  conocidasWeb = web;
+  pintarDespacho();
+  $("tb-act").textContent = "Actualizado " + hora(new Date().toISOString());
+}
+function avisoNuevo() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25].forEach(d => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.2, ctx.currentTime + d); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.18); });
+  } catch (_) {}
+  const t0 = document.title; let n = 0; const iv = setInterval(() => { document.title = n++ % 2 ? t0 : "● Nueva reserva"; if (n > 10) { clearInterval(iv); document.title = t0; } }, 800);
+}
+function pintarDespacho() {
+  const enCurso = r => ["en_camino", "en_lugar", "a_bordo"].includes(r.estado);
+  const sinAsig = r => !r.conductor_id && !r.derivado_a && r.estado !== "finalizada";
+  const hoyK = hoyChile(), diaK = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+  const cuenta = { atencion: tablero.filter(r => r._urg >= 2).length, sinasignar: tablero.filter(sinAsig).length, curso: tablero.filter(enCurso).length };
+  Object.entries(cuenta).forEach(([k, n]) => $("c-" + k).textContent = n ? `(${n})` : "");
+  const filtros = { todo: () => true, atencion: r => r._urg >= 2, sinasignar: sinAsig, curso: enCurso, hoy: r => diaK(r.fecha_hora) === hoyK };
+  // Orden: urgentes, en curso, próximos por hora, y al final los finalizados
+  const grupo = r => r.estado === "finalizada" ? 3 : r._urg >= 2 ? 0 : enCurso(r) ? 1 : 2;
+  const rows = tablero.filter(filtros[tbFiltro]).sort((a, b) => grupo(a) - grupo(b) || b._urg - a._urg || new Date(a.fecha_hora) - new Date(b.fecha_hora));
+  const opcCond = r => `<option value="">${r.derivado_a ? "Derivado: " + esc(r.derivado_a) : "Sin asignar"}</option>` + conductores.map(c => `<option value="${c.id}" ${c.id === r.conductor_id ? "selected" : ""}>${esc(c.nombre)}</option>`).join("");
+  const patente = r => { const v = vehiculos.find(x => x.id === r.vehiculo_id) || vehiculos.find(x => x.conductor_habitual === r.conductor_id); return v ? v.patente : ""; };
+  const corto = t => esc((t || "").length > 28 ? t.slice(0, 27) + "…" : t || "");
+  $("tb-body").innerHTML = rows.length ? rows.map(r => `
+    <tr data-id="${esc(r.id)}" class="${r._urg >= 3 ? "urg3" : r._urg === 2 ? "urg2" : ""} ${r.estado === "finalizada" ? "fin" : ""}">
+      <td class="nowrap"><b>${esc(hora(r.fecha_hora))}</b><br><span class="muted small">${diaK(r.fecha_hora) === hoyK ? "hoy" : esc(new Date(r.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric" }))}</span></td>
+      <td class="nowrap"><span class="code">${esc(r.codigo)}</span><br>${pill(r.estado)}</td>
+      <td><b>${esc(r.nombre_pasajero)}</b><br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span></td>
+      <td class="tray" title="${esc(r.origen)} → ${esc(r.destino)}">${corto(r.origen)}<br><span class="muted">→ ${corto(r.destino)}</span></td>
+      <td class="nowrap">${vueloLink(r.vuelo)}</td>
+      <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
+      <td class="nowrap">${r.tipo_cobro === "taximetro" && r.estado !== "finalizada" ? '<span class="muted small">Taxímetro</span>' : clp(r.precio ?? r.tarifa_web)}<br><span class="small ${r.pagado ? "muted" : ""}">${r.pagado ? "Pagado" : "Por cobrar"}</span></td>
+      <td>${r._al.map(x => `<span class="alerta ${x.c}">${esc(x.t)}</span>`).join(" ") || '<span class="muted small">—</span>'}</td>
+    </tr>`).join("") : `<tr><td colspan="8" class="muted">No hay servicios en este filtro.</td></tr>`;
+  $("tb-body").querySelectorAll("tr[data-id]").forEach(tr => tr.addEventListener("click", ev => {
+    if (ev.target.closest("select, a")) return;
+    abrir(tr.dataset.id);
+  }));
+  $("tb-body").querySelectorAll(".tb-cond").forEach(sel => sel.addEventListener("change", async ev => {
+    const id = ev.target.closest("tr").dataset.id, cond = ev.target.value || null;
+    const r = tablero.find(x => x.id === id);
+    const veh = cond ? (vehiculos.find(v => v.conductor_habitual === cond) || {}).id || null : null;
+    if (cond) {
+      const ch = await choques(cond, r.fecha_hora, r.duracion_min || 90, r.id);
+      if (ch.length && !confirm(`${nombreConductor(cond)} ya tiene ${ch.length} servicio(s) que se cruzan (${ch.map(x => hora(x.fecha_hora) + " " + x.codigo).join(", ")}). ¿Asignar igual?`)) { ev.target.value = r.conductor_id || ""; return; }
+    }
+    ev.target.disabled = true;
+    const { error } = await sb.rpc("asignar_reserva", { p_reserva: id, p_conductor: cond, p_vehiculo: veh, p_derivado_a: null, p_costo_partner: null });
+    if (error) { alert(errText(error)); ev.target.disabled = false; ev.target.value = r.conductor_id || ""; return; }
+    cargarDespacho();
+  }));
+}
+document.querySelectorAll(".chips .chip").forEach(c => c.addEventListener("click", () => {
+  tbFiltro = c.dataset.f; document.querySelectorAll(".chips .chip").forEach(x => x.classList.toggle("on", x === c)); pintarDespacho();
+}));
 
 // ---- Agenda
 function moverDia(n) {

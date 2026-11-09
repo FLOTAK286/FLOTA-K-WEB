@@ -1,5 +1,13 @@
 # Cambios
 
+## 9 nov 2026 · Tablero de despacho compacto (pendiente de publicar)
+- Pestaña nueva **"Despacho"** (la primera al entrar): una línea por servicio con hora, código y estado, pasajero (pax y maletas), trayecto, vuelo, conductor y patente, valor y estado de pago, y alertas.
+- **Alertas:** Por confirmar (reserva web nueva, con sonido y título parpadeante), Sin asignar (rojo si faltan menos de 2 h), Debía salir (faltan 45 min o menos y no va en camino), Atrasado, Llegada tarde, Esperando (15 min o más en el lugar), Mensaje sin responder, Observación y Calificación baja.
+- Lo urgente arriba (borde rojo o dorado), luego en curso, próximos y finalizados. Filtros: Todo, Requiere atención, Sin asignar, En curso, Hoy.
+- **Asignar conductor directo en la fila** (pone el vehículo habitual y avisa si se cruza con otro servicio).
+- **Número de vuelo como enlace**: abre en Google el estado del vuelo (también en la ficha de la reserva).
+- Se actualiza solo cada 30 segundos.
+
 ## 9 nov 2026 · Nueva reserva con clientes registrados
 - En "Nueva reserva" hay un buscador de clientes (nombre, teléfono o correo). Al elegir uno se completan nombre, teléfono y correo, y las preferencias de su último servicio (forma de pago, tipo de cobro, vehículo, pasajeros, maletas). Botones "Mismo trayecto" y "Trayecto de vuelta" (invierte origen/destino y el tipo ida/regreso, con el precio anterior).
 - Si se escribe a mano un teléfono o correo que ya es de un cliente, avisa "Este contacto ya es cliente" con "Usar sus datos".
