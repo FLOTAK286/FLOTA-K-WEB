@@ -62,9 +62,9 @@
           <button type="button" class="chip" data-f="curso">En curso <span id="c-curso"></span></button>
           <button type="button" class="chip" data-f="hoy">Hoy</button>
         </div>
-        <span class="muted small" id="tb-act"></span>
+        <span class="actions"><label class="chk small"><input type="checkbox" id="tb-vermapa"> Ver mapa al lado</label><span class="muted small" id="tb-act"></span></span>
       </div>
-      <div class="tblwrap"><table class="tbl tb"><thead><tr><th>Hora</th><th>Servicio</th><th>Pasajero</th><th>Trayecto</th><th>Vuelo</th><th>Conductor</th><th>Valor</th><th>Alertas</th></tr></thead><tbody id="tb-body"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody></table></div>
+      <div id="tb-split"><div class="tblwrap"><table class="tbl tb"><thead><tr><th>Hora</th><th>Servicio</th><th>Pasajero</th><th>Trayecto</th><th>Vuelo</th><th>Conductor</th><th>Valor</th><th>Alertas</th></tr></thead><tbody id="tb-body"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody></table></div><div id="tb-mapa" class="mapa alto" hidden></div></div>
       <p class="muted small" style="margin:0">Muestra desde 12 horas atrás hasta 2 días adelante, más toda reserva por confirmar. Se actualiza solo cada 30 segundos. Toque una fila para abrir la ficha; el conductor se puede asignar directo en la fila.</p>
     </div>
 
@@ -108,6 +108,11 @@
     <div data-pane="nueva" class="panel" style="margin-top:14px" hidden>
       <h2>Registrar una reserva</h2>
       <p class="muted">Para reservas que llegan por teléfono, WhatsApp o correo.</p>
+      <details class="confirm" id="n-rapida"><summary><b>⚡ Reserva rápida: pegue el mensaje de WhatsApp</b></summary>
+        <div class="list" style="margin-top:8px">
+          <textarea id="n-pegar" rows="4" placeholder="Ej.: Hola, necesito un traslado mañana a las 6:00 desde Las Condes al aeropuerto, vuelo LA800, somos 2 pasajeros con 3 maletas. Soy Fernando Chacana +56 9 9222 6063"></textarea>
+          <div class="actions"><button class="btn sm" type="button" id="n-leer">Completar el formulario</button><span class="small muted" id="n-leido"></span></div>
+        </div></details>
       <form id="nf" novalidate class="list">
         <div class="f" style="position:relative"><label for="n-buscar">¿Cliente registrado? Búsquelo y se completan sus datos</label>
           <input id="n-buscar" placeholder="Escriba nombre, teléfono o correo" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="n-sug">
@@ -141,6 +146,11 @@
         <div id="n-sugerida" class="small" hidden></div>
         <div class="row2"><div class="f"><label for="n-cc">Centro de costo (empresas, opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div><div id="n-emp" class="small" style="align-self:end"></div></div>
         <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
+        <div class="row3">
+          <div class="f"><label for="n-rep">Repetir</label><select id="n-rep"><option value="">No se repite</option><option value="semanal">Cada semana (mismo día y hora)</option><option value="habiles">Lunes a viernes (misma hora)</option><option value="diario">Todos los días (misma hora)</option></select></div>
+          <div class="f"><label for="n-rep-hasta">Hasta (fecha)</label><input id="n-rep-hasta" type="date"></div>
+          <div class="small muted" style="align-self:end">Para clientes y empresas que viajan seguido. Máximo 60 reservas por serie.</div>
+        </div>
         <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
       </form>
@@ -425,6 +435,41 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
+// ---- Conductor sugerido: conectado, con vehículo adecuado y libre a esa hora (ordenado por número de móvil)
+async function sugerirConductor(r) {
+  const box = $("a-sug"); box.textContent = "Buscando conductor sugerido…";
+  const cand = [];
+  for (const c of conductores) {
+    const v = vehiculos.find(x => x.conductor_habitual === c.id);
+    const ch = await choques(c.id, r.fecha_hora, r.duracion_min || 90, r.id);
+    const ok = { con: !!c.disponible, cat: !v || sirve(v.categoria, r.vehiculo || "auto"), libre: !ch.length, veh: !!v };
+    cand.push({ c, ok, pts: (ok.libre ? 4 : 0) + (ok.cat ? 3 : 0) + (ok.con ? 2 : 0) + (ok.veh ? 1 : 0) });
+  }
+  cand.sort((a, b) => b.pts - a.pts);
+  const m = cand[0];
+  if (!m || !m.ok.libre || !m.ok.cat) { box.innerHTML = '<span class="muted">No hay un conductor libre y con el vehículo adecuado para este horario. Considere derivar a la red.</span>'; return; }
+  box.innerHTML = `⭐ Sugerido: <b>${esc(etiquetaConductor(m.c.id))}</b> <span class="muted">(${[m.ok.con ? "conectado" : "desconectado ahora", "libre a esa hora", "vehículo adecuado"].join(", ")})</span> <button class="btn ghost sm" type="button" id="a-usar">Usar</button>`;
+  $("a-usar").onclick = () => { $("a-cond").value = m.c.id; $("a-cond").dispatchEvent(new Event("change")); };
+}
+// ---- Notas internas del cliente (las ve solo el equipo)
+async function notasCliente(r) {
+  if (!r.cliente_id) return;
+  const { data } = await sb.from("clientes").select("notas").eq("id", r.cliente_id).maybeSingle();
+  if (data && data.notas) $("d-notas").innerHTML = `<p class="msg" style="margin:0;border-color:var(--gold)"><b>📝 Notas del cliente:</b> ${esc(data.notas)}</p>`;
+}
+// ---- Historial de cambios (quién cambió qué)
+const CAMPOS = { fecha_hora: "Fecha y hora", origen: "Origen", destino: "Destino", precio: "Precio", forma_pago: "Forma de pago", tipo_cobro: "Tipo de cobro", conductor_id: "Conductor", vehiculo_id: "Vehículo", derivado_a: "Derivado a", pagado: "Pagado", vehiculo: "Vehículo que pide", pasajeros: "Pasajeros", vuelo: "Vuelo", centro_costo: "Centro de costo" };
+async function pintarCambios(r) {
+  const { data } = await sb.from("reserva_cambios").select("campo, antes, despues, usuario_id, creado_en").eq("reserva_id", r.id).order("id", { ascending: false }).limit(50);
+  if (!data || !data.length) return;
+  const ids = [...new Set(data.map(x => x.usuario_id).filter(Boolean))];
+  const { data: us } = ids.length ? await sb.from("perfiles").select("id, nombre").in("id", ids) : { data: [] };
+  const quien = id => id ? ((us || []).find(u => u.id === id) || {}).nombre || "Equipo" : "Sistema";
+  const val = (c, v) => v == null || v === "" ? "—" : c === "conductor_id" ? (etiquetaConductor(v) || "Conductor") : c === "vehiculo_id" ? ((vehiculos.find(x => x.id === v) || {}).patente || "Vehículo") :
+    c === "fecha_hora" ? fecha(v) : c === "precio" ? clp(Number(v)) : c === "pagado" ? (v === "true" ? "Sí" : "No") : c === "vehiculo" ? (PIDE[v] || v) : v;
+  $("d-cambios").innerHTML = "<b>Cambios:</b><ul class=\"timeline\">" + data.map(x => `<li>${esc(fecha(x.creado_en))} · <b>${esc(quien(x.usuario_id))}</b>: ${esc(CAMPOS[x.campo] || x.campo)} ${esc(val(x.campo, x.antes))} → <b>${esc(val(x.campo, x.despues))}</b></li>`).join("") + "</ul>";
+}
+
 // ---- Calificaciones y mensajes en la ficha de la reserva
 async function pintarCalificaciones(r) {
   const { data } = await sb.from("calificaciones").select("id, autor, estrellas, comentario, revisada, creado_en").eq("reserva_id", r.id);
@@ -591,7 +636,9 @@ async function abrir(id) {
       <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
       <div class="f"><label for="d-nota">Nota (queda en el historial)</label><input id="d-nota" maxlength="1000"></div>
     </div>
+    <div id="d-notas"></div>
     <h3 style="margin:6px 0 0">Asignación</h3>
+    <div id="a-sug" class="small"></div>
     <div class="row3">
       <div class="f"><label for="a-cond">Conductor</label><select id="a-cond"><option value="">Sin asignar</option>${opcionesConductor(r.conductor_id, r.vehiculo)}</select></div>
       <div class="f"><label for="a-veh">Vehículo</label><select id="a-veh"><option value="">Sin vehículo</option>${vehiculos.map(v => `<option value="${v.id}" ${v.id === r.vehiculo_id ? "selected" : ""}>${esc(v.patente)} · ${esc([v.marca, v.modelo].filter(Boolean).join(" ") || v.descripcion || v.tipo)} · ${esc(CAT[v.categoria] || "")} (${v.capacidad})${sirve(v.categoria, r.vehiculo || "auto") ? "" : " ⚠"}</option>`).join("")}</select></div>
@@ -613,12 +660,14 @@ async function abrir(id) {
     <p class="small muted" style="margin:0">Conversación entre pasajero y conductor. Lo que escriba aquí le llega a ambos como "Flota-K".</p>
     <div id="msj-box"></div>
     <h3 style="margin:6px 0 0">Historial</h3>
+    <div id="d-cambios" class="small"></div>
     <ul class="timeline">${(ev || []).map(e => `<li><b>${esc(ESTADOS[e.estado]?.t || e.estado)}</b> · <span class="muted small">${esc(fecha(e.creado_en))}</span>${e.nota ? `<br>${esc(e.nota)}` : ""}</li>`).join("")}</ul>`;
   $("det").showModal();
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
   pintarCobro(r);
-  pintarCalificaciones(r); pintarMensajes(r);
+  pintarCalificaciones(r); pintarMensajes(r); pintarCambios(r); notasCliente(r);
+  if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
   $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
   const margen = () => {
     const p = r.precio ?? r.tarifa_web, c = $("a-costo").value === "" ? null : Number($("a-costo").value);
@@ -955,11 +1004,14 @@ $("rp-xlsx").addEventListener("click", () => {
 // ---- Tablero de despacho: una línea por servicio, lo urgente arriba
 let tablero = [], tbFiltro = "todo", timerDespacho = null, conocidasWeb = null;
 const vueloLink = v => v ? `<a href="https://www.google.com/search?q=${encodeURIComponent(v + " estado del vuelo")}" target="_blank" rel="noopener" class="vuelo" title="Ver estado del vuelo en Google">✈ ${esc(v)}</a>` : '<span class="muted">—</span>';
+const antesDeSalirR = r => ["recibida", "confirmada", "asignada"].includes(r.estado);
 function alertasDe(r, extra) {
   const ahora = Date.now(), t = new Date(r.fecha_hora).getTime(), min = Math.round((t - ahora) / 60000);
   const sinAsig = !r.conductor_id && !r.derivado_a, a = [];
   const antesDeSalir = ["recibida", "confirmada", "asignada"].includes(r.estado);
   if (r.estado === "recibida") a.push({ n: 3, c: "roja", t: "Por confirmar" });
+  if (r.conductor_respuesta === "rechazado" && !r.conductor_id) a.push({ n: 3, c: "roja", t: "Conductor rechazó" });
+  if (r.conductor_id && !r.conductor_respuesta && antesDeSalirR(r) && min < 180) a.push({ n: min < 60 ? 3 : 2, c: min < 60 ? "roja" : "amarilla", t: "Conductor no ha aceptado" });
   if (sinAsig && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
   if (antesDeSalir && !sinAsig && !r.derivado_a && min <= 45 && min > 0) a.push({ n: 3, c: "roja", t: `Debía salir · faltan ${min} min` });
   if (antesDeSalir && min <= 0) a.push({ n: 3, c: "roja", t: `Atrasado ${-min} min` });
@@ -999,9 +1051,33 @@ async function cargarDespacho() {
   const web = new Set(tablero.filter(r => r.estado === "recibida").map(r => r.id));
   if (conocidasWeb && [...web].some(id => !conocidasWeb.has(id))) avisoNuevo();
   conocidasWeb = web;
-  pintarDespacho();
+  pintarDespacho(); mapaTablero();
   $("tb-act").textContent = "Actualizado " + hora(new Date().toISOString());
 }
+// Mapa al lado del tablero (pantallas grandes): conductores con su estado
+let mapaTb = null, pinesTb = {};
+async function mapaTablero() {
+  if (!$("tb-vermapa").checked || !window.L || !window.FKMapa) return;
+  if (!mapaTb) { mapaTb = FKMapa.crear($("tb-mapa")); }
+  setTimeout(() => mapaTb.invalidateSize(), 60);
+  const { data: us } = await sb.from("ubicaciones").select("conductor_id, lat, lng, actualizado_en");
+  const vivos = new Set();
+  (us || []).forEach(u => {
+    const act = tablero.find(r => r.conductor_id === u.conductor_id && ["en_camino", "en_lugar", "a_bordo"].includes(r.estado));
+    const c = conductores.find(x => x.id === u.conductor_id) || {}, viejo = Date.now() - new Date(u.actualizado_en) > 3 * 60e3;
+    const est = act ? "ocupado" : (!c.disponible || viejo) ? "viejo" : "libre";
+    const ic = FKMapa.icono(esc(c.movil || (c.nombre || "K")[0]), est), pop = `<b>${esc(etiquetaConductor(u.conductor_id) || "Conductor")}</b><br>${act ? esc(act.codigo + " · " + ESTADOS[act.estado].t) : c.disponible ? "Disponible" : "Desconectado"}<br><small>${FKMapa.hace(u.actualizado_en)}</small>`;
+    vivos.add(u.conductor_id);
+    if (!pinesTb[u.conductor_id]) pinesTb[u.conductor_id] = L.marker([u.lat, u.lng], { icon: ic }).addTo(mapaTb).bindPopup(pop); else pinesTb[u.conductor_id].setLatLng([u.lat, u.lng]).setIcon(ic).setPopupContent(pop);
+  });
+  Object.keys(pinesTb).forEach(k => { if (!vivos.has(k)) { pinesTb[k].remove(); delete pinesTb[k]; } });
+  const pts = (us || []).map(u => [u.lat, u.lng]);
+  if (pts.length && !mapaTb._fk) { mapaTb._fk = 1; pts.length === 1 ? mapaTb.setView(pts[0], 13) : mapaTb.fitBounds(pts, { padding: [30, 30], maxZoom: 14 }); }
+}
+try { $("tb-vermapa").checked = localStorage.getItem("fk_tbmapa") === "1"; } catch (_) {}
+const aplicarSplit = () => { $("tb-split").classList.toggle("split", $("tb-vermapa").checked); $("tb-mapa").hidden = !$("tb-vermapa").checked; mapaTablero(); };
+$("tb-vermapa").addEventListener("change", () => { try { localStorage.setItem("fk_tbmapa", $("tb-vermapa").checked ? "1" : "0"); } catch (_) {} aplicarSplit(); });
+setTimeout(aplicarSplit, 0);
 function avisoNuevo() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1167,7 +1243,7 @@ async function pintarCobro(r) {
 let clientes = [], cobros = [];
 async function cargarClientes() {
   const [{ data: cs }, { data: vs }, { data: ks }] = await Promise.all([
-    sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id").order("nombre"),
+    sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas").order("nombre"),
     sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000),
     sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000)
   ]);
@@ -1208,6 +1284,7 @@ function fichaCliente(id) {
   $("cl-ficha").innerHTML = `
     <div class="actions"><button class="btn ghost sm" id="cl-volver" type="button">◀ Volver a clientes</button></div>
     <h2 style="margin-top:10px">${esc(c.nombre)}</h2>
+    <div class="f"><label for="cf-notas">Notas internas (solo el equipo las ve; aparecen al tomar sus reservas)</label><textarea id="cf-notas" rows="2" maxlength="1000" placeholder="Ej.: siempre pide factura; viaja con mascota en canil; prefiere que lo llamen al llegar">${esc(c.notas || "")}</textarea></div>
     <p class="muted">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}${c.cuenta_corporativa_id ? ` · Empresa: <b>${esc((cuentas.find(x => x.id === c.cuenta_corporativa_id) || {}).razon_social || "")}</b>` : ""}</p>
     <div class="row3">
       <div class="f"><label for="cf-desde">Desde</label><input id="cf-desde" type="date"></div>
@@ -1223,6 +1300,10 @@ function fichaCliente(id) {
       ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
     </div>
     <div id="cf-msg" class="msg" hidden></div>`;
+  $("cf-notas").addEventListener("change", async ev => {
+    const { error } = await sb.from("clientes").update({ notas: ev.target.value.trim() || null }).eq("id", c.id);
+    if (error) return msg("cf-msg", errText(error), "err"); c.notas = ev.target.value.trim(); msg("cf-msg", "Notas guardadas.", "ok");
+  });
   $("cl-volver").onclick = () => { $("cl-ficha").hidden = true; $("cl-lista").hidden = false; cargarClientes(); };
   const filtrar = () => {
     const d = $("cf-desde").value, h = $("cf-hasta").value, ver = $("cf-ver").value;
@@ -1461,12 +1542,60 @@ function fichaEmpresa(id) {
   pintarPas(); pintar();
 }
 
+// ---- Reserva rápida: lee un mensaje de WhatsApp y completa el formulario (lo que no entienda, queda para completar a mano)
+const AEROLINEAS = ["LA", "JA", "H2", "JJ", "AR", "AV", "CM", "AA", "DL", "UA", "IB", "AF", "KL", "LH", "BA", "QF", "AM", "AC", "EK", "QR", "TK", "LX", "AZ", "UX", "G3", "AD", "2Z", "XL", "4M", "DM", "LP", "O4", "WJ", "P5", "TA", "UC", "ET", "NZ", "VB"];
+function leerMensaje(txt) {
+  const t = " " + txt.replace(/\s+/g, " ") + " ", n = norm(t), out = {}, dice = [];
+  const hoy = hoyChile(), [y, m, d] = hoy.split("-").map(Number), sumar = k => { const x = new Date(Date.UTC(y, m - 1, d + k)); return x.toISOString().slice(0, 10); };
+  // Fecha
+  if (/pasado manana/.test(n)) out.fecha = sumar(2); else if (/\bmanana\b/.test(n)) out.fecha = sumar(1); else if (/\bhoy\b/.test(n)) out.fecha = hoy;
+  let f = t.match(/\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/);
+  if (f && Number(f[2]) <= 12) { const yy = f[3] ? (f[3].length === 2 ? 2000 + Number(f[3]) : Number(f[3])) : (Number(f[2]) < m ? y + 1 : y); out.fecha = `${yy}-${String(f[2]).padStart(2, "0")}-${String(f[1]).padStart(2, "0")}`; }
+  const dias = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+  if (!out.fecha) { const w = dias.findIndex(x => new RegExp("\\b" + x + "\\b").test(n)); if (w >= 0) { const hoyW = new Date(hoy + "T12:00:00Z").getUTCDay(); out.fecha = sumar(((w - hoyW + 7) % 7) || 7); } }
+  // Hora
+  let h = t.match(/\b(\d{1,2})[:.h](\d{2})\s*(am|pm|hrs?|horas)?\b/i) || t.match(/\ba las (\d{1,2})\s*(am|pm|de la manana|de la tarde|de la noche)?/i) || t.match(/\b(\d{1,2})\s*(am|pm)\b/i);
+  if (h) { let hh = Number(h[1]), mm = h[2] && /^\d{2}$/.test(h[2]) ? Number(h[2]) : 0; const suf = norm((h[3] || h[2] || "") + "");
+    if (/pm|tarde|noche/.test(suf) && hh < 12) hh += 12; if (/am|manana/.test(suf) && hh === 12) hh = 0;
+    if (hh < 24 && mm < 60) out.hora = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`; }
+  // Vuelo
+  const v = t.toUpperCase().match(new RegExp("\\b(" + AEROLINEAS.join("|") + ")\\s?(\\d{2,4})\\b")); if (v) out.vuelo = v[1] + v[2];
+  // Teléfono y correo
+  const tel = t.match(/(\+?56\s?)?9[\s.-]?\d{4}[\s.-]?\d{4}/); if (tel) { const dd = tel[0].replace(/\D/g, "").slice(-9); out.tel = "+56 " + dd[0] + " " + dd.slice(1, 5) + " " + dd.slice(5); }
+  const mail = t.match(/[\w.+-]+@[\w-]+\.[\w.]+/); if (mail) out.mail = mail[0].toLowerCase();
+  // Pasajeros y maletas
+  const px = n.match(/(\d+)\s*(pasajeros|personas|pax|adultos)/) || n.match(/somos\s*(\d+)/); if (px) out.pax = Number(px[1]);
+  const ml = n.match(/(\d+)\s*(maletas|valijas|bolsos|equipajes)/); if (ml) out.maletas = Number(ml[1]);
+  if (/\bvan\b/.test(n)) out.veh = "van"; else if (/\b(suv|camioneta)\b/.test(n)) out.veh = "suv";
+  // Nombre
+  const nom = t.match(/(?:[Ss]oy|[Mm]i nombre es|[Aa] nombre de|[Mm]e llamo)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,3})/); if (nom) out.nombre = nom[1];
+  // Aeropuerto y comuna (del tarifario)
+  const aero = /aeropuerto|\bscl\b|pudahuel aeropuerto/.test(n);
+  const regreso = aero && /(desde el aeropuerto|del aeropuerto|en el aeropuerto|llego|llegamos|aterriz|regreso|vuelta)/.test(n) && !/(al aeropuerto|hacia el aeropuerto|para el aeropuerto)/.test(n);
+  const zonas = (window.FK_TARIFAS || []).map(z => z[0].split(/ hasta | por | desde | - |,/)[0].trim()).filter((x, i, a) => x && a.indexOf(x) === i).sort((a, b) => b.length - a.length);
+  const comuna = zonas.find(z => n.includes(norm(z)) && norm(z) !== "pudahuel" || (norm(z) === "pudahuel" && /pudahuel/.test(n) && !/pudahuel aeropuerto/.test(n)));
+  if (aero) { out.tipo = regreso ? "regreso" : "ida"; if (regreso) { out.origen = "Aeropuerto SCL"; if (comuna) out.destino = comuna; } else { out.destino = "Aeropuerto SCL"; if (comuna) out.origen = comuna; } }
+  else if (comuna) out.origen = comuna;
+  return out;
+}
+$("n-leer").addEventListener("click", () => {
+  const o = leerMensaje($("n-pegar").value || ""), set = (id, v) => { if (v != null && v !== "") $(id).value = v; };
+  set("n-nombre", o.nombre); set("n-tel", o.tel); set("n-mail", o.mail); set("n-vuelo", o.vuelo); set("n-pax", o.pax); set("n-maletas", o.maletas);
+  set("n-origen", o.origen); set("n-destino", o.destino); if (o.tipo) $("n-tipo").value = o.tipo; if (o.veh) $("n-veh").value = o.veh;
+  if (o.fecha || o.hora) set("n-fecha", `${o.fecha || hoyChile()}T${o.hora || "00:00"}`);
+  $("n-canal").value = "whatsapp";
+  if (!$("n-com").value) $("n-com").value = $("n-pegar").value.trim().slice(0, 500);
+  const faltan = [!o.fecha && "fecha", !o.hora && "hora", !o.origen && "origen", !o.destino && "destino", !o.nombre && "nombre", !o.tel && "teléfono"].filter(Boolean);
+  $("n-leido").textContent = faltan.length ? "Complete a mano: " + faltan.join(", ") + ". Revise todo antes de guardar." : "Listo. Revise los datos antes de guardar.";
+  detectarCliente(); sugerirPrecio();
+});
+
 // ---- Nueva reserva: clientes registrados (se completan sus datos)
 let baseClientes = [], clienteSel = null;
 const norm = t => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const tel8 = t => (t || "").replace(/\D/g, "").slice(-8);
 async function cargarBaseClientes() {
-  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id").order("nombre").limit(5000);
+  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas").order("nombre").limit(5000);
   baseClientes = data || [];
 }
 function buscarClientes(q) {
@@ -1501,7 +1630,7 @@ async function elegirCliente(id) {
   }
   const { count } = await sb.from("reservas").select("id", { count: "exact", head: true }).eq("cliente_id", c.id).neq("estado", "cancelada");
   $("n-cli").hidden = false;
-  $("n-cli").innerHTML = `<b>Cliente registrado: ${esc(c.nombre)}</b> · ${count || 0} servicio(s) anteriores. Datos de contacto completados${r ? " y preferencias del último servicio (pago, cobro, vehículo, pasajeros)" : ""}.
+  $("n-cli").innerHTML = (c.notas ? `<div style="margin-bottom:6px">📝 <b>Notas:</b> ${esc(c.notas)}</div>` : "") + `<b>Cliente registrado: ${esc(c.nombre)}</b> · ${count || 0} servicio(s) anteriores. Datos de contacto completados${r ? " y preferencias del último servicio (pago, cobro, vehículo, pasajeros)" : ""}.
     ${r ? `<div class="small" style="margin-top:6px">Último viaje (${esc(fecha(r.fecha_hora))}): ${esc(r.origen)} → ${esc(r.destino)}${r.precio != null ? ` · ${clp(r.precio)}` : ""}</div>
     <div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-mismo">Mismo trayecto</button><button class="btn ghost sm" type="button" id="n-inv">Trayecto de vuelta</button><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`
     : `<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`}`;
@@ -1565,9 +1694,24 @@ $("nf").addEventListener("submit", async e => {
   };
   if (clienteSel) fila.cliente_id = clienteSel;
   if ($("n-cc").value.trim()) fila.centro_costo = $("n-cc").value.trim();
-  const { data, error } = await sb.from("reservas").insert(fila).select("codigo").single();
+  const rep = $("n-rep").value, hasta = $("n-rep-hasta").value;
+  let filas = [fila];
+  if (rep) {
+    if (!hasta) return msg("n-msg", "Indique hasta qué fecha se repite.", "err");
+    const serie = crypto.randomUUID(), base = new Date(fh), fin = new Date(FK.chileLocalToISO(hasta + "T23:59"));
+    filas = [];
+    for (let d = new Date(base); d <= fin && filas.length < 60; d = new Date(d.getTime() + 864e5)) {
+      const dia = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(d);
+      const ok = rep === "diario" || (rep === "habiles" && !["Sat", "Sun"].includes(dia)) || (rep === "semanal" && Math.round((d - base) / 864e5) % 7 === 0);
+      // Misma hora de Chile cada día (respeta el cambio de horario de verano)
+      if (ok) filas.push({ ...fila, serie_id: serie, fecha_hora: FK.chileLocalToISO(new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d) + "T" + $("n-fecha").value.slice(11, 16)) });
+    }
+    if (!filas.length) return msg("n-msg", "Con esas fechas no queda ninguna reserva.", "err");
+    if (!confirm(`Se crearán ${filas.length} reservas (${new Date(filas[0].fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ })} a ${new Date(filas[filas.length - 1].fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ })}). ¿Continuar?`)) return;
+  }
+  const { data, error } = await sb.from("reservas").insert(filas).select("codigo");
   if (error) return msg("n-msg", errText(error), "err");
-  msg("n-msg", `Reserva ${data.codigo} guardada como confirmada.`, "ok");
+  msg("n-msg", data.length > 1 ? `${data.length} reservas guardadas como confirmadas (${data[0].codigo} … ${data[data.length - 1].codigo}).` : `Reserva ${data[0].codigo} guardada como confirmada.`, "ok");
   $("nf").reset(); clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
 });
 

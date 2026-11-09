@@ -184,3 +184,6 @@ dialog .panel { border: 0; }
 .rapidos { display: flex; flex-wrap: wrap; gap: 6px; }
 .rapidos .chip { font-size: .85rem; }
 html.grande { font-size: 118%; }
+#tb-split.split { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 12px; align-items: start; }
+#tb-split.split #tb-mapa { position: sticky; top: 10px; height: 70vh; }
+@media (max-width: 1100px) { #tb-split.split { grid-template-columns: 1fr; } #tb-split.split #tb-mapa { position: static; height: 360px; } }
