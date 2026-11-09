@@ -175,3 +175,12 @@ dialog .panel { border: 0; }
 .subir-doc summary, details summary.btn { display: inline-block; cursor: pointer; list-style: none; }
 .movil { display: inline-block; background: var(--gold); color: #17130a; font-family: var(--font-display); font-weight: 700; padding: 0 7px; border-radius: 4px; }
 .fl-info select.v-cat-sel { max-width: 160px; }
+
+/* App del conductor: servicio nuevo, espera, avisos, letra grande */
+.nuevo { display: grid; gap: 6px; border: 2px solid #2f8a5b; background: #2f8a5b18; border-radius: 8px; padding: 10px 12px; animation: fkpulse 1.6s 3; }
+.espera { border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; font-size: .95rem; }
+.espera.pasada { border-color: #e5533d; background: #e5533d18; }
+.aviso-fijo { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 50; box-shadow: 0 6px 20px rgba(0,0,0,.35); cursor: pointer; }
+.rapidos { display: flex; flex-wrap: wrap; gap: 6px; }
+.rapidos .chip { font-size: .85rem; }
+html.grande { font-size: 118%; }

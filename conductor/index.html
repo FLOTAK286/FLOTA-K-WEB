@@ -15,6 +15,8 @@
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/app.css">
 <script>
+// Preferencias de pantalla del conductor (modo noche y letra grande)
+try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement.dataset.theme = t; if (localStorage.getItem("fk_grande") === "1") document.documentElement.classList.add("grande"); } catch (_) {}
 // Diagnóstico: si algo impide cargar la app, se muestra en pantalla (en vez de quedar en blanco).
 (function () {
   function falla(t) {
@@ -172,7 +174,7 @@ async function iniciar(session) {
   cargar(); revisarCentral(); setInterval(revisarCentral, 20000);
   iniciarGPS();
   revisarVersionApp(); setInterval(revisarVersionApp, 6 * 3600e3);
-  setInterval(cargar, 60000);
+  setInterval(cargar, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
 }
 
@@ -187,17 +189,66 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   items = data || [];
+  avisarNuevos(); programarRecordatorios(); avisoSalida();
   if (enServicio()) enviarUbicacion(); // con un servicio en curso se comparte aunque esté desconectado
   await cargarCalificaciones(); revisarMensajes();
   if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
   pintar();
 }
+
+// ---- Servicio nuevo: aviso con sonido, vibración y notificación; el conductor acepta o dice que no puede
+const porResponder = r => !r.conductor_respuesta && ["recibida", "confirmada", "asignada"].includes(r.estado);
+function sonar() {
+  try { const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .2, .4].forEach(d => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 988; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(.25, ctx.currentTime + d); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + .15); }); } catch (_) {}
+}
+function avisarNuevos() {
+  let vistos = []; try { vistos = JSON.parse(localStorage.getItem("fk_avisados") || "[]"); } catch (_) {}
+  const nuevos = items.filter(r => porResponder(r) && !vistos.includes(r.id));
+  if (!nuevos.length) return;
+  sonar(); if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+  nuevos.forEach(r => { if (LN) LN.schedule({ notifications: [{ id: 1800000000 + (parseInt(r.id.replace(/\D/g, "").slice(0, 7)) || 1), title: "Servicio nuevo · " + hora(r.fecha_hora), body: `${r.nombre_pasajero}: ${r.origen} → ${r.destino}` }] }).catch(() => {}); });
+  try { localStorage.setItem("fk_avisados", JSON.stringify(vistos.concat(nuevos.map(r => r.id)).slice(-200))); } catch (_) {}
+}
+// Recordatorios 2 horas y 45 minutos antes (en la app Android quedan programados aunque la app esté cerrada)
+let recordados = new Set();
+function programarRecordatorios() {
+  const prox = items.filter(r => ["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now());
+  prox.forEach(r => [[120, "en 2 horas"], [45, "en 45 minutos"]].forEach(([min, txt], k) => {
+    const at = new Date(new Date(r.fecha_hora).getTime() - min * 60000), clave = r.id + "-" + min;
+    if (at <= Date.now() || recordados.has(clave)) return;
+    recordados.add(clave);
+    if (LN) LN.schedule({ notifications: [{ id: 1700000000 + ((parseInt(r.id.replace(/\D/g, "").slice(0, 6)) || 1) * 2 + k) % 99999999, title: `Servicio ${txt} · ${hora(r.fecha_hora)}`, body: `${r.nombre_pasajero}: ${r.origen} → ${r.destino}`, schedule: { at } }] }).catch(() => {});
+  }));
+}
+// Recordatorio dentro de la app (sirve también en el navegador): aviso en pantalla 45 min antes
+function avisoSalida() {
+  if (!yo) return;
+  items.filter(r => ["confirmada", "asignada"].includes(r.estado)).forEach(r => {
+    const min = Math.round((new Date(r.fecha_hora) - Date.now()) / 60000), clave = "pant-" + r.id;
+    if (min <= 45 && min > 0 && !recordados.has(clave)) { recordados.add(clave); sonar(); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+      const t = document.createElement("p"); t.className = "msg ok aviso-fijo"; t.textContent = `Sale en ${min} min: ${r.nombre_pasajero} · ${r.origen}`; t.onclick = () => t.remove(); document.body.appendChild(t); setTimeout(() => t.remove(), 60000); }
+  });
+}
+setInterval(avisoSalida, 60000);
+// Cronómetro de espera al llegar: incluido 15 min en domicilio; en aeropuerto 45 min (nacional) o 1 h (internacional) desde el aterrizaje
+setInterval(() => {
+  document.querySelectorAll("[data-espera]").forEach(el => {
+    const id = el.dataset.espera, r = items.find(x => x.id === id); if (!r) return;
+    let desde = 0; try { desde = Number(localStorage.getItem("fk_llegue_" + id)) || 0; } catch (_) {}
+    if (!desde) { el.textContent = "Esperando al pasajero"; return; }
+    const seg = Math.floor((Date.now() - desde) / 1000), mm = String(Math.floor(seg / 60)).padStart(2, "0"), ss = String(seg % 60).padStart(2, "0");
+    const aero = /aeropuerto|scl|terminal/i.test(r.origen), incl = aero ? 45 : 15;
+    el.className = "espera" + (seg / 60 >= incl ? " pasada" : "");
+    el.innerHTML = `⏱ Esperando <b>${mm}:${ss}</b> · incluido ${aero ? "45 min nacional / 1 h internacional desde el aterrizaje" : "15 min"}${seg / 60 >= incl ? " · <b>se pasó del tiempo incluido: avise a la central</b>" : ""}`;
+  });
+}, 1000);
 
 // ---- Calificaciones: el conductor califica al pasajero al terminar (interno, el pasajero no lo ve)
 async function cargarCalificaciones() {
@@ -279,7 +330,30 @@ async function pintarGanancias() {
       <span class="small">${esc(x.nombre_pasajero)} · ${esc(x.origen)} → ${esc(x.destino)}</span><br>
       <span class="small muted">${x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija"}${x.gastos ? ` · gastos ${clp(x.gastos)}` : ""}</span></div>
       <div style="text-align:right"><b>${clp(x.total)}</b><br><span class="small ${x.pagado ? "muted" : ""}">${x.pagado ? "Pagado" : "Por cobrar"}</span></div></div>`).join("") : '<p class="muted">Aún no hay servicios finalizados este mes.</p>'}
+    <div class="actions"><button class="btn ghost" type="button" id="liq">Liquidación del mes</button><button class="btn ghost" type="button" id="liq-mail">Enviarme la liquidación por correo</button></div>
     <p class="small muted">Montos de lo cobrado al cliente (valor del servicio más gastos como TAG, peajes o estacionamiento). Servicios cancelados no se cuentan.</p>`;
+  // Liquidación del mes: detalle para imprimir o guardar como PDF (en el navegador) o enviarse por correo (en la app)
+  const mesTxt = new Date().toLocaleDateString("es-CL", { timeZone: TZ, month: "long", year: "numeric" });
+  const tot = delMes.reduce((a, x) => a + (x.total || 0), 0), gas = delMes.reduce((a, x) => a + (x.gastos || 0), 0);
+  $("liq").onclick = () => {
+    const w = window.open("", "_blank");
+    if (!w) return alert("Abra fk-servicios.com/conductor en el navegador para imprimir o guardar como PDF, o use 'Enviarme la liquidación por correo'.");
+    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Liquidación ${esc(mesTxt)} · Flota-K</title>
+      <style>body{font:14px sans-serif;margin:24px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border-bottom:1px solid #ccc;padding:6px;text-align:left}td.n,th.n{text-align:right}.t{font-weight:700}</style></head><body>
+      <h1>Flota-K · Liquidación de ${esc(mesTxt)}</h1><p>Conductor: <b>${esc((yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre)}</b> · Emitida: ${esc(new Date().toLocaleDateString("es-CL", { timeZone: TZ }))}</p>
+      <table><thead><tr><th>Fecha</th><th>Código</th><th>Pasajero</th><th>Trayecto</th><th class="n">Gastos</th><th class="n">Total</th><th>Pago cliente</th></tr></thead><tbody>
+      ${delMes.map(x => `<tr><td>${esc(new Date(x.fecha_hora).toLocaleString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td><td>${esc(x.codigo)}</td><td>${esc(x.nombre_pasajero)}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td class="n">${clp(x.gastos || 0)}</td><td class="n">${clp(x.total)}</td><td>${x.pagado ? "Pagado" : "Por cobrar"}</td></tr>`).join("")}
+      <tr class="t"><td colspan="4">TOTAL (${delMes.length} servicios)</td><td class="n">${clp(gas)}</td><td class="n">${clp(tot)}</td><td></td></tr></tbody></table>
+      <p style="margin-top:16px;font-size:12px;color:#555">Gastos = TAG, peajes, estacionamiento y otros ingresados al finalizar. Total = lo cobrado al cliente.</p>
+      <script>setTimeout(() => print(), 300)<\/script></body></html>`);
+    w.document.close();
+  };
+  $("liq-mail").onclick = () => {
+    const t = `Liquidación ${mesTxt} · ${(yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre}\n\n` +
+      delMes.map(x => `${new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit" })} ${x.codigo} · ${x.nombre_pasajero} · ${clp(x.total)}${x.pagado ? "" : " (por cobrar)"}`).join("\n") +
+      `\n\nTotal: ${clp(tot)} (${delMes.length} servicios) · Gastos incluidos: ${clp(gas)}`;
+    location.href = "mailto:?subject=" + encodeURIComponent("Liquidación " + mesTxt + " · Flota-K") + "&body=" + encodeURIComponent(t);
+  };
 }
 
 // ---- Conectado / desconectado: desconectado no recibe servicios nuevos ni comparte ubicación (salvo un servicio en curso)
@@ -374,6 +448,11 @@ async function pintarPerfil() {
       <a class="btn ghost" href="tel:+56922275399">Llamar a la central</a>
     </div>
     <div class="svc">
+      <b>Pantalla</b>
+      <label class="chk"><input type="checkbox" id="pf-noche" ${document.documentElement.dataset.theme === "dark" ? "checked" : ""}> Modo noche (fondo oscuro)</label>
+      <label class="chk"><input type="checkbox" id="pf-grande" ${document.documentElement.classList.contains("grande") ? "checked" : ""}> Letra grande</label>
+    </div>
+    <div class="svc">
       <b>Seguridad</b>
       <details><summary class="btn ghost">Cambiar contraseña</summary>
         <div class="list" style="margin-top:8px"><div class="f"><label for="pw-n">Nueva contraseña (mínimo 8 caracteres)</label><input id="pw-n" type="password" autocomplete="new-password" minlength="8"></div>
@@ -400,6 +479,8 @@ async function pintarPerfil() {
       await pintarPerfil(); msg("pf-msg", "Documento enviado. La central lo revisará.", "ok");
     } catch (e) { msg("pf-msg", errText(e), "err"); $("pd-ok").disabled = false; }
   });
+  $("pf-noche").addEventListener("change", ev => { const t = ev.target.checked ? "dark" : "light"; document.documentElement.dataset.theme = t; try { localStorage.setItem("fk_tema", t); } catch (_) {} });
+  $("pf-grande").addEventListener("change", ev => { document.documentElement.classList.toggle("grande", ev.target.checked); try { localStorage.setItem("fk_grande", ev.target.checked ? "1" : "0"); } catch (_) {} });
   $("pw-ok").addEventListener("click", async () => {
     const pw = $("pw-n").value; if (pw.length < 8) return msg("pf-msg", "La contraseña debe tener al menos 8 caracteres.", "err");
     const { error } = await sb.auth.updateUser({ password: pw });
@@ -426,7 +507,10 @@ function pintar() {
     const msgWa = `Hola ${r.nombre_pasajero.split(" ")[0]}, le saluda ${yo.nombre.split(" ")[0]} de Flota-K, su conductor para hoy a las ${hora(r.fecha_hora)}.`;
     return `${head}<article class="svc ${fin ? "done" : ""}" data-id="${esc(r.id)}">
       <div class="top" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="time">${esc(hora(r.fecha_hora))}</span>${pill(r.estado)}</div>
+      ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
+        <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
       <div class="who">${esc(r.nombre_pasajero)}</div>
+      ${r.estado === "en_lugar" ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="https://www.google.com/search?q=${encodeURIComponent(r.vuelo + " estado del vuelo")}" target="_blank" rel="noopener" style="color:var(--gold)"><b>${esc(r.vuelo)}</b></a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>
         <div class="nav"><a class="btn ghost sm" href="${waze(r.origen)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen)}" target="_blank" rel="noopener">Google Maps</a></div></div>
@@ -509,9 +593,20 @@ function pintar() {
       $("list").prepend(done); setTimeout(() => done.remove(), 6000);
     });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
+    card.querySelector(".acepta")?.addEventListener("click", async () => {
+      const { error } = await sb.rpc("conductor_responder", { p_reserva: id, p_acepta: true });
+      if (error) return alert(errText(error)); r.conductor_respuesta = "aceptado"; programarRecordatorios(); pintar();
+    });
+    card.querySelector(".rechaza")?.addEventListener("click", async () => {
+      const motivo = prompt("¿Por qué no puede tomarlo? (opcional; la central lo verá)");
+      if (motivo === null) return;
+      const { error } = await sb.rpc("conductor_responder", { p_reserva: id, p_acepta: false, p_motivo: motivo });
+      if (error) return alert(errText(error)); cargar();
+    });
     card.querySelector(".chat-btn")?.addEventListener("click", () => { chatAbiertoId = chatAbiertoId === id ? null : id; chatVivo = null; pintar(); });
     if (chatAbiertoId === id && card.querySelector(".chat-box")) {
-      chatVivo = FKChat.montar(card.querySelector(".chat-box"), { yo: "conductor", placeholder: "Ej.: Estoy afuera, auto azul", enviar: async t => {
+      chatVivo = FKChat.montar(card.querySelector(".chat-box"), { yo: "conductor", placeholder: "Ej.: Estoy afuera, auto azul",
+        rapidos: ["Voy en camino", "Llego en 5 minutos", "Llegué, estoy afuera", "Estoy en el punto de encuentro del aeropuerto", "Lo espero en la salida, avíseme al tener su equipaje"], enviar: async t => {
         const res = await sb.rpc("enviar_mensaje", { p_reserva: id, p_texto: t }); if (!res.error) revisarMensajes(); return res; } });
       chatVivo.pintar(msgsPor[id] || []); marcarLeido(id);
     }
@@ -541,6 +636,7 @@ async function avanzar(card, id, estado, nota) {
   const { error } = await sb.rpc("conductor_avanzar", { p_reserva: id, p_estado: estado, p_nota: nota || null });
   if (error) { const m = card.querySelector(".msg"); m.hidden = false; m.textContent = errText(error); card.querySelectorAll("button").forEach(b => b.disabled = false); return; }
   if (navigator.vibrate) navigator.vibrate(60);
+  if (estado === "en_lugar") { try { localStorage.setItem("fk_llegue_" + id, String(Date.now())); } catch (_) {} }
   pendiente = null;
   const it = items.find(x => x.id === id); if (it) it.estado = estado;
   pintar(); cargar(); enviarUbicacion(true);

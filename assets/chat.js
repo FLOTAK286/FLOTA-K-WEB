@@ -8,8 +8,9 @@ window.FKChat = {
     return msgs.map(m => `<div class="burbuja ${m.autor === yo ? "yo" : "otro"} ${m.autor === "despacho" ? "desp" : ""}"><small>${e(m.autor === yo ? "Usted" : FKChat.NOMBRES[m.autor])} · ${h(m.creado_en)}</small>${e(m.texto)}</div>`).join("");
   },
   // Dibuja el chat en el elemento y devuelve funciones para actualizarlo.
-  montar(el, { yo, enviar, abierto = true, placeholder = "Escriba un mensaje…" }) {
+  montar(el, { yo, enviar, abierto = true, placeholder = "Escriba un mensaje…", rapidos = [] }) {
     el.innerHTML = `<div class="chat"><div class="chat-msgs" aria-live="polite"></div>
+      ${abierto && rapidos.length ? `<div class="rapidos">${rapidos.map(t => `<button type="button" class="chip">${FK.esc(t)}</button>`).join("")}</div>` : ""}
       ${abierto ? `<form class="chat-form"><input maxlength="500" placeholder="${FK.esc(placeholder)}" aria-label="Mensaje"><button class="btn sm" type="submit">Enviar</button></form>` : '<p class="muted small" style="margin:0">El chat de este servicio está cerrado.</p>'}
       <p class="msg err" hidden></p></div>`;
     const lista = el.querySelector(".chat-msgs"), form = el.querySelector("form"), err = el.querySelector(".msg");
@@ -30,6 +31,10 @@ window.FKChat = {
       if (r && r.error) { err.hidden = false; err.textContent = FK.errText(r.error); return; }
       inp.value = ""; inp.focus();
     });
+    el.querySelectorAll(".rapidos .chip").forEach(b => b.addEventListener("click", async () => {
+      b.disabled = true; const r = await enviar(b.textContent); b.disabled = false;
+      if (r && r.error) { err.hidden = false; err.textContent = FK.errText(r.error); }
+    }));
     return { pintar };
   },
   // Estrellas 1 a 5. onElegir(n) se llama al tocar una.
