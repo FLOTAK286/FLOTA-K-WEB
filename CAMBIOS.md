@@ -1,5 +1,20 @@
 # Cambios
 
+## 9 nov 2026 · Etapa 2: despacho (rama `etapa-1`, pendiente de publicar)
+
+### Qué se hizo
+- **Base de datos:** tabla de vehículos; cada persona del equipo puede marcarse como "conduce"; la reserva guarda conductor, vehículo, duración estimada, partner al que se derivó y su costo. Función `asignar_reserva` que asigna y deja nota en el historial (pasa la reserva a "Conductor asignado"). Probado con una reserva de prueba (borrada).
+- **Panel /equipo:**
+  - Pestaña **Agenda**: un día a la vez, una columna por conductor, más "Derivados a la red" y "Sin asignar". Los servicios que se cruzan para un mismo conductor aparecen en rojo.
+  - En la ficha de cada reserva: **asignar conductor y vehículo**, duración estimada, o **derivar a un partner** con su costo; muestra el margen. Si el conductor ya tiene otro servicio en ese horario, avisa y pide "Asignar igual".
+  - Las tarjetas de reservas muestran a quién está asignada.
+  - Pestaña Equipo: columna **"Conduce"** y sección **Vehículos** (agregar, dar de baja).
+
+### Qué debe probar el dueño (cuando se publique)
+1. Equipo y roles → Vehículos: agregar su auto (patente, modelo, capacidad).
+2. Abrir una reserva → Asignación: elegirse como conductor y el vehículo → Guardar.
+3. Agenda: revisar el día de la reserva.
+
 ## 9 nov 2026 · Corrección (pendiente de publicar)
 - /cuenta mostraba todas las reservas cuando entraba una cuenta del equipo (por sus permisos de administrador). Ahora muestra solo las reservas propias del cliente. Ningún cliente real veía reservas ajenas.
 

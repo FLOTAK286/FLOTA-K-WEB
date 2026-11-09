@@ -37,6 +37,7 @@
   <section id="app" hidden>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="reservas" aria-selected="true">Reservas</button>
+      <button role="tab" data-tab="agenda" aria-selected="false">Agenda</button>
       <button role="tab" data-tab="nueva" aria-selected="false">Nueva reserva</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
@@ -54,6 +55,17 @@
         <div class="f" style="flex:1;min-width:180px"><label for="buscar">Buscar</label><input id="buscar" placeholder="Nombre, código, teléfono o comuna"></div>
       </div>
       <div id="lista" class="list"><p class="muted">Cargando…</p></div>
+    </div>
+
+    <div data-pane="agenda" class="panel" style="margin-top:14px" hidden>
+      <div class="actions">
+        <div class="f"><label for="ag-dia">Día</label><input id="ag-dia" type="date"></div>
+        <button class="btn ghost sm" id="ag-prev" type="button">◀ Día anterior</button>
+        <button class="btn ghost sm" id="ag-hoy" type="button">Hoy</button>
+        <button class="btn ghost sm" id="ag-next" type="button">Día siguiente ▶</button>
+      </div>
+      <div id="agenda" class="agenda"><p class="muted">Cargando…</p></div>
+      <p class="muted small">En rojo: servicios que se cruzan para el mismo conductor. Se considera la duración estimada de cada servicio más 15 minutos de margen.</p>
     </div>
 
     <div data-pane="nueva" class="panel" style="margin-top:14px" hidden>
@@ -100,9 +112,19 @@
         <div class="actions"><button class="btn" type="submit">Invitar</button></div>
       </form>
       <div id="i-msg" class="msg" hidden></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
       <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
       <div id="pend" class="muted">—</div>
+      <h3 style="margin:8px 0 0">Vehículos</h3>
+      <form id="vf" class="row3" novalidate>
+        <div class="f"><label for="v-pat">Patente</label><input id="v-pat" required placeholder="ABCD12"></div>
+        <div class="f"><label for="v-desc">Vehículo</label><input id="v-desc" placeholder="VW Virtus azul"></div>
+        <div class="f"><label for="v-tipo">Tipo</label><select id="v-tipo"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
+        <div class="f"><label for="v-cap">Capacidad (pasajeros)</label><input id="v-cap" type="number" min="1" max="20" value="4"></div>
+        <div class="actions"><button class="btn" type="submit">Agregar vehículo</button></div>
+      </form>
+      <div id="v-msg" class="msg" hidden></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Vehículo</th><th>Tipo</th><th>Capacidad</th><th></th></tr></thead><tbody id="vehs"></tbody></table></div>
       <p class="muted small">Qué puede hacer cada rol: <b>Administrador</b> todo, incluido el equipo. <b>Despachador</b> y <b>Telefonista</b> ven y gestionan reservas. <b>Conductor</b> solo verá sus servicios asignados (en la app del conductor, próxima etapa).</p>
     </div>
 
@@ -127,7 +149,35 @@ const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
 const back = location.origin + "/equipo/";
 if (window.FK_CONFIG.google) $("google").hidden = false;
-let yo = null, cache = [];
+let yo = null, cache = [], conductores = [], vehiculos = [];
+const TZ = "America/Santiago";
+const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+const hoyChile = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+async function cargarRecursos() {
+  const [{ data: c }, { data: v }] = await Promise.all([
+    sb.from("perfiles").select("id, nombre").eq("conduce", true).eq("activo", true).order("nombre"),
+    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad").eq("activo", true).order("patente")
+  ]);
+  conductores = c || []; vehiculos = v || [];
+}
+const nombreConductor = id => (conductores.find(c => c.id === id) || {}).nombre;
+function asignadoTxt(r) {
+  if (r.derivado_a) return "Derivado a " + r.derivado_a;
+  if (r.conductor_id) return "Conductor: " + (nombreConductor(r.conductor_id) || "asignado");
+  return "Sin conductor";
+}
+// Servicios del mismo conductor que se cruzan con este horario (duración + 15 min de margen)
+async function choques(cond, inicioIso, dur, excluir) {
+  const ini = new Date(inicioIso).getTime(), fin = ini + (dur + 15) * 60000;
+  const { data } = await sb.from("reservas").select("id, codigo, fecha_hora, duracion_min, nombre_pasajero, origen, destino")
+    .eq("conductor_id", cond).not("estado", "in", "(cancelada,finalizada)")
+    .gte("fecha_hora", new Date(ini - 24 * 3600e3).toISOString()).lte("fecha_hora", new Date(fin + 24 * 3600e3).toISOString());
+  return (data || []).filter(x => {
+    if (x.id === excluir) return false;
+    const b0 = new Date(x.fecha_hora).getTime(), b1 = b0 + ((x.duracion_min || 90) + 15) * 60000;
+    return ini < b1 && b0 < fin;
+  });
+}
 
 function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = text; }
 
@@ -159,6 +209,7 @@ async function iniciar(session) {
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
   $("tab-equipo").hidden = data.rol !== "admin";
   $("app").hidden = false;
+  await cargarRecursos();
   cargarReservas();
 }
 
@@ -168,6 +219,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
   if (b.dataset.tab === "reservas") cargarReservas();
   if (b.dataset.tab === "equipo") cargarEquipo();
+  if (b.dataset.tab === "agenda") cargarAgenda();
 }));
 
 // ---- Reservas
@@ -194,6 +246,7 @@ function pintar() {
       <div><b>${esc(r.nombre_pasajero)}</b> · ${esc(r.telefono)}</div>
       <div>${esc(r.origen)} → ${esc(r.destino)}</div>
       <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")} · ${esc(r.canal)}</span><span>${clp(r.precio ?? r.tarifa_web)}</span></div>
+      <div class="small ${r.conductor_id || r.derivado_a ? "" : "warn"}">${esc(asignadoTxt(r))}</div>
     </button>`).join("") : '<p class="muted">No hay reservas para mostrar.</p>';
   $("lista").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
 }
@@ -230,6 +283,20 @@ async function abrir(id) {
       <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
       <div class="f"><label for="d-nota">Nota (queda en el historial)</label><input id="d-nota" maxlength="1000"></div>
     </div>
+    <h3 style="margin:6px 0 0">Asignación</h3>
+    <div class="row3">
+      <div class="f"><label for="a-cond">Conductor</label><select id="a-cond"><option value="">Sin asignar</option>${conductores.map(c => `<option value="${c.id}" ${c.id === r.conductor_id ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></div>
+      <div class="f"><label for="a-veh">Vehículo</label><select id="a-veh"><option value="">Sin vehículo</option>${vehiculos.map(v => `<option value="${v.id}" ${v.id === r.vehiculo_id ? "selected" : ""}>${esc(v.patente)} · ${esc(v.descripcion || v.tipo)} (${v.capacidad})</option>`).join("")}</select></div>
+      <div class="f"><label for="a-dur">Duración estimada (min)</label><input id="a-dur" type="number" min="15" max="1440" step="15" value="${esc(r.duracion_min || 90)}"></div>
+    </div>
+    <div class="row2">
+      <div class="f"><label for="a-der">O derivado a (red / partner)</label><input id="a-der" value="${esc(r.derivado_a || "")}" placeholder="Ej: Servimóvil"></div>
+      <div class="f"><label for="a-costo">Costo que cobra el partner</label><input id="a-costo" type="number" min="0" step="1000" value="${esc(r.costo_partner ?? "")}"></div>
+    </div>
+    <p id="a-margen" class="small muted"></p>
+    <div id="a-choque" class="msg err" hidden></div>
+    <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button></div>
+    <h3 style="margin:6px 0 0">Estado y cobro</h3>
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
     <h3 style="margin:6px 0 0">Historial</h3>
@@ -237,6 +304,34 @@ async function abrir(id) {
   $("det").showModal();
   $("d-close").onclick = () => $("det").close();
   $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
+  const margen = () => {
+    const p = r.precio ?? r.tarifa_web, c = $("a-costo").value === "" ? null : Number($("a-costo").value);
+    $("a-margen").textContent = (p && c != null && $("a-der").value.trim()) ? `Margen: ${clp(p - c)} (${Math.round((p - c) / p * 100)}% sobre ${clp(p)})` : "";
+  };
+  $("a-costo").oninput = margen; $("a-der").oninput = margen; margen();
+  let confirmarChoque = false;
+  $("a-cond").onchange = () => { confirmarChoque = false; $("a-choque").hidden = true; $("a-save").textContent = "Guardar asignación"; };
+  $("a-save").onclick = async () => {
+    const cond = $("a-cond").value || null, veh = $("a-veh").value || null;
+    const der = $("a-der").value.trim() || null, costo = $("a-costo").value === "" ? null : Number($("a-costo").value);
+    const dur = Math.max(15, Math.min(1440, Number($("a-dur").value) || 90));
+    if (cond && der) return msg("d-msg", "Elija un conductor o un partner, no ambos.", "err");
+    if (cond && !confirmarChoque) {
+      const ch = await choques(cond, r.fecha_hora, dur, r.id);
+      if (ch.length) {
+        $("a-choque").hidden = false;
+        $("a-choque").innerHTML = "Este conductor ya tiene servicios que se cruzan:<br>" + ch.map(x => `${esc(hora(x.fecha_hora))} · ${esc(x.codigo)} · ${esc(x.nombre_pasajero)} (${esc(x.origen)} → ${esc(x.destino)})`).join("<br>");
+        confirmarChoque = true; $("a-save").textContent = "Asignar igual"; return;
+      }
+    }
+    if (dur !== (r.duracion_min || 90)) {
+      const { error } = await sb.from("reservas").update({ duracion_min: dur }).eq("id", r.id);
+      if (error) return msg("d-msg", errText(error), "err");
+    }
+    const { error } = await sb.rpc("asignar_reserva", { p_reserva: r.id, p_conductor: cond, p_vehiculo: veh, p_derivado_a: der, p_costo_partner: costo });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar();
+  };
   $("d-save").onclick = async () => {
     msg("d-msg", "Guardando…");
     const precio = $("d-precio").value === "" ? null : Number($("d-precio").value);
@@ -247,8 +342,52 @@ async function abrir(id) {
     }
     const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: $("d-estado").value, p_nota: $("d-nota").value });
     if (error) return msg("d-msg", errText(error), "err");
-    $("det").close(); cargarReservas();
+    $("det").close(); refrescar();
   };
+}
+
+function refrescar() {
+  const t = document.querySelector('.tabs button[aria-selected="true"]').dataset.tab;
+  if (t === "agenda") cargarAgenda(); else cargarReservas();
+}
+
+// ---- Agenda
+function moverDia(n) {
+  const d = new Date($("ag-dia").value + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n);
+  $("ag-dia").value = d.toISOString().slice(0, 10); cargarAgenda();
+}
+$("ag-prev").onclick = () => moverDia(-1);
+$("ag-next").onclick = () => moverDia(1);
+$("ag-hoy").onclick = () => { $("ag-dia").value = hoyChile(); cargarAgenda(); };
+$("ag-dia").onchange = cargarAgenda;
+async function cargarAgenda() {
+  if (!$("ag-dia").value) $("ag-dia").value = hoyChile();
+  const d = $("ag-dia").value;
+  const sig = new Date(d + "T12:00:00Z"); sig.setUTCDate(sig.getUTCDate() + 1);
+  const desde = FK.chileLocalToISO(d + "T00:00"), hasta = FK.chileLocalToISO(sig.toISOString().slice(0, 10) + "T00:00");
+  const { data, error } = await sb.from("reservas").select("*").gte("fecha_hora", desde).lt("fecha_hora", hasta).neq("estado", "cancelada").order("fecha_hora");
+  if (error) { $("agenda").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  data.forEach(r => { const i = cache.findIndex(x => x.id === r.id); if (i >= 0) cache[i] = r; else cache.push(r); });
+  const grupos = [...conductores.map(c => ({ id: c.id, nombre: c.nombre, items: [] })), { id: "red", nombre: "Derivados a la red", items: [] }, { id: null, nombre: "Sin asignar", items: [] }];
+  data.forEach(r => {
+    const g = r.derivado_a ? grupos.find(x => x.id === "red") : (grupos.find(x => x.id === r.conductor_id) || grupos[grupos.length - 1]);
+    g.items.push(r);
+  });
+  const fin = r => new Date(r.fecha_hora).getTime() + ((r.duracion_min || 90) + 15) * 60000;
+  $("agenda").innerHTML = grupos.filter(g => g.items.length || (g.id && g.id !== "red")).map(g => {
+    const choca = new Set();
+    if (g.id && g.id !== "red") g.items.forEach((a, i) => g.items.forEach((b, j) => {
+      if (i < j && new Date(a.fecha_hora).getTime() < fin(b) && new Date(b.fecha_hora).getTime() < fin(a)) { choca.add(a.id); choca.add(b.id); }
+    }));
+    return `<div class="ag-col"><h3>${esc(g.nombre)} <span class="muted small">${g.items.length}</span></h3>${g.items.length ? g.items.map(r => `
+      <button class="card ${choca.has(r.id) ? "choque" : ""}" type="button" data-id="${esc(r.id)}">
+        <div class="top"><span class="when">${esc(hora(r.fecha_hora))}–${esc(hora(new Date(new Date(r.fecha_hora).getTime() + (r.duracion_min || 90) * 60000).toISOString()))}</span>${pill(r.estado)}</div>
+        <div><b>${esc(r.nombre_pasajero)}</b>${r.vuelo ? " · " + esc(r.vuelo) : ""}</div>
+        <div class="small">${esc(r.origen)} → ${esc(r.destino)}</div>
+        ${choca.has(r.id) ? '<div class="small warn">Se cruza con otro servicio</div>' : ""}
+      </button>`).join("") : '<p class="muted small">Sin servicios</p>'}</div>`;
+  }).join("") || '<p class="muted">No hay servicios este día.</p>';
+  $("agenda").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
 }
 
 // ---- Nueva reserva
@@ -274,11 +413,12 @@ $("nf").addEventListener("submit", async e => {
 
 // ---- Equipo y roles (solo admin)
 async function cargarEquipo() {
-  const { data: m } = await sb.from("perfiles").select("id, nombre, rol, activo").order("nombre");
+  const { data: m } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce").order("nombre");
   $("miembros").innerHTML = (m || []).map(p => `
     <tr data-id="${esc(p.id)}">
       <td>${esc(p.nombre)}${p.id === yo.id ? ' <span class="muted small">(usted)</span>' : ""}</td>
       <td><select class="rol" ${p.id === yo.id ? "disabled" : ""}>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}" ${k === p.rol ? "selected" : ""}>${v}</option>`).join("")}</select></td>
+      <td><input type="checkbox" class="cond" aria-label="Conduce" ${p.conduce ? "checked" : ""}></td>
       <td>${p.activo ? "Activo" : '<span class="muted">Desactivado</span>'}</td>
       <td>${p.id === yo.id ? "" : `<button class="btn ghost sm tog" type="button">${p.activo ? "Desactivar" : "Activar"}</button>`}</td>
     </tr>`).join("");
@@ -288,11 +428,22 @@ async function cargarEquipo() {
       const { error } = await sb.from("perfiles").update({ rol: ev.target.value }).eq("id", id);
       if (error) msg("i-msg", errText(error), "err"); else msg("i-msg", `Rol de ${p.nombre} actualizado.`, "ok");
     });
+    tr.querySelector(".cond")?.addEventListener("change", async ev => {
+      const { error } = await sb.from("perfiles").update({ conduce: ev.target.checked }).eq("id", id);
+      if (error) msg("i-msg", errText(error), "err"); else { msg("i-msg", `${p.nombre}: ${ev.target.checked ? "puede recibir servicios" : "ya no recibe servicios"}.`, "ok"); cargarRecursos(); }
+    });
     tr.querySelector(".tog")?.addEventListener("click", async () => {
       const { error } = await sb.from("perfiles").update({ activo: !p.activo }).eq("id", id);
       if (error) msg("i-msg", errText(error), "err"); else cargarEquipo();
     });
   });
+  const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, activo").order("patente");
+  $("vehs").innerHTML = (vs || []).map(v => `<tr data-id="${esc(v.id)}"><td><b>${esc(v.patente)}</b></td><td>${esc(v.descripcion || "—")}</td><td>${esc(v.tipo)}</td><td>${esc(v.capacidad)}</td><td><button class="btn ghost sm vtog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></td></tr>`).join("") || '<tr><td colspan="5" class="muted">Aún no hay vehículos.</td></tr>';
+  $("vehs").querySelectorAll("tr[data-id]").forEach(tr => tr.querySelector(".vtog").addEventListener("click", async () => {
+    const v = vs.find(x => x.id === tr.dataset.id);
+    const { error } = await sb.from("vehiculos").update({ activo: !v.activo }).eq("id", v.id);
+    if (error) msg("v-msg", errText(error), "err"); else { await cargarRecursos(); cargarEquipo(); }
+  }));
   const { data: inv } = await sb.from("invitaciones").select("correo, nombre, rol, creada_en").is("aceptada_en", null).order("creada_en", { ascending: false });
   $("pend").innerHTML = inv && inv.length ? inv.map(i => `${esc(i.nombre)} · ${esc(i.correo)} · ${esc(ROLES[i.rol])}`).join("<br>") : "No hay invitaciones pendientes.";
 }
@@ -302,6 +453,15 @@ $("inv").addEventListener("submit", async e => {
   if (error) return msg("i-msg", errText(error), "err");
   msg("i-msg", data === "agregado" ? "Persona agregada con su rol." : `Invitación creada. Pídale que entre a ${back} con ese correo.`, "ok");
   $("inv").reset(); cargarEquipo();
+});
+
+$("vf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const pat = $("v-pat").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (pat.length < 5) return msg("v-msg", "Ingrese una patente válida.", "err");
+  const { error } = await sb.from("vehiculos").insert({ empresa_id: yo.empresa_id, patente: pat, descripcion: $("v-desc").value.trim() || null, tipo: $("v-tipo").value, capacidad: Number($("v-cap").value) || 4 });
+  if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Esa patente ya está registrada." : errText(error), "err");
+  msg("v-msg", `Vehículo ${pat} agregado.`, "ok"); $("vf").reset(); await cargarRecursos(); cargarEquipo();
 });
 
 // ---- Reportar
