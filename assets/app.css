@@ -145,3 +145,20 @@ dialog .panel { border: 0; }
 .rp-dia { flex: 0 1 36px; min-width: 12px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
 .rp-dia span { width: 100%; background: var(--gold); border-radius: 2px 2px 0 0; }
 .rp-dia small { font-size: .65rem; color: var(--muted); }
+
+/* Flota y central */
+.fl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+.fl-card { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--panel); }
+.fl-card.inact { opacity: .55; }
+.fl-foto { flex: none; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: var(--bg); display: grid; place-items: center; border: 2px solid var(--gold); }
+.fl-foto.auto { border-radius: 8px; width: 96px; }
+.fl-foto img { width: 100%; height: 100%; object-fit: cover; }
+.fl-foto span { font-family: var(--font-display); font-size: 1.8rem; color: var(--gold); }
+.fl-info { display: grid; gap: 4px; min-width: 0; }
+.fl-info select { padding: 4px 6px; font-size: .88rem; max-width: 170px; }
+.ok-txt { color: #1f9d5a; font-weight: 700; }
+.alerta.verde { background: #3ecf7f22; color: #1f9d5a; border: 1px solid #3ecf7f; }
+.central { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 12px; align-items: start; }
+.central .card.on { border-color: var(--gold); }
+.central .card { text-align: left; }
+@media (max-width: 700px) { .central { grid-template-columns: 1fr; } }

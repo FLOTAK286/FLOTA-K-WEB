@@ -46,6 +46,8 @@
       <button role="tab" data-tab="mapa" aria-selected="false">Mapa en vivo</button>
       <button role="tab" data-tab="nueva" aria-selected="false">Nueva reserva</button>
       <button role="tab" data-tab="clientes" aria-selected="false">Clientes y cobros</button>
+      <button role="tab" data-tab="central" aria-selected="false">Central <span class="badge" id="b-central" hidden></span></button>
+      <button role="tab" data-tab="flota" aria-selected="false" id="tab-flota" hidden>Flota</button>
       <button role="tab" data-tab="reportes" aria-selected="false" id="tab-reportes" hidden>Reportes</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
@@ -97,7 +99,7 @@
 
     <div data-pane="mapa" class="panel" style="margin-top:14px" hidden>
       <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Mapa en vivo</h2><span class="muted small" id="mp-act"></span></div>
-      <div class="mp-ley"><span><i style="background:#3ecf7f"></i>Disponible</span><span><i style="background:#d4a64a"></i>Disponible, con servicio en menos de 1 hora</span><span><i style="background:#e5533d"></i>Ocupado (en servicio)</span><span><i style="background:#8a8d93"></i>Sin señal / app cerrada</span></div>
+      <div class="mp-ley"><span><i style="background:#3ecf7f"></i>Disponible</span><span><i style="background:#d4a64a"></i>Disponible, con servicio en menos de 1 hora</span><span><i style="background:#e5533d"></i>Ocupado (en servicio)</span><span><i style="background:#8a8d93"></i>Desconectado o sin señal</span></div>
       <div id="mp-mapa" class="mapa alto"></div>
       <div id="mp-lista" class="list"></div>
       <p class="muted small">Se actualiza solo cada 15 segundos. Con la app Android, cada conductor envía su ubicación aunque use otras apps (cada 15 s en servicio, cada minuto sin servicio). Gris: sin señal hace más de 3 minutos (app cerrada, sin internet o teléfono apagado).</p>
@@ -142,6 +144,52 @@
         <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
       </form>
+    </div>
+
+    <div data-pane="central" class="panel" style="margin-top:14px" hidden>
+      <h2 style="margin:0">Central · mensajes de los conductores</h2>
+      <p class="muted small" style="margin:0">Lo que los conductores escriben desde su app (en "Perfil → Central"). Responda aquí.</p>
+      <div class="central"><div id="ct-lista" class="list"></div><div id="ct-chat"><p class="muted">Elija un conductor.</p></div></div>
+    </div>
+
+    <div data-pane="flota" class="panel" style="margin-top:14px" hidden>
+      <div id="fl-alertas"></div>
+      <h2 style="margin:0">Conductores</h2>
+      <div id="fl-conds" class="fl-grid"></div>
+      <h2 style="margin:10px 0 0">Vehículos</h2>
+      <form id="vf" class="confirm" novalidate>
+        <b>Agregar vehículo</b>
+        <div class="row3">
+          <div class="f"><label for="v-marca">Marca</label><input id="v-marca" list="dl-marcas" autocomplete="off" placeholder="Ej.: Volkswagen" maxlength="60"></div>
+          <div class="f"><label for="v-modelo">Modelo</label><input id="v-modelo" list="dl-modelos" autocomplete="off" placeholder="Elija la marca primero" maxlength="60"></div>
+          <div class="f"><label for="v-anio">Año</label><select id="v-anio"></select></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="v-color">Color</label><input id="v-color" list="dl-colores" autocomplete="off" maxlength="40"></div>
+          <div class="f"><label for="v-pat">Patente</label><input id="v-pat" required placeholder="ABCD12" maxlength="10"></div>
+          <div class="f"><label for="v-tipo">Tipo</label><select id="v-tipo"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="v-cap">Capacidad (pasajeros)</label><input id="v-cap" type="number" min="1" max="20" value="4"></div>
+          <div class="f"><label for="v-cond">Conductor fijo</label><select id="v-cond"></select></div>
+          <div class="f"><label for="v-foto">Foto (opcional)</label><input id="v-foto" type="file" accept="image/*"></div>
+        </div>
+        <div class="actions"><button class="btn" type="submit">Agregar vehículo</button></div>
+        <datalist id="dl-marcas"></datalist><datalist id="dl-modelos"></datalist><datalist id="dl-colores"></datalist>
+      </form>
+      <div id="v-msg" class="msg" hidden></div>
+      <div id="fl-vehs" class="fl-grid"></div>
+      <h2 style="margin:10px 0 0">Documentos</h2>
+      <div class="chips" role="group" aria-label="Filtro de documentos"><button type="button" class="chip on" data-d="todos">Todos</button><button type="button" class="chip" data-d="alerta">Vencidos o por vencer</button><button type="button" class="chip" data-d="pendiente">Por revisar</button></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>De</th><th>Documento</th><th>Número</th><th>Vence</th><th>Estado</th><th></th></tr></thead><tbody id="fl-docs"></tbody></table></div>
+      <dialog id="doc-dlg"><form id="doc-form" class="list" method="dialog" novalidate style="padding:18px">
+        <h3 style="margin:0" id="doc-tit">Agregar documento</h3>
+        <div class="row2"><div class="f"><label for="doc-tipo">Tipo</label><select id="doc-tipo"></select></div><div class="f"><label for="doc-num">Número / clase</label><input id="doc-num" maxlength="80"></div></div>
+        <div class="row2"><div class="f"><label for="doc-vence">Vence</label><input id="doc-vence" type="date"></div><div class="f"><label for="doc-arch">Archivo (foto o PDF)</label><input id="doc-arch" type="file" accept="image/*,application/pdf"></div></div>
+        <div class="f"><label for="doc-notas">Notas</label><input id="doc-notas" maxlength="500"></div>
+        <div class="actions"><button class="btn" type="button" id="doc-ok">Guardar</button><button class="btn ghost" type="button" id="doc-no">Cancelar</button></div>
+        <div class="msg" id="doc-msg" hidden></div>
+      </form></dialog>
     </div>
 
     <div data-pane="reportes" class="panel" style="margin-top:14px" hidden>
@@ -198,16 +246,7 @@
         <div class="actions"><button class="btn" type="submit">Guardar tarifas</button></div>
       </form>
       <div id="t-msg" class="msg" hidden></div>
-      <h3 style="margin:8px 0 0">Vehículos</h3>
-      <form id="vf" class="row3" novalidate>
-        <div class="f"><label for="v-pat">Patente</label><input id="v-pat" required placeholder="ABCD12"></div>
-        <div class="f"><label for="v-desc">Vehículo</label><input id="v-desc" placeholder="VW Virtus azul"></div>
-        <div class="f"><label for="v-tipo">Tipo</label><select id="v-tipo"><option value="auto">Auto</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
-        <div class="f"><label for="v-cap">Capacidad (pasajeros)</label><input id="v-cap" type="number" min="1" max="20" value="4"></div>
-        <div class="actions"><button class="btn" type="submit">Agregar vehículo</button></div>
-      </form>
-      <div id="v-msg" class="msg" hidden></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Vehículo</th><th>Tipo</th><th>Capacidad</th><th>Conductor</th><th></th></tr></thead><tbody id="vehs"></tbody></table></div>
+      <p class="small muted">Vehículos, fotos y documentos de conductores y autos: pestaña <b>Flota</b>.</p>
       <p class="muted small">Qué puede hacer cada rol: <b>Administrador</b> todo, incluido el equipo. <b>Despachador</b> y <b>Telefonista</b> ven y gestionan reservas. <b>Conductor</b> solo verá sus servicios asignados (en la app del conductor, próxima etapa).</p>
     </div>
 
@@ -240,6 +279,7 @@
 <script src="/assets/mapa.js"></script>
 <script src="/assets/chat.js"></script>
 <script src="/assets/tarifas.js"></script>
+<script src="/assets/autos.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -251,8 +291,8 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, ho
 const hoyChile = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 async function cargarRecursos() {
   const [{ data: c }, { data: v }] = await Promise.all([
-    sb.from("perfiles").select("id, nombre").eq("conduce", true).eq("activo", true).order("nombre"),
-    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual").eq("activo", true).order("patente")
+    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono").eq("conduce", true).eq("activo", true).order("nombre"),
+    sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual, marca, modelo, anio, color, foto_path").eq("activo", true).order("patente")
   ]);
   conductores = c || []; vehiculos = v || [];
 }
@@ -338,7 +378,7 @@ async function iniciar(session) {
   }
   yo = data;
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
-  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin";
+  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos(); cargarCuentas();
   cargarDespacho(); timerDespacho = setInterval(() => { if (!document.hidden && pestanaActual() === "despacho") cargarDespacho(); }, 30000);
@@ -354,6 +394,8 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "reservas") cargarReservas();
   if (b.dataset.tab === "despacho") cargarDespacho();
   if (b.dataset.tab === "reportes") cargarReportes();
+  if (b.dataset.tab === "flota") cargarFlota();
+  if (b.dataset.tab === "central") cargarCentral();
   if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "agenda") cargarAgenda();
@@ -392,7 +434,7 @@ async function cargarMapa() {
   if (!window.L || !window.FKMapa) { $("mp-lista").innerHTML = '<p class="msg err">No se pudo cargar el mapa. Revise su conexión.</p>'; return; }
   if (!mapaEq) mapaEq = FKMapa.crear($("mp-mapa"));
   setTimeout(() => mapaEq.invalidateSize(), 60);
-  if (!conductores.length) await cargarRecursos();
+  await cargarRecursos(); // trae también quién está conectado
   const desde = new Date(Date.now() - 12 * 3600e3).toISOString(), hasta = new Date(Date.now() + 36 * 3600e3).toISOString();
   const [{ data: us, error }, { data: rs }, { data: ks }] = await Promise.all([
     sb.from("ubicaciones").select("conductor_id, reserva_id, lat, lng, precision_m, velocidad_kmh, actualizado_en"),
@@ -411,8 +453,9 @@ async function cargarMapa() {
     const proximo = mias.find(r => !EN_CURSO.includes(r.estado) && new Date(r.fecha_hora) > Date.now() - 30 * 60e3);
     const sinSenal = !u || Date.now() - new Date(u.actualizado_en) > 3 * 60e3;
     const pronto = proximo && new Date(proximo.fecha_hora) - Date.now() < 60 * 60e3;
-    const est = actual ? "ocupado" : sinSenal ? "viejo" : pronto ? "pronto" : "libre";
-    const txt = actual ? `Ocupado · ${ESTADOS[actual.estado].t}` : sinSenal ? "Sin señal" : pronto ? "Disponible · sale pronto" : "Disponible";
+    const desconectado = !(conductores.find(c => c.id === id) || {}).disponible;
+    const est = actual ? "ocupado" : desconectado || sinSenal ? "viejo" : pronto ? "pronto" : "libre";
+    const txt = actual ? `Ocupado · ${ESTADOS[actual.estado].t}` : desconectado ? "Desconectado" : sinSenal ? "Sin señal" : pronto ? "Disponible · sale pronto" : "Disponible";
     return { id, u, actual, proximo, sinSenal, est, txt, nom: nombreConductor(id) || "Conductor" };
   }).sort((a, b) => ({ ocupado: 0, pronto: 1, libre: 2, viejo: 3 }[a.est] - { ocupado: 0, pronto: 1, libre: 2, viejo: 3 }[b.est]) || (a.sinSenal - b.sinSenal) || a.nom.localeCompare(b.nom));
   const det = r => `${esc(r.codigo)} · ${esc(hora(r.fecha_hora))} · ${esc(r.nombre_pasajero)} · ${esc(r.origen)} → ${esc(r.destino)}`;
@@ -433,7 +476,7 @@ async function cargarMapa() {
     if (conPos.length === 1) mapaEq.setView([conPos[0].u.lat, conPos[0].u.lng], 14); else mapaEq.fitBounds(conPos.map(f => [f.u.lat, f.u.lng]), { padding: [40, 40], maxZoom: 15 });
   }
   const cuenta = k => filas.filter(f => f.est === k).length;
-  $("mp-lista").innerHTML = (filas.length ? `<p class="small" style="margin:0"><b>${cuenta("libre") + cuenta("pronto")}</b> disponible(s) · <b>${cuenta("ocupado")}</b> ocupado(s) · <b>${cuenta("viejo")}</b> sin señal</p>` : "") +
+  $("mp-lista").innerHTML = (filas.length ? `<p class="small" style="margin:0"><b>${cuenta("libre") + cuenta("pronto")}</b> disponible(s) · <b>${cuenta("ocupado")}</b> ocupado(s) · <b>${cuenta("viejo")}</b> desconectado(s) o sin señal</p>` : "") +
     (filas.length ? filas.map(f => `
     <div class="card" data-c="${esc(f.id)}" style="cursor:pointer;display:grid;gap:4px">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
@@ -606,6 +649,205 @@ function refrescar() {
   if (t === "agenda") cargarAgenda(); else if (t === "despacho") cargarDespacho(); else cargarReservas();
 }
 const pestanaActual = () => document.querySelector('.tabs button[aria-selected="true"]').dataset.tab;
+
+// ---- Flota: conductores, vehículos y documentos (solo administrador)
+const DOCS = { licencia: "Licencia de conducir", cedula: "Cédula de identidad", antecedentes: "Certificado de antecedentes", hoja_vida: "Hoja de vida del conductor",
+  permiso_circulacion: "Permiso de circulación", revision_tecnica: "Revisión técnica", soap: "SOAP", seguro: "Seguro", padron: "Padrón", otro: "Otro" };
+const DOCS_COND = ["licencia", "cedula", "antecedentes", "hoja_vida", "otro"], DOCS_VEH = ["permiso_circulacion", "revision_tecnica", "soap", "seguro", "padron", "otro"];
+const fotoUrl = path => path ? sb.storage.from("fotos").getPublicUrl(path).data.publicUrl : null;
+let flDocs = [], flPerf = [], flVehs = [], flFiltro = "todos";
+function estadoDoc(d) {
+  if (d.estado === "rechazado") return { c: "roja", t: "Rechazado" };
+  if (d.vence) {
+    const dias = Math.floor((new Date(d.vence + "T23:59:59-03:00") - Date.now()) / 864e5);
+    if (dias < 0) return { c: "roja", t: `Vencido hace ${-dias} día(s)` };
+    if (dias <= 30) return { c: "amarilla", t: `Vence en ${dias} día(s)` };
+  }
+  if (d.estado === "pendiente") return { c: "gris", t: "Por revisar" };
+  return { c: "verde", t: "Vigente" };
+}
+// Achica la foto antes de subirla (máx. 1000 px), para ahorrar espacio.
+async function achicar(file, max = 1000) {
+  if (!file.type.startsWith("image/")) return file;
+  const img = await createImageBitmap(file).catch(() => null); if (!img) return file;
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.85));
+}
+async function subirFoto(file, prefijo) {
+  const b = await achicar(file), path = `${yo.empresa_id}/${prefijo}-${Date.now()}.jpg`;
+  const { error } = await sb.storage.from("fotos").upload(path, b, { contentType: "image/jpeg", upsert: false });
+  if (error) throw error; return path;
+}
+async function cargarFlota() {
+  const [{ data: ps }, { data: vs }, { data: ds }] = await Promise.all([
+    sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, foto_path, telefono").eq("conduce", true).order("nombre"),
+    sb.from("vehiculos").select("*").order("patente"),
+    sb.from("documentos").select("*").order("vence", { ascending: true, nullsFirst: false })
+  ]);
+  flPerf = ps || []; flVehs = vs || []; flDocs = ds || [];
+  // Formulario de vehículo: marcas, años, colores, conductores
+  $("dl-marcas").innerHTML = Object.keys(window.FK_AUTOS || {}).map(m => `<option value="${esc(m)}">`).join("");
+  $("dl-colores").innerHTML = (window.FK_COLORES || []).map(c => `<option value="${esc(c)}">`).join("");
+  const y = new Date().getFullYear(); $("v-anio").innerHTML = '<option value="">—</option>' + Array.from({ length: 30 }, (_, i) => y + 1 - i).map(a => `<option>${a}</option>`).join("");
+  $("v-cond").innerHTML = '<option value="">Sin conductor fijo</option>' + flPerf.filter(p => p.activo).map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("");
+  const docsDe = (k, id) => flDocs.filter(d => d[k] === id);
+  const resumenDocs = lista => { const e = lista.map(estadoDoc); const r = e.filter(x => x.c === "roja").length, a = e.filter(x => x.c === "amarilla").length, g = e.filter(x => x.c === "gris").length;
+    return lista.length ? [r && `<span class="alerta roja">${r} vencido(s)</span>`, a && `<span class="alerta amarilla">${a} por vencer</span>`, g && `<span class="alerta gris">${g} por revisar</span>`].filter(Boolean).join(" ") || '<span class="alerta verde">Documentos al día</span>' : '<span class="alerta gris">Sin documentos</span>'; };
+  $("fl-conds").innerHTML = flPerf.map(p => {
+    const veh = flVehs.find(v => v.conductor_habitual === p.id && v.activo);
+    return `<div class="fl-card" data-p="${esc(p.id)}">
+      <div class="fl-foto">${p.foto_path ? `<img src="${esc(fotoUrl(p.foto_path))}" alt="Foto de ${esc(p.nombre)}">` : `<span>${esc((p.nombre || "?")[0])}</span>`}</div>
+      <div class="fl-info"><b>${esc(p.nombre)}</b> <span class="small ${p.disponible ? "ok-txt" : "muted"}">● ${p.disponible ? "Conectado" : "Desconectado"}</span>${p.activo ? "" : ' <span class="muted small">(inactivo)</span>'}
+        <div class="small muted">${esc(p.telefono || "Sin teléfono")} · ${veh ? esc([veh.marca, veh.modelo, veh.patente].filter(Boolean).join(" ")) : "sin vehículo fijo"}</div>
+        <div>${resumenDocs(docsDe("conductor_id", p.id))}</div>
+        <div class="actions" style="margin-top:6px"><label class="btn ghost sm">Foto<input type="file" accept="image/*" class="p-foto" hidden></label>
+          <input class="p-tel" placeholder="Teléfono" value="${esc(p.telefono || "")}" maxlength="30" style="max-width:150px;padding:5px 8px"><button class="btn ghost sm p-doc" type="button">+ Documento</button></div></div></div>`;
+  }).join("") || '<p class="muted">No hay conductores. Marque "Conduce" en Equipo y roles.</p>';
+  $("fl-conds").querySelectorAll(".fl-card").forEach(card => {
+    const id = card.dataset.p;
+    card.querySelector(".p-foto").addEventListener("change", async ev => {
+      const f = ev.target.files[0]; if (!f) return;
+      try { const path = await subirFoto(f, "conductor-" + id); const { error } = await sb.from("perfiles").update({ foto_path: path }).eq("id", id); if (error) throw error; msg("v-msg", "Foto del conductor actualizada.", "ok"); cargarFlota(); }
+      catch (e) { msg("v-msg", errText(e), "err"); }
+    });
+    card.querySelector(".p-tel").addEventListener("change", async ev => {
+      const { error } = await sb.from("perfiles").update({ telefono: ev.target.value.trim() || null }).eq("id", id);
+      msg("v-msg", error ? errText(error) : "Teléfono guardado.", error ? "err" : "ok");
+    });
+    card.querySelector(".p-doc").addEventListener("click", () => abrirDoc({ conductor_id: id }, flPerf.find(p => p.id === id).nombre));
+  });
+  $("fl-vehs").innerHTML = flVehs.map(v => `<div class="fl-card ${v.activo ? "" : "inact"}" data-v="${esc(v.id)}">
+      <div class="fl-foto auto">${v.foto_path ? `<img src="${esc(fotoUrl(v.foto_path))}" alt="Foto del vehículo ${esc(v.patente)}">` : "<span>🚗</span>"}</div>
+      <div class="fl-info"><b>${esc([v.marca, v.modelo].filter(Boolean).join(" ") || v.descripcion || "Vehículo")}</b> <span class="code">${esc(v.patente)}</span>${v.activo ? "" : ' <span class="muted small">(de baja)</span>'}
+        <div class="small muted">${esc([v.anio, v.color, v.tipo, v.capacidad + " pasajeros"].filter(Boolean).join(" · "))}</div>
+        <div>${resumenDocs(docsDe("vehiculo_id", v.id))}</div>
+        <div class="actions" style="margin-top:6px"><select class="v-cond-sel" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${flPerf.map(p => `<option value="${p.id}" ${p.id === v.conductor_habitual ? "selected" : ""}>${esc(p.nombre)}</option>`).join("")}</select>
+          <label class="btn ghost sm">Foto<input type="file" accept="image/*" class="v-foto-in" hidden></label><button class="btn ghost sm v-doc" type="button">+ Documento</button>
+          <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div></div></div>`).join("") || '<p class="muted">Aún no hay vehículos.</p>';
+  $("fl-vehs").querySelectorAll(".fl-card").forEach(card => {
+    const v = flVehs.find(x => x.id === card.dataset.v);
+    card.querySelector(".v-cond-sel").addEventListener("change", async ev => {
+      const { error } = await sb.from("vehiculos").update({ conductor_habitual: ev.target.value || null }).eq("id", v.id);
+      msg("v-msg", error ? errText(error) : `${v.patente}: conductor fijo actualizado. Al asignarle servicios, el vehículo se pone solo.`, error ? "err" : "ok"); cargarRecursos(); cargarFlota();
+    });
+    card.querySelector(".v-foto-in").addEventListener("change", async ev => {
+      const f = ev.target.files[0]; if (!f) return;
+      try { const path = await subirFoto(f, "vehiculo-" + v.id); const { error } = await sb.from("vehiculos").update({ foto_path: path }).eq("id", v.id); if (error) throw error; msg("v-msg", "Foto del vehículo actualizada.", "ok"); cargarFlota(); }
+      catch (e) { msg("v-msg", errText(e), "err"); }
+    });
+    card.querySelector(".v-doc").addEventListener("click", () => abrirDoc({ vehiculo_id: v.id }, v.patente));
+    card.querySelector(".v-tog").addEventListener("click", async () => {
+      const { error } = await sb.from("vehiculos").update({ activo: !v.activo }).eq("id", v.id);
+      if (error) msg("v-msg", errText(error), "err"); else { await cargarRecursos(); cargarFlota(); }
+    });
+  });
+  pintarDocs();
+  const al = flDocs.filter(d => ["roja", "amarilla"].includes(estadoDoc(d).c)).length, pr = flDocs.filter(d => d.estado === "pendiente").length;
+  $("fl-alertas").innerHTML = al || pr ? `<p class="msg ${al ? "err" : ""}" style="margin:0">${al ? `${al} documento(s) vencidos o por vencer en los próximos 30 días. ` : ""}${pr ? `${pr} documento(s) subidos por conductores esperan revisión.` : ""}</p>` : "";
+}
+function pintarDocs() {
+  const de = d => d.conductor_id ? (flPerf.find(p => p.id === d.conductor_id) || {}).nombre || "Conductor" : "🚗 " + ((flVehs.find(v => v.id === d.vehiculo_id) || {}).patente || "Vehículo");
+  const lista = flDocs.filter(d => flFiltro === "todos" || (flFiltro === "pendiente" ? d.estado === "pendiente" : ["roja", "amarilla"].includes(estadoDoc(d).c)));
+  $("fl-docs").innerHTML = lista.length ? lista.map(d => { const e = estadoDoc(d); return `<tr data-d="${d.id}">
+    <td>${esc(de(d))}</td><td>${esc(DOCS[d.tipo] || d.tipo)}${d.notas ? `<br><span class="muted small">${esc(d.notas)}</span>` : ""}</td><td>${esc(d.numero || "—")}</td>
+    <td>${d.vence ? esc(new Date(d.vence + "T12:00:00").toLocaleDateString("es-CL")) : "—"}</td><td><span class="alerta ${e.c}">${esc(e.t)}</span></td>
+    <td class="nowrap">${d.archivo_path ? '<button class="btn ghost sm d-ver" type="button">Ver archivo</button>' : ""}${d.estado === "pendiente" ? ' <button class="btn ghost sm d-ok" type="button">Aprobar</button> <button class="btn ghost sm d-no" type="button">Rechazar</button>' : ""}</td></tr>`; }).join("")
+    : '<tr><td colspan="6" class="muted">No hay documentos en este filtro.</td></tr>';
+  $("fl-docs").querySelectorAll("tr[data-d]").forEach(tr => {
+    const d = flDocs.find(x => String(x.id) === tr.dataset.d);
+    tr.querySelector(".d-ver")?.addEventListener("click", async () => {
+      const { data, error } = await sb.storage.from("documentos").createSignedUrl(d.archivo_path, 300);
+      if (error) return msg("v-msg", errText(error), "err"); window.open(data.signedUrl, "_blank", "noopener");
+    });
+    const marcar = async est => { const { error } = await sb.from("documentos").update({ estado: est }).eq("id", d.id); if (error) return msg("v-msg", errText(error), "err"); cargarFlota(); };
+    tr.querySelector(".d-ok")?.addEventListener("click", () => marcar("aprobado"));
+    tr.querySelector(".d-no")?.addEventListener("click", () => marcar("rechazado"));
+  });
+}
+document.querySelectorAll("[data-pane=\"flota\"] .chips .chip").forEach(c => c.addEventListener("click", () => {
+  flFiltro = c.dataset.d; document.querySelectorAll("[data-pane=\"flota\"] .chips .chip").forEach(x => x.classList.toggle("on", x === c)); pintarDocs();
+}));
+let docDe = null;
+function abrirDoc(de, nombre) {
+  docDe = de;
+  $("doc-tit").textContent = "Agregar documento · " + nombre;
+  $("doc-tipo").innerHTML = (de.conductor_id ? DOCS_COND : DOCS_VEH).map(t => `<option value="${t}">${esc(DOCS[t])}</option>`).join("");
+  $("doc-form").reset(); $("doc-msg").hidden = true; $("doc-dlg").showModal();
+}
+$("doc-no").addEventListener("click", () => $("doc-dlg").close());
+$("doc-ok").addEventListener("click", async () => {
+  $("doc-ok").disabled = true;
+  try {
+    let archivo_path = null; const f = $("doc-arch").files[0];
+    if (f) {
+      if (f.size > 10 * 1024 * 1024) throw new Error("El archivo supera 10 MB.");
+      const b = await achicar(f, 1600), ext = f.type === "application/pdf" ? "pdf" : "jpg";
+      archivo_path = `${yo.empresa_id}/${docDe.conductor_id || "vehiculos"}/${$("doc-tipo").value}-${Date.now()}.${ext}`;
+      const { error } = await sb.storage.from("documentos").upload(archivo_path, b, { contentType: ext === "pdf" ? "application/pdf" : "image/jpeg" });
+      if (error) throw error;
+    }
+    const { error } = await sb.from("documentos").insert({ empresa_id: yo.empresa_id, ...docDe, tipo: $("doc-tipo").value, numero: $("doc-num").value.trim() || null,
+      vence: $("doc-vence").value || null, notas: $("doc-notas").value.trim() || null, archivo_path, estado: "aprobado", creado_por: yo.id });
+    if (error) throw error;
+    $("doc-dlg").close(); cargarFlota();
+  } catch (e) { msg("doc-msg", errText(e), "err"); }
+  $("doc-ok").disabled = false;
+});
+$("v-marca").addEventListener("input", () => {
+  const m = Object.keys(window.FK_AUTOS || {}).find(k => norm(k) === norm($("v-marca").value.trim()));
+  $("dl-modelos").innerHTML = m ? window.FK_AUTOS[m].map(x => `<option value="${esc(x)}">`).join("") : "";
+  $("v-modelo").placeholder = m ? "Ej.: " + window.FK_AUTOS[m][0] : "Elija la marca primero";
+});
+$("v-marca").addEventListener("change", () => {
+  // Corrige mayúsculas a la marca del catálogo (ej.: "volkswagen" → "Volkswagen")
+  const m = Object.keys(window.FK_AUTOS || {}).find(k => norm(k) === norm($("v-marca").value.trim()) || norm(k).startsWith(norm($("v-marca").value.trim())) && $("v-marca").value.trim().length >= 3);
+  if (m) { $("v-marca").value = m; $("v-marca").dispatchEvent(new Event("input")); }
+});
+$("vf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const pat = $("v-pat").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (pat.length < 5) return msg("v-msg", "Ingrese una patente válida.", "err");
+  const marca = $("v-marca").value.trim(), modelo = $("v-modelo").value.trim(), color = $("v-color").value.trim();
+  if (!marca || !modelo) return msg("v-msg", "Indique marca y modelo.", "err");
+  const fila = { empresa_id: yo.empresa_id, patente: pat, marca, modelo, anio: Number($("v-anio").value) || null, color: color || null,
+    descripcion: [marca, modelo, color && color.toLowerCase()].filter(Boolean).join(" "), tipo: $("v-tipo").value, capacidad: Number($("v-cap").value) || 4, conductor_habitual: $("v-cond").value || null };
+  const { data, error } = await sb.from("vehiculos").insert(fila).select("id").single();
+  if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Esa patente ya está registrada." : errText(error), "err");
+  const f = $("v-foto").files[0];
+  if (f) { try { const path = await subirFoto(f, "vehiculo-" + data.id); await sb.from("vehiculos").update({ foto_path: path }).eq("id", data.id); } catch (e2) { msg("v-msg", "Vehículo agregado, pero la foto no se pudo subir: " + errText(e2), "err"); } }
+  msg("v-msg", `Vehículo ${pat} agregado.`, "ok"); $("vf").reset(); await cargarRecursos(); cargarFlota();
+});
+
+// ---- Central: chat con los conductores
+let ctConductor = null, ctMsgs = [], ctChat = null;
+async function cargarCentral() {
+  const { data } = await sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").order("id").limit(3000);
+  ctMsgs = data || [];
+  const porCond = new Map(); ctMsgs.forEach(m => porCond.set(m.conductor_id, m));
+  const sinLeer = id => ctMsgs.filter(m => m.conductor_id === id && m.autor === "conductor" && !m.leido).length;
+  const ids = [...new Set([...conductores.map(c => c.id), ...porCond.keys()])].sort((a, b) => ((porCond.get(b) || {}).id || 0) - ((porCond.get(a) || {}).id || 0));
+  $("ct-lista").innerHTML = ids.map(id => { const u = porCond.get(id), n = sinLeer(id); return `<button type="button" class="card ${id === ctConductor ? "on" : ""}" data-c="${esc(id)}">
+    <b>${esc(nombreConductor(id) || "Conductor")}</b>${n ? `<span class="badge">${n}</span>` : ""}<br><span class="muted small">${u ? esc(u.texto.slice(0, 50)) : "Sin mensajes"}</span></button>`; }).join("") || '<p class="muted">No hay conductores.</p>';
+  $("ct-lista").querySelectorAll("[data-c]").forEach(b => b.addEventListener("click", () => abrirCentral(b.dataset.c)));
+  if (ctConductor && ctChat) ctChat.pintar(ctMsgs.filter(m => m.conductor_id === ctConductor).map(m => ({ ...m, autor: m.autor === "central" ? "despacho" : "conductor" })));
+  pintarBadgeCentral();
+}
+function pintarBadgeCentral() {
+  const n = ctMsgs.filter(m => m.autor === "conductor" && !m.leido).length;
+  $("b-central").hidden = !n; $("b-central").textContent = n;
+}
+async function abrirCentral(id) {
+  ctConductor = id;
+  $("ct-chat").innerHTML = `<h3 style="margin:0 0 6px">${esc(nombreConductor(id) || "Conductor")}</h3><div id="ct-box"></div>`;
+  ctChat = FKChat.montar($("ct-box"), { yo: "despacho", placeholder: "Responder al conductor", enviar: async t => {
+    const r = await sb.rpc("enviar_soporte", { p_texto: t, p_conductor: id }); if (!r.error) cargarCentral(); return r; } });
+  const pend = ctMsgs.filter(m => m.conductor_id === id && m.autor === "conductor" && !m.leido).map(m => m.id);
+  if (pend.length) { await sb.from("soporte_mensajes").update({ leido: true }).in("id", pend); ctMsgs.forEach(m => { if (pend.includes(m.id)) m.leido = true; }); }
+  cargarCentral();
+}
+setInterval(() => { if (!yo || document.hidden) return; if (pestanaActual() === "central") cargarCentral(); else sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").eq("autor", "conductor").eq("leido", false).then(({ data }) => { if (data) { ctMsgs = ctMsgs.filter(m => m.leido || m.autor !== "conductor").concat(data.filter(d => !ctMsgs.some(m => m.id === d.id))); pintarBadgeCentral(); } }); }, 20000);
 
 // ---- Reportes del negocio (solo administrador)
 let rpFilas = [];
@@ -1317,19 +1559,6 @@ async function cargarEquipo() {
       if (error) msg("i-msg", errText(error), "err"); else cargarEquipo();
     });
   });
-  const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, activo, conductor_habitual").order("patente");
-  const { data: conds } = await sb.from("perfiles").select("id, nombre").eq("conduce", true).order("nombre");
-  $("vehs").innerHTML = (vs || []).map(v => `<tr data-id="${esc(v.id)}"><td><b>${esc(v.patente)}</b></td><td>${esc(v.descripcion || "—")}</td><td>${esc(v.tipo)}</td><td>${esc(v.capacidad)}</td><td><select class="vcond" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${(conds || []).map(c => `<option value="${c.id}" ${c.id === v.conductor_habitual ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></td><td><button class="btn ghost sm vtog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></td></tr>`).join("") || '<tr><td colspan="6" class="muted">Aún no hay vehículos.</td></tr>';
-  $("vehs").querySelectorAll("tr[data-id]").forEach(tr => tr.querySelector(".vcond").addEventListener("change", async ev => {
-    const v = vs.find(x => x.id === tr.dataset.id);
-    const { error } = await sb.from("vehiculos").update({ conductor_habitual: ev.target.value || null }).eq("id", v.id);
-    if (error) msg("v-msg", errText(error), "err"); else { msg("v-msg", `${v.patente}: conductor actualizado. Al asignar a ese conductor, el vehículo se pone solo.`, "ok"); cargarRecursos(); }
-  }));
-  $("vehs").querySelectorAll("tr[data-id]").forEach(tr => tr.querySelector(".vtog").addEventListener("click", async () => {
-    const v = vs.find(x => x.id === tr.dataset.id);
-    const { error } = await sb.from("vehiculos").update({ activo: !v.activo }).eq("id", v.id);
-    if (error) msg("v-msg", errText(error), "err"); else { await cargarRecursos(); cargarEquipo(); }
-  }));
   const { data: inv } = await sb.from("invitaciones").select("correo, nombre, rol, creada_en").is("aceptada_en", null).order("creada_en", { ascending: false });
   $("pend").innerHTML = inv && inv.length ? inv.map(i => `${esc(i.nombre)} · ${esc(i.correo)} · ${esc(ROLES[i.rol])}`).join("<br>") : "No hay invitaciones pendientes.";
 }
@@ -1339,15 +1568,6 @@ $("inv").addEventListener("submit", async e => {
   if (error) return msg("i-msg", errText(error), "err");
   msg("i-msg", data === "agregado" ? "Persona agregada con su rol." : `Invitación creada. Pídale que entre a ${back} con ese correo.`, "ok");
   $("inv").reset(); cargarEquipo();
-});
-
-$("vf").addEventListener("submit", async e => {
-  e.preventDefault();
-  const pat = $("v-pat").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (pat.length < 5) return msg("v-msg", "Ingrese una patente válida.", "err");
-  const { error } = await sb.from("vehiculos").insert({ empresa_id: yo.empresa_id, patente: pat, descripcion: $("v-desc").value.trim() || null, tipo: $("v-tipo").value, capacidad: Number($("v-cap").value) || 4 });
-  if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Esa patente ya está registrada." : errText(error), "err");
-  msg("v-msg", `Vehículo ${pat} agregado.`, "ok"); $("vf").reset(); await cargarRecursos(); cargarEquipo();
 });
 
 // ---- Reportar
