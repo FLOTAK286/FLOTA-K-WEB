@@ -1,5 +1,15 @@
 # Cambios
 
+## 9 nov 2026 · Tanda grande de mejoras para despacho, conductor y pasajero (pendiente de publicar)
+- Base de datos (`etapa10_respuesta_conductor_historial`): el conductor acepta o rechaza el servicio (al rechazar queda libre para reasignar); historial de cambios de cada reserva (quién cambió qué); serie para reservas recurrentes; enlace del pasajero v2 con fotos (`ver_reserva_publica_v2`, la anterior no se tocó). Probado con datos que se deshacen.
+- **Despacho:** reserva rápida pegando el mensaje de WhatsApp (lee fecha, hora, vuelo, teléfono, correo, nombre, pasajeros, maletas, van/SUV, ida o regreso y comuna); reservas recurrentes (semanal, lunes a viernes o diario, hasta 60); conductor sugerido en la ficha (libre, con vehículo adecuado y conectado); notas internas del cliente (se ven al tomar su reserva y en su ficha); historial de cambios en la ficha; alertas "Conductor rechazó" y "Conductor no ha aceptado"; mapa al lado del tablero (opción "Ver mapa al lado").
+- **Conductor:** aviso de servicio nuevo con sonido, vibración y notificación, con botones **Aceptar** / **No puedo**; recordatorios 2 h y 45 min antes (en la app Android quedan programados aunque esté cerrada; también aviso en pantalla); mensajes rápidos al pasajero; cronómetro de espera al llegar (15 min domicilio; 45 min / 1 h aeropuerto) que avisa cuando se pasa; modo noche y letra grande; liquidación del mes para imprimir/guardar en PDF o enviarse por correo.
+- **Pasajero:** el enlace de seguimiento muestra foto, nombre, móvil y calificación del conductor, y foto, modelo, color, año y patente del auto; tiempo estimado de llegada mientras va en camino (aproximado, con OpenStreetMap); "Agregar a mi calendario" (aviso 2 h antes); "Reservar mi regreso" por WhatsApp.
+- **Cuenta del cliente:** próximos y anteriores, viajes del año, pendiente de pago, direcciones frecuentes, "Repetir este viaje" y "Reservar el regreso".
+- **Página en inglés** completa en `/en/` con el cotizador (mismo tarifario); enlace desde la sección English de la principal; hreflang y sitemap.
+- La librería de Supabase se sirve desde el sitio en todas las páginas (antes, desde un servidor externo).
+- **Respaldo semanal** automático a Google Drive (carpeta "Flota-K Respaldos"), domingos 22:43, solo lectura (rutina trig_01AYcPA7jYwiUfSLDULeAFAi).
+
 ## 9 nov 2026 · Categorías de vehículo y número de móvil (pendiente de publicar)
 - Base de datos (`etapa9_categorias_y_movil`): categoría del vehículo (Taxi básico, Taxi turismo, Taxi ejecutivo, SUV, Van) y número de móvil por conductor (único). La nota del historial al asignar incluye el móvil.
 - El servicio indica qué vehículo pide (campo existente): **Auto** (lo hace cualquiera), **SUV** (SUV o van) o **Van** (solo van).
