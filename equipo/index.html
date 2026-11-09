@@ -12,17 +12,20 @@
 <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="/equipo/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EQUIPO</small></a><div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
+<header class="top"><div class="wrap"><a class="brand" href="/equipo/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EQUIPO</small></a><div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="pw-open" type="button">Contraseña</button><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
 
 <main class="app">
   <!-- Ingreso -->
   <section class="panel" id="login" hidden>
     <h2>Ingreso del equipo</h2>
-    <p class="muted">Ingrese con el correo con que lo invitaron. Le enviaremos un enlace para entrar, sin contraseña.</p>
+    <p class="muted">Ingrese con su correo y contraseña.</p>
     <form id="login-form" class="f" novalidate>
       <label for="email">Correo</label>
-      <input id="email" type="email" autocomplete="email" required>
-      <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Enviarme el enlace</button><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="pass" style="margin-top:6px">Contraseña</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
+      <p class="small muted" style="margin-top:10px">¿Primera vez o olvidó su contraseña? <button class="linkbtn" type="button" id="magic">Enviarme un enlace al correo</button> y luego cree su contraseña.</p>
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
@@ -140,6 +143,14 @@
 </main>
 
 <dialog id="det"><div class="panel" id="det-body"></div></dialog>
+<dialog id="pw"><form class="panel" id="pw-form" novalidate>
+  <h2 id="pw-title">Crear o cambiar contraseña</h2>
+  <p class="muted" id="pw-help">Así podrá entrar con su correo y contraseña, sin esperar el enlace.</p>
+  <div class="f"><label for="pw1">Nueva contraseña (mínimo 8 caracteres)</label><input id="pw1" type="password" autocomplete="new-password" minlength="8"></div>
+  <div class="f"><label for="pw2">Repita la contraseña</label><input id="pw2" type="password" autocomplete="new-password" minlength="8"></div>
+  <div class="actions"><button class="btn" type="submit">Guardar contraseña</button><button class="btn ghost" type="button" id="pw-close">Ahora no</button></div>
+  <div id="pw-msg" class="msg" hidden></div>
+</form></dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="/assets/config.js"></script>
@@ -182,17 +193,45 @@ async function choques(cond, inicioIso, dur, excluir) {
 function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = text; }
 
 // ---- Ingreso
+const vieneDeEnlace = /[?&](code|token_hash)=/.test(location.search) || /access_token=/.test(location.hash);
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const v = $("email").value.trim();
+  const v = $("email").value.trim().toLowerCase(), pw = $("pass").value;
   if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Ingrese un correo válido.", "err");
+  if (!pw) return msg("login-msg", "Ingrese su contraseña. Si es su primera vez, use el enlace al correo de más abajo.", "err");
+  msg("login-msg", "Entrando…");
+  const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
+  if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos. Si aún no crea su contraseña, use el enlace al correo." : errText(error), "err");
+});
+$("magic").addEventListener("click", async () => {
+  const v = $("email").value.trim();
+  if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Escriba su correo arriba y vuelva a tocar el enlace.", "err");
   msg("login-msg", "Revisando…");
   const { data: ok, error: e1 } = await sb.rpc("puede_ingresar_equipo", { p_correo: v });
   if (e1) return msg("login-msg", errText(e1), "err");
   if (!ok) return msg("login-msg", "Este correo no tiene acceso al equipo. Pida una invitación al administrador.", "err");
   msg("login-msg", "Enviando…");
   const { error } = await FK.enviarEnlace(v, back, true);
-  msg("login-msg", error ? errText(error) : "Revise su correo y toque el enlace para entrar.", error ? "err" : "ok");
+  msg("login-msg", error ? errText(error) : "Revise su correo y toque el enlace para entrar. Después cree su contraseña.", error ? "err" : "ok");
+});
+
+// ---- Contraseña
+function abrirPw(primera) {
+  $("pw-title").textContent = primera ? "Cree su contraseña" : "Cambiar contraseña";
+  $("pw-help").textContent = primera ? "Así la próxima vez entra con su correo y contraseña, sin esperar el enlace." : "Escriba su nueva contraseña.";
+  $("pw-msg").hidden = true; $("pw-form").reset(); $("pw").showModal();
+}
+$("pw-open").addEventListener("click", () => abrirPw(false));
+$("pw-close").addEventListener("click", () => $("pw").close());
+$("pw-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const a = $("pw1").value, b = $("pw2").value;
+  if (a.length < 8) return msg("pw-msg", "La contraseña debe tener al menos 8 caracteres.", "err");
+  if (a !== b) return msg("pw-msg", "Las contraseñas no coinciden.", "err");
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) return msg("pw-msg", /same|different/i.test(error.message) ? "Use una contraseña distinta a la anterior." : errText(error), "err");
+  msg("pw-msg", "Contraseña guardada. La próxima vez entre con su correo y esta contraseña.", "ok");
+  setTimeout(() => $("pw").close(), 1500);
 });
 $("google").addEventListener("click", async () => { const { error } = await FK.entrarConGoogle(back); if (error) msg("login-msg", errText(error), "err"); });
 const salir = async () => { await sb.auth.signOut(); location.href = back; };
@@ -211,6 +250,7 @@ async function iniciar(session) {
   $("app").hidden = false;
   await cargarRecursos();
   cargarReservas();
+  if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
 }
 
 // ---- Pestañas

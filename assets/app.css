@@ -60,3 +60,5 @@ dialog .panel { border: 0; }
 .ag-col h3 { margin: 0; font-size: 1.15rem; }
 .card.choque { border-color: #d9534f; box-shadow: inset 3px 0 0 #d9534f; }
 .warn { color: #f0a19e; }
+
+.linkbtn { background: none; border: 0; padding: 0; color: var(--gold); text-decoration: underline; font: inherit; cursor: pointer; }

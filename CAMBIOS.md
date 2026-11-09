@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Contraseña para el equipo (pendiente de publicar)
+- /equipo ahora pide **correo y contraseña**. La primera vez (o si se olvida) se usa "Enviarme un enlace al correo"; al entrar por el enlace, el panel ofrece crear la contraseña.
+- Botón **"Contraseña"** en la barra superior para cambiarla cuando se quiera.
+- La sesión queda guardada en el dispositivo: si no se toca "Salir", no hace falta volver a ingresar.
+- Clientes (/cuenta) siguen con enlace al correo.
+
 ## 9 nov 2026 · Etapa 2: despacho (rama `etapa-1`, pendiente de publicar)
 
 ### Qué se hizo
