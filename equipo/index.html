@@ -160,6 +160,9 @@
       <h2 style="margin:0">Central · mensajes de los conductores</h2>
       <p class="muted small" style="margin:0">Lo que los conductores escriben desde su app (en "Perfil → Central"). Responda aquí.</p>
       <div class="central"><div id="ct-lista" class="list"></div><div id="ct-chat"><p class="muted">Elija un conductor.</p></div></div>
+      <h2 style="margin:10px 0 0">Solicitudes de pasajeros</h2>
+      <p class="muted small" style="margin:0">Objetos perdidos, pedidos de ayuda y consultas que los pasajeros envían desde su enlace. Ábrala para responder.</p>
+      <div id="ct-pas" class="list"></div>
     </div>
 
     <div data-pane="flota" class="panel" style="margin-top:14px" hidden>
@@ -482,14 +485,18 @@ async function pintarCalificaciones(r) {
   });
 }
 let timerMsj = null;
+const TEMA_TXT = { objeto_perdido: "Objeto perdido", ayuda: "Necesita ayuda", otro: "Consulta" };
 async function pintarMensajes(r) {
   clearInterval(timerMsj);
   const chat = FKChat.montar($("msj-box"), { yo: "despacho", placeholder: "Mensaje de Flota-K al pasajero y al conductor", enviar: async t => {
     const res = await sb.rpc("enviar_mensaje", { p_reserva: r.id, p_texto: t }); if (!res.error) cargarMsj(); return res; } });
+  const chatC = FKChat.montar($("msj-central"), { yo: "despacho", placeholder: "Responder al pasajero (solo él lo ve)", enviar: async t => {
+    const res = await sb.rpc("enviar_mensaje_central", { p_reserva: r.id, p_texto: t }); if (!res.error) cargarMsj(); return res; } });
   const cargarMsj = async () => {
     if (!$("det").open) { clearInterval(timerMsj); return; }
-    const { data } = await sb.from("mensajes").select("id, autor, texto, creado_en").eq("reserva_id", r.id).order("id");
-    chat.pintar(data || []);
+    const { data } = await sb.from("mensajes").select("id, autor, texto, creado_en, canal, tema").eq("reserva_id", r.id).order("id");
+    chat.pintar((data || []).filter(m => m.canal !== "central"));
+    chatC.pintar((data || []).filter(m => m.canal === "central").map(m => ({ ...m, texto: (m.tema && m.autor === "pasajero" ? "[" + TEMA_TXT[m.tema] + "] " : "") + m.texto })));
   };
   cargarMsj(); timerMsj = setInterval(cargarMsj, 10000);
 }
@@ -656,9 +663,12 @@ async function abrir(id) {
     <div id="d-msg" class="msg" hidden></div>
     <div id="cobro-box"></div>
     <div id="calif-box"></div>
-    <h3 style="margin:6px 0 0">Mensajes</h3>
-    <p class="small muted" style="margin:0">Conversación entre pasajero y conductor. Lo que escriba aquí le llega a ambos como "Flota-K".</p>
+    <h3 style="margin:6px 0 0">Mensajes del viaje (pasajero y conductor)</h3>
+    <p class="small muted" style="margin:0">Abierto para ellos mientras el servicio está en curso. Lo que escriba aquí le llega a ambos como "Flota-K".</p>
     <div id="msj-box"></div>
+    <h3 style="margin:6px 0 0">Pasajero ↔ central (objeto perdido, ayuda, consultas)</h3>
+    <p class="small muted" style="margin:0">El conductor no ve esta conversación.</p>
+    <div id="msj-central"></div>
     <h3 style="margin:6px 0 0">Historial</h3>
     <div id="d-cambios" class="small"></div>
     <ul class="timeline">${(ev || []).map(e => `<li><b>${esc(ESTADOS[e.estado]?.t || e.estado)}</b> · <span class="muted small">${esc(fecha(e.creado_en))}</span>${e.nota ? `<br>${esc(e.nota)}` : ""}</li>`).join("")}</ul>`;
@@ -918,10 +928,23 @@ async function cargarCentral() {
     <b>${esc(nombreConductor(id) || "Conductor")}</b>${n ? `<span class="badge">${n}</span>` : ""}<br><span class="muted small">${u ? esc(u.texto.slice(0, 50)) : "Sin mensajes"}</span></button>`; }).join("") || '<p class="muted">No hay conductores.</p>';
   $("ct-lista").querySelectorAll("[data-c]").forEach(b => b.addEventListener("click", () => abrirCentral(b.dataset.c)));
   if (ctConductor && ctChat) ctChat.pintar(ctMsgs.filter(m => m.conductor_id === ctConductor).map(m => ({ ...m, autor: m.autor === "central" ? "despacho" : "conductor" })));
+  // Solicitudes de pasajeros (canal central), últimos 60 días
+  const { data: pm } = await sb.from("mensajes").select("reserva_id, autor, texto, tema, atendido, creado_en, id").eq("canal", "central").gte("creado_en", new Date(Date.now() - 60 * 864e5).toISOString()).order("id");
+  const porRes = new Map(); (pm || []).forEach(m => { const x = porRes.get(m.reserva_id) || { ult: null, pend: 0, tema: null }; x.ult = m; if (m.autor === "pasajero" && !m.atendido) { x.pend++; x.tema = m.tema; } porRes.set(m.reserva_id, x); });
+  pasPend = [...porRes.values()].filter(x => x.pend).length;
+  const rids = [...porRes.keys()];
+  const { data: rs } = rids.length ? await sb.from("reservas").select("*").in("id", rids) : { data: [] };
+  (rs || []).forEach(r => { if (!tablero.find(x => x.id === r.id) && !cache.find(x => x.id === r.id)) cache.push(r); });
+  $("ct-pas").innerHTML = rids.length ? rids.sort((a, b) => (porRes.get(b).pend - porRes.get(a).pend) || (porRes.get(b).ult.id - porRes.get(a).ult.id)).map(id => {
+    const x = porRes.get(id), r = (rs || []).find(y => y.id === id) || {};
+    return `<button type="button" class="card" data-r="${esc(id)}"><b>${esc(r.codigo || "")}</b> · ${esc(r.nombre_pasajero || "")} ${x.pend ? `<span class="alerta roja">${esc(TEMA_TXT[x.tema] || "Consulta")}</span>` : '<span class="alerta verde">Respondida</span>'}<br><span class="muted small">${esc(fecha(x.ult.creado_en))} · ${esc(x.ult.texto.slice(0, 80))}</span></button>`;
+  }).join("") : '<p class="muted">No hay solicitudes de pasajeros.</p>';
+  $("ct-pas").querySelectorAll("[data-r]").forEach(b => b.addEventListener("click", () => abrir(b.dataset.r)));
   pintarBadgeCentral();
 }
+let pasPend = 0;
 function pintarBadgeCentral() {
-  const n = ctMsgs.filter(m => m.autor === "conductor" && !m.leido).length;
+  const n = ctMsgs.filter(m => m.autor === "conductor" && !m.leido).length + pasPend;
   $("b-central").hidden = !n; $("b-central").textContent = n;
 }
 async function abrirCentral(id) {
@@ -933,7 +956,7 @@ async function abrirCentral(id) {
   if (pend.length) { await sb.from("soporte_mensajes").update({ leido: true }).in("id", pend); ctMsgs.forEach(m => { if (pend.includes(m.id)) m.leido = true; }); }
   cargarCentral();
 }
-setInterval(() => { if (!yo || document.hidden) return; if (pestanaActual() === "central") cargarCentral(); else sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").eq("autor", "conductor").eq("leido", false).then(({ data }) => { if (data) { ctMsgs = ctMsgs.filter(m => m.leido || m.autor !== "conductor").concat(data.filter(d => !ctMsgs.some(m => m.id === d.id))); pintarBadgeCentral(); } }); }, 20000);
+setInterval(() => { if (!yo || document.hidden) return; if (pestanaActual() === "central") cargarCentral(); else { sb.from("mensajes").select("id", { count: "exact", head: true }).eq("canal", "central").eq("autor", "pasajero").eq("atendido", false).then(({ count }) => { pasPend = count || 0; pintarBadgeCentral(); }); } if (pestanaActual() !== "central") sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").eq("autor", "conductor").eq("leido", false).then(({ data }) => { if (data) { ctMsgs = ctMsgs.filter(m => m.leido || m.autor !== "conductor").concat(data.filter(d => !ctMsgs.some(m => m.id === d.id))); pintarBadgeCentral(); } }); }, 20000);
 
 // ---- Reportes del negocio (solo administrador)
 let rpFilas = [];
@@ -1021,6 +1044,7 @@ function alertasDe(r, extra) {
     if (esp >= 15) a.push({ n: 2, c: "amarilla", t: `Esperando ${esp} min` });
   }
   if (extra.msgSinResp) a.push({ n: 2, c: "amarilla", t: "Mensaje sin responder" });
+  if (extra.ayuda) a.push({ n: 3, c: "roja", t: extra.ayuda === "objeto_perdido" ? "Objeto perdido" : extra.ayuda === "ayuda" ? "Pasajero pide ayuda" : "Consulta del pasajero" });
   if (r.observacion_conductor && !r.observacion_revisada) a.push({ n: 1, c: "gris", t: "Observación" });
   if (extra.califBaja) a.push({ n: 2, c: "amarilla", t: "Calificación baja" });
   return a;
@@ -1036,15 +1060,15 @@ async function cargarDespacho() {
   tablero = [...porId.values()];
   const ids = tablero.map(r => r.id);
   const [{ data: ms }, { data: evs }, { data: cs }] = ids.length ? await Promise.all([
-    sb.from("mensajes").select("reserva_id, autor, id").in("reserva_id", ids).order("id"),
+    sb.from("mensajes").select("reserva_id, autor, id, canal, tema, atendido").in("reserva_id", ids).order("id"),
     sb.from("reserva_eventos").select("reserva_id, estado, creado_en").in("reserva_id", ids).eq("estado", "en_lugar"),
     sb.from("calificaciones").select("reserva_id, estrellas, revisada").in("reserva_id", ids).lte("estrellas", 3).eq("revisada", false)
   ]) : [{ data: [] }, { data: [] }, { data: [] }];
-  const ultimoMsg = {}; (ms || []).forEach(m => ultimoMsg[m.reserva_id] = m);
+  const ultimoMsg = {}, ayuda = {}; (ms || []).forEach(m => { if (m.canal === "central") { if (m.autor === "pasajero" && !m.atendido) ayuda[m.reserva_id] = m.tema || "otro"; } else ultimoMsg[m.reserva_id] = m; });
   const enLugar = {}; (evs || []).forEach(e => enLugar[e.reserva_id] = Math.max(enLugar[e.reserva_id] || 0, new Date(e.creado_en).getTime()));
   const baja = new Set((cs || []).map(c => c.reserva_id));
   tablero.forEach(r => {
-    r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id) });
+    r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", ayuda: ayuda[r.id], enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id) });
     r._urg = r._al.reduce((a, x) => Math.max(a, x.n), 0);
   });
   // Aviso sonoro cuando llega una reserva nueva por confirmar

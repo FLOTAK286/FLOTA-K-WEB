@@ -20,8 +20,18 @@
   <section class="panel" id="box"><p class="muted">Cargando…</p></section>
   <section class="panel" id="chat-panel" hidden>
     <h2 style="margin:0">Mensajes con su conductor</h2>
-    <p class="muted small" style="margin:0">Para coordinar el encuentro sin compartir números. Su conductor y Flota-K leen estos mensajes.</p>
+    <p class="muted small" style="margin:0">Para coordinar el encuentro sin compartir números. Disponible mientras su conductor va en camino y durante el viaje. Su conductor y Flota-K leen estos mensajes.</p>
     <div id="chat"></div>
+  </section>
+  <section class="panel" id="ayuda-panel" hidden>
+    <h2 style="margin:0">¿Necesita algo? Escriba a Flota-K</h2>
+    <p class="muted small" style="margin:0">Estos mensajes llegan a nuestra central (no al conductor). Le respondemos aquí mismo.</p>
+    <div class="actions" id="ayuda-temas">
+      <button class="btn ghost sm" type="button" data-tema="objeto_perdido">🧳 Olvidé un objeto</button>
+      <button class="btn ghost sm" type="button" data-tema="ayuda">🆘 Necesito ayuda</button>
+      <button class="btn ghost sm" type="button" data-tema="otro">💬 Otra consulta</button>
+    </div>
+    <div id="ayuda-chat" hidden></div>
   </section>
   <p class="muted small">¿Necesita cambiar algo? Escríbanos por WhatsApp al +56 9 2227 5399 indicando su código de reserva.</p>
 </main>
@@ -79,27 +89,41 @@ async function cargar() {
   $("ics")?.addEventListener("click", calendario);
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
-  conductorAsignado = !!r.o_conductor;
   mensajes();
   if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
 }
 
-// ---- Mensajes con el conductor
-let chat = null, chatAbierto = null, conductorAsignado = false;
+// ---- Mensajes: con el conductor (solo con el servicio en curso) y con la central (objeto perdido, ayuda, otro)
+let chat = null, chatAyuda = null, temaAyuda = "otro", hayCentral = false, viajeAbierto = false;
+const TEMAS = { objeto_perdido: "Cuéntenos qué objeto olvidó y cómo es (color, marca). Lo buscamos con su conductor.", ayuda: "Cuéntenos qué necesita. Si es una emergencia, llame también al +56 9 2227 5399.", otro: "Escriba su consulta." };
 async function mensajes() {
-  const { data, error } = await sb.rpc("ver_mensajes_publico", { p_token: token });
+  const { data, error } = await sb.rpc("ver_mensajes_publico_v2", { p_token: token });
   if (error || !data || !data.length) return;
-  const abierto = !!data[0].o_abierto, msgs = data.filter(m => m.o_id).map(m => ({ id: m.o_id, autor: m.o_autor, texto: m.o_texto, creado_en: m.o_creado }));
-  if (!abierto && !msgs.length) { $("chat-panel").hidden = true; return; }
-  $("chat-panel").hidden = false;
-  if (!chat || chatAbierto !== abierto) {
-    chatAbierto = abierto;
-    chat = FKChat.montar($("chat"), { yo: "pasajero", abierto, placeholder: "Ej.: Estoy en la puerta 3", enviar: async t => {
+  const todos = data.filter(m => m.o_id).map(m => ({ id: m.o_id, autor: m.o_autor, texto: m.o_texto, creado_en: m.o_creado, canal: m.o_canal }));
+  viajeAbierto = !!data[0].o_abierto;
+  // Chat con el conductor: solo mientras va en camino, en el lugar o a bordo
+  $("chat-panel").hidden = !viajeAbierto;
+  if (viajeAbierto) {
+    if (!chat) chat = FKChat.montar($("chat"), { yo: "pasajero", placeholder: "Ej.: Estoy en la puerta 3", enviar: async t => {
       const r = await sb.rpc("enviar_mensaje_publico", { p_token: token, p_texto: t }); if (!r.error) mensajes(); return r; } });
-  }
-  chat.pintar(msgs);
+    chat.pintar(todos.filter(m => m.canal === "viaje"));
+  } else chat = null;
+  // Central
+  $("ayuda-panel").hidden = !reserva || reserva.o_estado === "recibida";
+  const central = todos.filter(m => m.canal === "central");
+  hayCentral = central.length > 0;
+  if (hayCentral || !$("ayuda-chat").hidden) { abrirAyuda(temaAyuda, false); chatAyuda.pintar(central); }
 }
-setInterval(() => { if (conductorAsignado && !document.hidden) mensajes(); }, 10000);
+function abrirAyuda(tema, enfocar = true) {
+  temaAyuda = tema;
+  $("ayuda-chat").hidden = false;
+  document.querySelectorAll("#ayuda-temas [data-tema]").forEach(b => b.classList.toggle("on", b.dataset.tema === tema));
+  if (!chatAyuda) chatAyuda = FKChat.montar($("ayuda-chat"), { yo: "pasajero", placeholder: TEMAS[tema], enviar: async t => {
+    const r = await sb.rpc("enviar_central_publico", { p_token: token, p_texto: t, p_tema: temaAyuda }); if (!r.error) mensajes(); return r; } });
+  const inp = $("ayuda-chat").querySelector("input"); if (inp) { inp.placeholder = TEMAS[tema]; if (enfocar) inp.focus(); }
+}
+document.querySelectorAll("#ayuda-temas [data-tema]").forEach(b => b.addEventListener("click", () => abrirAyuda(b.dataset.tema)));
+setInterval(() => { if (!document.hidden && (viajeAbierto || hayCentral)) mensajes(); }, 10000);
 
 // ---- Calificación del servicio (una vez finalizado)
 let califMostrada = false;

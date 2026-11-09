@@ -1,5 +1,11 @@
 # Cambios
 
+## 9 nov 2026 · Chat solo con servicio activo y ayuda a la central (pendiente de publicar)
+- Base de datos (`etapa11_chat_activo_y_ayuda_central`): los mensajes tienen canal ("viaje" o "central"), tema (objeto perdido, ayuda, otro) y si fueron atendidos. El chat pasajero-conductor solo funciona en camino, en el lugar o a bordo; al finalizar se cierra. El conductor no ve el canal central. Funciones nuevas: `enviar_central_publico`, `enviar_mensaje_central`, `ver_mensajes_publico_v2`.
+- **Pasajero:** el chat con el conductor aparece solo con el servicio en curso. Nueva sección "¿Necesita algo? Escriba a Flota-K" con **Olvidé un objeto**, **Necesito ayuda** y **Otra consulta** (llega solo a la central; la respuesta aparece ahí mismo; hasta 60 días después del viaje).
+- **Conductor:** el botón "Mensajes con el pasajero" aparece solo con el servicio en curso. La central le sigue escribiendo por Perfil → Central.
+- **Panel:** alerta roja en el tablero ("Objeto perdido", "Pasajero pide ayuda", "Consulta del pasajero"); en la ficha, dos conversaciones (viaje y pasajero ↔ central); en la pestaña Central, lista "Solicitudes de pasajeros" con las pendientes arriba; el contador de la pestaña Central suma estas solicitudes.
+
 ## 9 nov 2026 · Tanda grande de mejoras para despacho, conductor y pasajero (pendiente de publicar)
 - Base de datos (`etapa10_respuesta_conductor_historial`): el conductor acepta o rechaza el servicio (al rechazar queda libre para reasignar); historial de cambios de cada reserva (quién cambió qué); serie para reservas recurrentes; enlace del pasajero v2 con fotos (`ver_reserva_publica_v2`, la anterior no se tocó). Probado con datos que se deshacen.
 - **Despacho:** reserva rápida pegando el mensaje de WhatsApp (lee fecha, hora, vuelo, teléfono, correo, nombre, pasajeros, maletas, van/SUV, ida o regreso y comuna); reservas recurrentes (semanal, lunes a viernes o diario, hasta 60); conductor sugerido en la ficha (libre, con vehículo adecuado y conectado); notas internas del cliente (se ven al tomar su reserva y en su ficha); historial de cambios en la ficha; alertas "Conductor rechazó" y "Conductor no ha aceptado"; mapa al lado del tablero (opción "Ver mapa al lado").

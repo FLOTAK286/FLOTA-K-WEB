@@ -194,6 +194,8 @@ async function cargar() {
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   items = data || [];
+  // Si el servicio con el chat abierto ya terminó, se cierra el chat (si no, la lista dejaría de actualizarse)
+  if (chatAbiertoId && !items.some(x => x.id === chatAbiertoId && ["en_camino", "en_lugar", "a_bordo"].includes(x.estado))) { chatAbiertoId = null; chatVivo = null; }
   avisarNuevos(); programarRecordatorios(); avisoSalida();
   if (enServicio()) enviarUbicacion(); // con un servicio en curso se comparte aunque esté desconectado
   await cargarCalificaciones(); revisarMensajes();
@@ -286,7 +288,7 @@ let avisados = new Set(), primeraRevision = true;
 async function revisarMensajes() {
   const ids = items.filter(r => r.estado !== "cancelada").map(r => r.id);
   if (!ids.length) return;
-  const { data } = await sb.from("mensajes").select("id, reserva_id, autor, texto, creado_en").in("reserva_id", ids).order("id");
+  const { data } = await sb.from("mensajes").select("id, reserva_id, autor, texto, creado_en").in("reserva_id", ids).eq("canal", "viaje").order("id");
   msgsPor = {}; (data || []).forEach(m => (msgsPor[m.reserva_id] = msgsPor[m.reserva_id] || []).push(m));
   const nuevos = (data || []).filter(m => m.autor !== "conductor" && m.id > leido(m.reserva_id) && !avisados.has(m.id));
   nuevos.forEach(m => avisados.add(m.id));
@@ -525,8 +527,8 @@ function pintar() {
         ? `<div class="confirm"><b>Observación</b><textarea class="obs-txt" rows="3" maxlength="1000" placeholder="Ej: el pasajero pidió una parada adicional"></textarea><div class="actions"><button class="btn obs-ok" type="button">Guardar observación</button><button class="btn ghost obs-no" type="button">Cancelar</button></div></div>`
         : `<button class="btn ghost obs" type="button">+ Observación</button>`}
       <div class="contact">
-        <button class="btn ghost chat-btn" type="button" style="grid-column:1/-1">${chatAbiertoId === r.id ? "Cerrar mensajes" : "Mensajes con el pasajero"}<span class="badge" data-badge="${esc(r.id)}" hidden></span></button>
-        ${chatAbiertoId === r.id ? '<div class="chat-box" style="grid-column:1/-1"></div>' : ""}
+        ${EN_CURSO.includes(r.estado) ? `<button class="btn ghost chat-btn" type="button" style="grid-column:1/-1">${chatAbiertoId === r.id ? "Cerrar mensajes" : "Mensajes con el pasajero"}<span class="badge" data-badge="${esc(r.id)}" hidden></span></button>
+        ${chatAbiertoId === r.id ? '<div class="chat-box" style="grid-column:1/-1"></div>' : ""}` : ""}
         <a class="btn ghost" href="tel:${esc(tel(r.telefono))}">Llamar</a>
         <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>
       </div>
