@@ -25,7 +25,7 @@
   </section>
   <p class="muted small">¿Necesita cambiar algo? Escríbanos por WhatsApp al +56 9 2227 5399 indicando su código de reserva.</p>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -42,9 +42,9 @@ let estado = null, mapa = null, pin = null, centrado = false, timerUb = null;
 
 async function cargar() {
   if (!token || !/^[0-9a-f-]{36}$/i.test(token)) { box.innerHTML = '<p class="msg err">El enlace de seguimiento no es válido. Revise el enlace que le enviamos.</p>'; return; }
-  const { data, error } = await sb.rpc("ver_reserva_publica", { p_token: token });
+  const { data, error } = await sb.rpc("ver_reserva_publica_v2", { p_token: token });
   if (error || !data || !data.length) { box.innerHTML = '<p class="msg err">No encontramos esta reserva. Revise el enlace o escríbanos por WhatsApp.</p>'; return; }
-  const r = data[0];
+  const r = data[0]; reserva = r;
   const cambio = r.o_estado !== estado; estado = r.o_estado;
   if (!cambio && $("ub-box")) { return; } // mismo estado: solo se refresca la ubicación
   const i = ORDEN.indexOf(r.o_estado);
@@ -57,16 +57,26 @@ async function cargar() {
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
       <h2>Reserva ${esc(r.o_codigo)}</h2>${pill(r.o_estado)}
     </div>
+    ${r.o_estado === "en_camino" ? '<p class="eta" id="eta" hidden></p>' : ""}
     ${enCurso ? `<div id="ub-box"><h3 style="margin:0 0 6px">Ubicación de su conductor</h3><div id="mapa" class="mapa"></div><p class="muted small" id="ub-txt" style="margin-top:6px">Buscando la ubicación del conductor…</p></div>` : ""}
+    ${r.o_conductor && r.o_estado !== "cancelada" ? `<div class="quien">
+      <div class="q-cond"><div class="q-foto">${r.o_foto_conductor ? `<img src="${esc(fotoUrl(r.o_foto_conductor))}" alt="Foto de su conductor">` : `<span>${esc(r.o_conductor[0])}</span>`}</div>
+        <div><small class="muted">Su conductor</small><b>${esc(r.o_conductor)}</b>${r.o_movil ? `<span class="small muted">Móvil ${esc(r.o_movil)}</span>` : ""}${r.o_calificacion ? `<span class="small">★ ${esc(String(r.o_calificacion).replace(".", ","))} <span class="muted">(${r.o_n_calif})</span></span>` : ""}</div></div>
+      ${r.o_patente ? `<div class="q-auto">${r.o_foto_vehiculo ? `<img src="${esc(fotoUrl(r.o_foto_vehiculo))}" alt="Foto del vehículo">` : ""}
+        <div><small class="muted">Vehículo</small><b>${esc(r.o_vehiculo || "")}</b><span class="small muted">${esc([r.o_color, r.o_anio].filter(Boolean).join(" · "))}</span><span class="patente">${esc(r.o_patente)}</span></div></div>` : ""}
+    </div>` : ""}
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.o_fecha_hora))}</dd>
       <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
       <dt>Destino</dt><dd>${esc(r.o_destino)}</dd>
-      <dt>Conductor</dt><dd>${esc(r.o_conductor || "Por asignar")}</dd>
-      <dt>Vehículo</dt><dd>${r.o_patente ? `${esc(r.o_vehiculo || "")} · patente <b>${esc(r.o_patente)}</b>` : "Por asignar"}</dd>
+      ${r.o_vuelo ? `<dt>Vuelo</dt><dd>${esc(r.o_vuelo)}</dd>` : ""}
+      ${r.o_conductor ? "" : '<dt>Conductor</dt><dd>Por asignar</dd>'}
     </dl>
     ${pasos}
+    ${!["finalizada", "cancelada"].includes(r.o_estado) ? '<div class="actions"><button class="btn ghost sm" type="button" id="ics">📅 Agregar a mi calendario</button></div>' : ""}
+    ${r.o_estado === "finalizada" || r.o_tipo_servicio === "ida" ? `<div class="actions"><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/56922275399?text=${encodeURIComponent(`Hola Flota-K, quiero reservar mi regreso (reserva ${r.o_codigo}): desde ${r.o_destino} a ${r.o_origen}. Fecha y hora: `)}">↩ Reservar mi regreso</a></div>` : ""}
     <p class="muted small">${enCurso ? "La ubicación se actualiza sola cada 15 segundos." : "Esta página se actualiza sola cada minuto. Cuando su conductor vaya en camino, aquí verá su ubicación en el mapa."}</p>`;
+  $("ics")?.addEventListener("click", calendario);
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
   conductorAsignado = !!r.o_conductor;
@@ -115,6 +125,34 @@ async function calificacion() {
   });
 }
 
+let reserva = null;
+const fotoUrl = path => sb.storage.from("fotos").getPublicUrl(path).data.publicUrl;
+// Archivo de calendario (.ics) para guardar el traslado en el teléfono
+function calendario() {
+  const r = reserva, ini = new Date(r.o_fecha_hora), fin = new Date(ini.getTime() + 90 * 60000);
+  const f = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Flota-K//Reservas//ES", "BEGIN:VEVENT", `UID:${r.o_codigo}@fk-servicios.com`, `DTSTAMP:${f(new Date())}`, `DTSTART:${f(ini)}`, `DTEND:${f(fin)}`,
+    `SUMMARY:Traslado Flota-K ${r.o_codigo}`, `LOCATION:${r.o_origen.replace(/[,;]/g, " ")}`, `DESCRIPTION:${(r.o_origen + " → " + r.o_destino + ". Seguimiento: " + location.href).replace(/[,;]/g, " ")}`,
+    "BEGIN:VALARM", "TRIGGER:-PT2H", "ACTION:DISPLAY", "DESCRIPTION:Traslado Flota-K en 2 horas", "END:VALARM", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = `Flota-K_${r.o_codigo}.ics`; a.click();
+}
+// Tiempo estimado de llegada: distancia en línea recta × 1,4 a 28 km/h (tráfico de ciudad). Es una aproximación.
+async function origenCoords() {
+  const k = "fk_geo_" + token; try { const c = JSON.parse(sessionStorage.getItem(k) || "null"); if (c) return c; } catch (_) {}
+  try {
+    const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=cl&q=" + encodeURIComponent(reserva.o_origen + ", Región Metropolitana, Chile"));
+    const j = await res.json(); if (!j[0]) return null;
+    const c = [Number(j[0].lat), Number(j[0].lon)]; try { sessionStorage.setItem(k, JSON.stringify(c)); } catch (_) {} return c;
+  } catch (_) { return null; }
+}
+async function eta(lat, lng) {
+  const el = $("eta"); if (!el) return;
+  const o = await origenCoords(); if (!o) return;
+  const rad = x => x * Math.PI / 180, dLat = rad(o[0] - lat), dLng = rad(o[1] - lng);
+  const km = 2 * 6371 * Math.asin(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat)) * Math.cos(rad(o[0])) * Math.sin(dLng / 2) ** 2));
+  const min = Math.max(1, Math.round(km * 1.4 / 28 * 60));
+  el.hidden = false; el.innerHTML = km < 0.3 ? "Su conductor está llegando." : `Su conductor llega en aprox. <b>${min} min</b>`;
+}
 async function ubicar() {
   const txt = $("ub-txt"); if (!txt) return;
   if (!mapa && window.L) mapa = FKMapa.crear($("mapa"));
@@ -126,6 +164,7 @@ async function ubicar() {
   if (!pin) pin = L.marker([u.o_lat, u.o_lng], { icon: FKMapa.icono("K", viejo), title: "Su conductor" }).addTo(mapa);
   else { pin.setLatLng([u.o_lat, u.o_lng]); pin.setIcon(FKMapa.icono("K", viejo)); }
   if (!centrado) { mapa.setView([u.o_lat, u.o_lng], 15); centrado = true; }
+  eta(u.o_lat, u.o_lng);
   txt.textContent = `Última ubicación ${FKMapa.hace(u.o_actualizado)}` + (viejo ? ". El conductor puede estar sin señal o con la app en segundo plano; se actualizará apenas vuelva." : ".");
 }
 const $ = id => document.getElementById(id);
