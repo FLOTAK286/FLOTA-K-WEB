@@ -14,6 +14,30 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/app.css">
+<script>
+// Diagnóstico: si algo impide cargar la app, se muestra en pantalla (en vez de quedar en blanco).
+(function () {
+  function falla(t) {
+    if (window.__fkListo || document.getElementById("fk-diag")) return;
+    var mostrar = function () {
+      var d = document.createElement("div"); d.id = "fk-diag";
+      d.style.cssText = "margin:16px;padding:14px;border:2px solid #e5533d;border-radius:8px;background:#fff;color:#222;font:15px sans-serif;word-break:break-word";
+      d.innerHTML = "<b>La app no pudo cargar.</b><br><span id='fk-diag-t'></span><br><br><button style='font-size:16px;padding:10px 18px' onclick='location.reload()'>Reintentar</button><br><small>Envíe una captura de esta pantalla a gerencia@fk-servicios.com.</small>";
+      document.body.appendChild(d); document.getElementById("fk-diag-t").textContent = t;
+    };
+    if (document.body) mostrar(); else document.addEventListener("DOMContentLoaded", mostrar);
+  }
+  window.__fkFalla = falla;
+  window.addEventListener("error", function (e) {
+    var el = e.target;
+    if (el && el !== window && (el.src || el.href)) falla("No se pudo descargar: " + (el.src || el.href));
+    else falla("Error: " + e.message + " (" + (e.filename || "") + ":" + (e.lineno || "") + ")");
+  }, true);
+  setTimeout(function () {
+    falla("No terminó de cargar. FK=" + !!window.FK + " supabase=" + !!window.supabase + " Capacitor=" + !!window.Capacitor + " · " + navigator.userAgent);
+  }, 12000);
+})();
+</script>
 <style>
   .drv { max-width: 640px; }
   .svc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 10px; }
@@ -86,7 +110,7 @@
   </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
 <script src="/assets/chat.js"></script>
@@ -131,8 +155,8 @@ async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
   const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce").eq("id", session.user.id).maybeSingle();
-  if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; return; }
-  yo = data;
+  if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; window.__fkListo = true; return; }
+  yo = data; window.__fkListo = true;
   const { data: vs } = await sb.from("vehiculos").select("id, patente, descripcion, conductor_habitual");
   const { data: emp } = await sb.from("empresas").select("taxi_bajada, taxi_cada_200m, taxi_cada_60s, valor_tag").limit(1).maybeSingle();
   tar = emp || { taxi_bajada: 2400, taxi_cada_200m: 180, taxi_cada_60s: 180, valor_tag: 900 };
@@ -511,7 +535,8 @@ setTimeout(() => { if (!yo && $("login").hidden && $("noaccess").hidden) mostrar
 
 let iniciado = false;
 sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
-sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else $("login").hidden = false; });
+sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else { $("login").hidden = false; window.__fkListo = true; } })
+  .catch(e => window.__fkFalla && window.__fkFalla("Sesión: " + (e && e.message || e)));
 </script>
 </body>
 </html>

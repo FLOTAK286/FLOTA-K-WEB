@@ -2,7 +2,9 @@
 (function () {
   const C = window.FK_CONFIG;
   const sb = window.supabase.createClient(C.url, C.anonKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" }
+    auth: Object.assign({ persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" },
+      // Dentro de la app Android, el "candado" del navegador puede quedarse pegado y dejar la pantalla en blanco: se omite.
+      (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? { lock: (_n, _t, fn) => fn() } : {})
   });
 
   const ESTADOS = {
