@@ -1,5 +1,15 @@
 # Cambios
 
+## 9 nov 2026 · Rediseño de la app del conductor (pendiente de publicar)
+- **Inicio con mapa:** su posición (con su número de móvil) y el punto al que debe ir (retiro, o destino si el pasajero va a bordo), y la tarjeta del servicio en curso o del **próximo** (ya no el último realizado). Enlace "Ver los N de hoy".
+- **Barra de navegación abajo:** Inicio · Servicios · Billetera · Perfil. Servicios con "Hoy" y "Próximos días"; primero lo pendiente y al final "Realizados" (sin botones de navegación).
+- **Encabezado compacto:** foto (lleva al Perfil), "Móvil 286 · Juan · patente", lo ganado hoy y el botón Conectado/Desconectado. Se quitaron "Actualizar" y "Salir" de arriba (cerrar sesión está en Perfil).
+- **Botón "Navegar" (Waze)** que lleva al retiro o, con el pasajero a bordo, al destino.
+- **Llamar y WhatsApp al pasajero desaparecen al finalizar** el servicio.
+- Perfil con foto grande, móvil y estado de conexión.
+- **Modo oscuro por defecto** (se puede cambiar en Perfil).
+- El diagnóstico en pantalla solo avisa si falla un archivo imprescindible (si el mapa no carga, la app sigue funcionando).
+
 ## 9 nov 2026 · Quien reserva y paga distinto del pasajero; confirmación por WhatsApp; copiar reserva (pendiente de publicar)
 - Base de datos (`etapa12_solicitante_distinto_del_pasajero`): la reserva guarda nombre, teléfono y correo de quien reserva y paga; el cliente (cobranza) se toma de esa persona. Probado: una reserva para la suegra de Fernando queda en la ficha de Fernando.
 - "Nueva reserva": casilla **"Viaja otra persona"** con nombre y teléfono del pasajero; el cliente buscado es quien reserva y paga.

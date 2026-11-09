@@ -14,9 +14,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script>
 // Preferencias de pantalla del conductor (modo noche y letra grande)
-try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement.dataset.theme = t; if (localStorage.getItem("fk_grande") === "1") document.documentElement.classList.add("grande"); } catch (_) {}
+try { const t = localStorage.getItem("fk_tema") || "dark"; document.documentElement.dataset.theme = t; if (localStorage.getItem("fk_grande") === "1") document.documentElement.classList.add("grande"); } catch (_) {}
 // Diagnóstico: si algo impide cargar la app, se muestra en pantalla (en vez de quedar en blanco).
 (function () {
   function falla(t) {
@@ -32,7 +33,11 @@ try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement
   window.__fkFalla = falla;
   window.addEventListener("error", function (e) {
     var el = e.target;
-    if (el && el !== window && (el.src || el.href)) falla("No se pudo descargar: " + (el.src || el.href));
+    if (el && el !== window && (el.src || el.href)) {
+      // Solo son imprescindibles los archivos propios (/assets/); el mapa o las fuentes pueden fallar sin bloquear la app
+      if (/\/assets\//.test(el.src || el.href || "")) falla("No se pudo descargar: " + (el.src || el.href));
+      return;
+    }
     else falla("Error: " + e.message + " (" + (e.filename || "") + ":" + (e.lineno || "") + ")");
   }, true);
   setTimeout(function () {
@@ -60,6 +65,32 @@ try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement
   .confirm { display: grid; gap: 8px; background: var(--bg); border: 1px solid var(--gold); border-radius: 6px; padding: 12px; }
   .sticky-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
   .install { border-color: var(--gold); }
+  /* Diseño app de conductor */
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  header.top .brand small { display: none; }
+  .drv-head { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .av { width: 52px; height: 52px; border-radius: 50%; overflow: hidden; border: 2px solid var(--gold); display: grid; place-items: center; flex: none; background: var(--panel); cursor: pointer; }
+  .av img { width: 100%; height: 100%; object-fit: cover; }
+  .av span { font-family: var(--font-display); font-size: 1.5rem; color: var(--gold); }
+  .drv-id { display: grid; min-width: 0; flex: 1; }
+  .drv-id b { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drv-id span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header.top .userbar { display: none !important; }
+  .drv-head .conexion { margin-top: 0; padding: 6px 12px 6px 6px; font-size: .85rem; }
+  .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -4px 18px rgba(0,0,0,.25); }
+  .bottom-nav button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 700; padding: 8px 4px 10px; display: grid; justify-items: center; gap: 2px; cursor: pointer; position: relative; }
+  .bottom-nav .ic { font-size: 1.3rem; line-height: 1; }
+  .bottom-nav button[aria-selected="true"] { color: var(--gold); }
+  .bottom-nav button[aria-selected="true"]::before { content: ""; position: absolute; top: 0; left: 25%; right: 25%; height: 3px; background: var(--gold); border-radius: 0 0 3px 3px; }
+  .bottom-nav .badge { position: absolute; top: 4px; right: 18%; }
+  .drv-mapa { height: 42vh; min-height: 240px; margin-top: 12px; border-radius: 10px; }
+  .fk-dest span { font-size: 28px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+  .inicio-tit { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .inicio-tit b { font-family: var(--font-display); font-size: 1.25rem; text-transform: uppercase; letter-spacing: .03em; }
+  .sub-tabs { display: flex; gap: 6px; }
+  .btn.navegar { width: 100%; background: #2a6fdb; color: #fff; border-color: #2a6fdb; font-size: 1.05rem; padding: 12px; text-align: center; }
+  .svc { border-radius: 12px; }
+  #gps { font-size: .85rem; padding: 6px 10px; }
 </style>
 </head>
 <body>
@@ -85,16 +116,17 @@ try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement
   </section>
 
   <section id="app" hidden>
-    <div class="sticky-top">
-      <div><h1 style="font-size:1.6rem">Mis servicios</h1><p class="muted small" id="who"></p>
-        <button type="button" class="conexion" id="con" aria-pressed="false"><span class="sw"></span><span id="con-txt">Desconectado</span></button></div>
-      <div class="tabs" role="tablist" style="border:0">
-        <button role="tab" data-v="hoy" aria-selected="true">Hoy</button>
-        <button role="tab" data-v="prox" aria-selected="false">Próximos</button>
-        <button role="tab" data-v="gan" aria-selected="false">Billetera</button>
-        <button role="tab" data-v="perfil" aria-selected="false">Perfil <span class="badge" id="b-central" hidden></span></button>
-      </div>
+    <div class="drv-head">
+      <div class="av" id="av"><span>K</span></div>
+      <div class="drv-id"><b id="who"></b><span class="small muted" id="hoy-gan"></span></div>
+      <button type="button" class="conexion" id="con" aria-pressed="false"><span class="sw"></span><span id="con-txt">Desconectado</span></button>
     </div>
+    <nav class="bottom-nav" role="tablist" aria-label="Secciones">
+      <button role="tab" data-v="inicio" aria-selected="true"><span class="ic">◉</span>Inicio</button>
+      <button role="tab" data-v="hoy" aria-selected="false"><span class="ic">☰</span>Servicios</button>
+      <button role="tab" data-v="gan" aria-selected="false"><span class="ic">$</span>Billetera</button>
+      <button role="tab" data-v="perfil" aria-selected="false"><span class="ic">☺</span>Perfil <span class="badge" id="b-central" hidden></span></button>
+    </nav>
     <div class="panel install" id="upd" hidden style="margin-top:12px">
       <b>Hay una versión nueva de la app</b>
       <p class="small muted" id="upd-txt"></p>
@@ -109,6 +141,7 @@ try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement
     <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
       <p style="margin:6px 0 0">Desde el navegador, la ubicación se envía solo mientras esta pantalla está abierta. Para que se siga enviando con Waze, Cabify u otra app abierta, instale la <b>app Android de Flota-K</b>: <a href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">descargar app Android</a>.</p></details>
     <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze, Cabify u otra app. Mientras esté en segundo plano verá una notificación de Flota-K.</p>
+    <div id="inicio-mapa" class="mapa drv-mapa" hidden></div>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
     <p class="muted small" id="updated" style="margin-top:10px"></p>
   </section>
@@ -116,6 +149,8 @@ try { const t = localStorage.getItem("fk_tema"); if (t) document.documentElement
 
 <!-- Puente con la app Android (registerPlugin). En el navegador no hace nada. -->
 <script src="/assets/vendor/capacitor-core-6.2.3.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/assets/mapa.js"></script>
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
@@ -127,7 +162,7 @@ const TZ = "America/Santiago";
 const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 const diaTxt = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
 const diaKey = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
-let yo = null, vista = "hoy", items = [], vehiculos = {}, pendiente = null, obsAbierta = null, tar = null;
+let yo = null, vista = "inicio", items = [], vehiculos = {}, pendiente = null, obsAbierta = null, tar = null;
 let msgsPor = {}, calPor = {}, chatAbiertoId = null, chatVivo = null, califAbierto = null, califSel = {};
 
 const SIG = {
@@ -168,7 +203,10 @@ async function iniciar(session) {
   tar = emp || { taxi_bajada: 2400, taxi_cada_200m: 180, taxi_cada_60s: 180, valor_tag: 900 };
   (vs || []).forEach(v => vehiculos[v.id] = v);
   const mio = (vs || []).find(v => v.conductor_habitual === yo.id);
-  $("who").textContent = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre + (mio ? ` · ${mio.descripcion || ""} ${mio.patente}` : "");
+  if (yo.foto_path) $("av").innerHTML = `<img src="${esc(sb.storage.from("fotos").getPublicUrl(yo.foto_path).data.publicUrl)}" alt="">`; else $("av").innerHTML = `<span>${esc((yo.nombre || "K")[0])}</span>`;
+  $("av").onclick = () => irA("perfil");
+  gananciaHoy(); setInterval(gananciaHoy, 5 * 60000);
+  $("who").textContent = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre.split(" ")[0] + (mio ? ` · ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
   pintarConexion();
   cargar(); revisarCentral(); setInterval(revisarCentral, 20000);
@@ -178,11 +216,12 @@ async function iniciar(session) {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
 }
 
-document.querySelectorAll('[data-v]').forEach(b => b.addEventListener("click", () => {
-  vista = b.dataset.v;
-  document.querySelectorAll('[data-v]').forEach(x => x.setAttribute("aria-selected", String(x === b)));
-  pintar();
-}));
+function irA(v) {
+  vista = v;
+  document.querySelectorAll('.bottom-nav [data-v]').forEach(x => x.setAttribute("aria-selected", String(x.dataset.v === (v === "prox" ? "hoy" : v))));
+  window.scrollTo(0, 0); pintar();
+}
+document.querySelectorAll('.bottom-nav [data-v]').forEach(b => b.addEventListener("click", () => irA(b.dataset.v)));
 
 async function cargar() {
   if (!yo) return;
@@ -202,6 +241,40 @@ async function cargar() {
   if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
   pintar();
+}
+
+function enlazarCabecera() {
+  $("ver-todos")?.addEventListener("click", () => irA("hoy"));
+  document.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => irA(b.dataset.sub)));
+}
+// ---- Mapa de inicio: su posición y el punto al que debe ir (retiro, o destino si el pasajero va a bordo)
+let mapaIni = null, pinYo = null, pinDest = null, destClave = "";
+async function geocodificar(dir) {
+  const k = "fk_geo_" + dir; try { const c = JSON.parse(localStorage.getItem(k) || "null"); if (c) return c; } catch (_) {}
+  if (/aeropuerto|\bscl\b/i.test(dir)) return [-33.3930, -70.7858]; // Aeropuerto de Santiago
+  try { const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=cl&q=" + encodeURIComponent(dir + ", Región Metropolitana, Chile"));
+    const j = await r.json(); if (!j[0]) return null; const c = [Number(j[0].lat), Number(j[0].lon)]; try { localStorage.setItem(k, JSON.stringify(c)); } catch (_) {} return c; } catch (_) { return null; }
+}
+async function mapaInicio(r) {
+  if (!window.L || !window.FKMapa) return;
+  if (!mapaIni) mapaIni = FKMapa.crear($("inicio-mapa"), null, 11);
+  setTimeout(() => mapaIni.invalidateSize(), 50);
+  const yoPos = ultimaPos ? [ultimaPos.coords.latitude, ultimaPos.coords.longitude] : null;
+  if (yoPos) { const ic = FKMapa.icono(esc(yo.movil || "K"), yo.disponible ? "libre" : "viejo"); if (!pinYo) pinYo = L.marker(yoPos, { icon: ic, title: "Usted" }).addTo(mapaIni); else pinYo.setLatLng(yoPos).setIcon(ic); }
+  const dir = r ? (r.estado === "a_bordo" ? r.destino : r.origen) : null;
+  if (dir !== destClave) {
+    destClave = dir; if (pinDest) { pinDest.remove(); pinDest = null; }
+    if (dir) { const c = await geocodificar(dir); if (c && destClave === dir) pinDest = L.marker(c, { icon: L.divIcon({ className: "fk-dest", html: "<span>📍</span>", iconSize: [30, 30], iconAnchor: [15, 28] }), title: dir }).addTo(mapaIni).bindPopup(esc(dir)); }
+  }
+  const pts = [pinYo && pinYo.getLatLng(), pinDest && pinDest.getLatLng()].filter(Boolean);
+  if (pts.length === 2) mapaIni.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); else if (pts.length === 1) mapaIni.setView(pts[0], 14);
+}
+// Ganancia de hoy (en el encabezado)
+async function gananciaHoy() {
+  const ini = FK.chileLocalToISO(diaKey(new Date().toISOString()) + "T00:00");
+  const { data } = await sb.from("v_cobro").select("total").eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", ini);
+  const n = (data || []).length, t = (data || []).reduce((a, x) => a + (x.total || 0), 0);
+  $("hoy-gan").textContent = `Hoy: ${clp(t)} · ${n} servicio(s)`;
 }
 
 // ---- Servicio nuevo: aviso con sonido, vibración y notificación; el conductor acepta o dice que no puede
@@ -362,7 +435,8 @@ async function pintarGanancias() {
 function pintarConexion() {
   $("con").setAttribute("aria-pressed", String(!!yo.disponible));
   $("con").classList.toggle("on", !!yo.disponible);
-  $("con-txt").textContent = yo.disponible ? "Conectado · recibiendo servicios" : "Desconectado · toque para conectarse";
+  $("con-txt").textContent = yo.disponible ? "Conectado" : "Desconectado";
+  $("con").title = yo.disponible ? "Recibiendo servicios. Toque para desconectarse." : "Toque para conectarse y recibir servicios.";
 }
 $("con").addEventListener("click", async () => {
   const nuevo = !yo.disponible;
@@ -418,8 +492,8 @@ async function pintarPerfil() {
   $("list").innerHTML = `
     <div class="svc perfil">
       <div style="display:flex;gap:14px;align-items:center">
-        <div class="fl-foto">${yo.foto_path ? `<img src="${esc(fotoUrl(yo.foto_path))}" alt="Su foto">` : `<span>${esc(yo.nombre[0])}</span>`}</div>
-        <div><div class="who">${esc(yo.nombre)}</div><div class="small muted">${esc(yo.telefono || "")}</div>
+        <div class="fl-foto" style="width:92px;height:92px">${yo.foto_path ? `<img src="${esc(fotoUrl(yo.foto_path))}" alt="Su foto">` : `<span>${esc(yo.nombre[0])}</span>`}</div>
+        <div><div class="who">${esc(yo.nombre)}</div>${yo.movil ? `<span class="movil">Móvil ${esc(yo.movil)}</span> ` : ""}<span class="small ${yo.disponible ? "ok-txt" : "muted"}">● ${yo.disponible ? "Conectado" : "Desconectado"}</span><div class="small muted">${esc(yo.telefono || "")}</div>
           ${prom != null ? `<div>${FKChat.fijas(Math.round(prom))} <b>${prom.toFixed(1).replace(".", ",")}</b> <span class="small muted">(${cs.length} calificación(es))</span></div>` : '<div class="small muted">Aún sin calificaciones</div>'}</div>
       </div>
       <p class="small muted" style="margin:0">La foto y el teléfono los actualiza la central.</p>
@@ -493,31 +567,49 @@ async function pintarPerfil() {
 
 function pintar() {
   if (vista === "gan") return pintarGanancias();
+  $("inicio-mapa").hidden = vista !== "inicio";
   if (vista === "perfil") return pintarPerfil();
   const hoy = diaKey(new Date().toISOString());
   // "Hoy" = lo de hoy más todo lo de las próximas 12 horas (vuelos de madrugada).
   const enHoy = r => diaKey(r.fecha_hora) === hoy || new Date(r.fecha_hora).getTime() < Date.now() + 12 * 3600e3;
-  const lista = items.filter(r => vista === "hoy" ? enHoy(r) : !enHoy(r));
-  if (!lista.length) { $("list").innerHTML = `<p class="muted">${vista === "hoy" ? "No tiene servicios para hoy." : "No tiene servicios próximos."}</p>`; return; }
-  let ultimoDia = "";
-  $("list").innerHTML = lista.map(r => {
+  let lista, cabecera = "";
+  if (vista === "inicio") {
+    // Inicio: el servicio en curso o el próximo (no el último realizado)
+    const principal = items.find(r => EN_CURSO.includes(r.estado)) || items.filter(r => !["finalizada", "cancelada"].includes(r.estado)).sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))[0];
+    lista = principal ? [principal] : [];
+    const pendientes = items.filter(r => !["finalizada", "cancelada"].includes(r.estado) && enHoy(r)).length;
+    cabecera = `<div class="inicio-tit"><b>${principal ? (EN_CURSO.includes(principal.estado) ? "Servicio en curso" : "Próximo servicio") : "Sin servicios pendientes"}</b>${pendientes > 1 ? ` <button type="button" class="linkbtn" id="ver-todos">Ver los ${pendientes} de hoy →</button>` : ""}</div>`;
+    mapaInicio(principal);
+    if (!principal) { $("list").innerHTML = cabecera + `<p class="muted">${yo.disponible ? "Está conectado. Cuando la central le asigne un servicio, le avisaremos con sonido." : "Está desconectado. Conéctese arriba para recibir servicios."}</p>`; return; }
+  } else {
+    lista = items.filter(r => vista === "hoy" ? enHoy(r) : !enHoy(r));
+    // Primero lo pendiente (por hora); al final lo realizado
+    const hechos = r => ["finalizada", "cancelada"].includes(r.estado);
+    lista = lista.filter(r => !hechos(r)).concat(lista.filter(hechos).sort((a, b) => new Date(b.fecha_hora) - new Date(a.fecha_hora)));
+    cabecera = `<div class="sub-tabs"><button type="button" class="chip ${vista === "hoy" ? "on" : ""}" data-sub="hoy">Hoy</button><button type="button" class="chip ${vista === "prox" ? "on" : ""}" data-sub="prox">Próximos días</button></div>`;
+    if (!lista.length) { $("list").innerHTML = cabecera + `<p class="muted">${vista === "hoy" ? "No tiene servicios para hoy." : "No tiene servicios próximos."}</p>`; enlazarCabecera(); return; }
+  }
+  let ultimoDia = "", yaRealizados = false;
+  $("list").innerHTML = cabecera + lista.map(r => {
     const s = SIG[r.estado], fin = r.estado === "finalizada";
     const veh = vehiculos[r.vehiculo_id];
     const cobro = r.precio ?? r.tarifa_web;
-    const head = vista === "prox" && diaKey(r.fecha_hora) !== ultimoDia ? `<h3 style="margin:10px 0 0;text-transform:capitalize">${esc(diaTxt(r.fecha_hora))}</h3>` : "";
+    let head = vista === "prox" && diaKey(r.fecha_hora) !== ultimoDia ? `<h3 style="margin:10px 0 0;text-transform:capitalize">${esc(diaTxt(r.fecha_hora))}</h3>` : "";
+    if (vista === "hoy" && fin && !yaRealizados) { yaRealizados = true; head = '<h3 style="margin:14px 0 0">Realizados</h3>'; }
     ultimoDia = diaKey(r.fecha_hora);
     const msgWa = `Hola ${r.nombre_pasajero.split(" ")[0]}, le saluda ${yo.nombre.split(" ")[0]} de Flota-K, su conductor para hoy a las ${hora(r.fecha_hora)}.`;
     return `${head}<article class="svc ${fin ? "done" : ""}" data-id="${esc(r.id)}">
       <div class="top" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="time">${esc(hora(r.fecha_hora))}</span>${pill(r.estado)}</div>
       ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
+      ${!fin ? `<a class="btn navegar" href="${waze(r.estado === "a_bordo" ? r.destino : r.origen)}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>` : ""}
       <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
       ${r.estado === "en_lugar" ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="https://www.google.com/search?q=${encodeURIComponent(r.vuelo + " estado del vuelo")}" target="_blank" rel="noopener" style="color:var(--gold)"><b>${esc(r.vuelo)}</b></a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>
-        <div class="nav"><a class="btn ghost sm" href="${waze(r.origen)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen)}" target="_blank" rel="noopener">Google Maps</a></div></div>
+        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
-        <div class="nav"><a class="btn ghost sm" href="${waze(r.destino)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino)}" target="_blank" rel="noopener">Google Maps</a></div></div>
+        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       ${r.comentarios ? `<p class="small"><b>Nota:</b> ${esc(r.comentarios)}</p>` : ""}
       <div class="pay">${r.tipo_cobro === "taximetro"
         ? `<b>Taxímetro</b> · se calcula al finalizar (bajada ${clp(tar.taxi_bajada)}, ${clp(tar.taxi_cada_200m)} cada 200 m, ${clp(tar.taxi_cada_60s)} cada 60 s)`
@@ -529,8 +621,8 @@ function pintar() {
       <div class="contact">
         ${EN_CURSO.includes(r.estado) ? `<button class="btn ghost chat-btn" type="button" style="grid-column:1/-1">${chatAbiertoId === r.id ? "Cerrar mensajes" : "Mensajes con el pasajero"}<span class="badge" data-badge="${esc(r.id)}" hidden></span></button>
         ${chatAbiertoId === r.id ? '<div class="chat-box" style="grid-column:1/-1"></div>' : ""}` : ""}
-        <a class="btn ghost" href="tel:${esc(tel(r.telefono))}">Llamar</a>
-        <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>
+        ${fin ? "" : `<a class="btn ghost" href="tel:${esc(tel(r.telefono))}">Llamar</a>
+        <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>`}
       </div>
       ${veh ? `<p class="small muted">Vehículo: ${esc(veh.descripcion || "")} · ${esc(veh.patente)}</p>` : ""}
       ${s && !fin ? (pendiente === r.id
@@ -552,7 +644,7 @@ function pintar() {
       <div class="msg err" hidden></div>
     </article>`;
   }).join("");
-  setTimeout(pintarBadges, 0);
+  setTimeout(pintarBadges, 0); enlazarCabecera();
   $("list").querySelectorAll(".svc").forEach(card => {
     const id = card.dataset.id;
     card.querySelector(".next")?.addEventListener("click", ev => {
@@ -717,6 +809,7 @@ async function enviarUbicacion(forzar) {
   enviando = false;
   if (error) return gpsEstado("err", "No se pudo enviar la ubicación: " + errText(error));
   ultimoEnvio = Date.now();
+  if (vista === "inicio" && mapaIni && ultimaPos) { const p = [ultimaPos.coords.latitude, ultimaPos.coords.longitude]; if (pinYo) pinYo.setLatLng(p); else mapaInicio(items.find(r => EN_CURSO.includes(r.estado))); }
   gpsEstado("ok", (enServicio() ? "Compartiendo ubicación con el pasajero y el despacho" : "Ubicación visible para el despacho") + " · enviada " + hora(new Date().toISOString()));
   pantallaEncendida();
 }
