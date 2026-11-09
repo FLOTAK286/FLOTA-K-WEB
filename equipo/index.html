@@ -90,6 +90,10 @@
       <h2>Registrar una reserva</h2>
       <p class="muted">Para reservas que llegan por teléfono, WhatsApp o correo.</p>
       <form id="nf" novalidate class="list">
+        <div class="f" style="position:relative"><label for="n-buscar">¿Cliente registrado? Búsquelo y se completan sus datos</label>
+          <input id="n-buscar" placeholder="Escriba nombre, teléfono o correo" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="n-sug">
+          <div id="n-sug" class="sug" role="listbox" hidden></div></div>
+        <div id="n-cli" class="pay" hidden></div>
         <div class="row3">
           <div class="f"><label for="n-nombre">Pasajero</label><input id="n-nombre" required></div>
           <div class="f"><label for="n-tel">Teléfono</label><input id="n-tel" type="tel" required></div>
@@ -308,6 +312,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   clearInterval(timerMapa);
   if (b.dataset.tab === "mapa") { cargarMapa(); timerMapa = setInterval(cargarMapa, 15000); }
   if (b.dataset.tab === "reservas") cargarReservas();
+  if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "agenda") cargarAgenda();
   if (b.dataset.tab === "clientes") { $("cl-ficha").hidden = true; $("cl-lista").hidden = false; cargarClientes(); }
@@ -798,6 +803,72 @@ $("tf").addEventListener("submit", async e => {
 });
 
 // ---- Nueva reserva
+// ---- Nueva reserva: clientes registrados (se completan sus datos)
+let baseClientes = [], clienteSel = null;
+const norm = t => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const tel8 = t => (t || "").replace(/\D/g, "").slice(-8);
+async function cargarBaseClientes() {
+  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo").order("nombre").limit(5000);
+  baseClientes = data || [];
+}
+function buscarClientes(q) {
+  const n = norm(q).trim(), d = tel8(q);
+  if (n.length < 2 && d.length < 4) return [];
+  return baseClientes.filter(c => norm(c.nombre).includes(n) || (c.correo && norm(c.correo).includes(n)) || (d.length >= 4 && tel8(c.telefono).includes(d))).slice(0, 8);
+}
+function pintarSugerencias(lista) {
+  const box = $("n-sug");
+  box.hidden = !lista.length; $("n-buscar").setAttribute("aria-expanded", String(!!lista.length));
+  box.innerHTML = lista.map(c => `<button type="button" role="option" data-c="${esc(c.id)}"><b>${esc(c.nombre)}</b> <span class="muted small">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}</span></button>`).join("");
+  box.querySelectorAll("[data-c]").forEach(b => b.addEventListener("click", () => elegirCliente(b.dataset.c)));
+}
+async function elegirCliente(id) {
+  const c = baseClientes.find(x => x.id === id); if (!c) return;
+  clienteSel = c.id;
+  $("n-nombre").value = c.nombre || ""; $("n-tel").value = c.telefono || ""; $("n-mail").value = c.correo || "";
+  $("n-buscar").value = ""; pintarSugerencias([]);
+  // Último servicio del cliente: preferencias y trayecto para repetir
+  const { data: u } = await sb.from("reservas").select("origen, destino, tipo_servicio, vehiculo, forma_pago, tipo_cobro, precio, pasajeros, maletas, fecha_hora")
+    .eq("cliente_id", c.id).neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(1);
+  const r = u && u[0];
+  if (r) {
+    if (r.forma_pago) $("n-pago").value = r.forma_pago;
+    if (r.tipo_cobro) $("n-cobro").value = r.tipo_cobro;
+    if (r.vehiculo) $("n-veh").value = r.vehiculo;
+    if (r.pasajeros) $("n-pax").value = r.pasajeros;
+    if (r.maletas != null) $("n-maletas").value = r.maletas;
+  }
+  const { count } = await sb.from("reservas").select("id", { count: "exact", head: true }).eq("cliente_id", c.id).neq("estado", "cancelada");
+  $("n-cli").hidden = false;
+  $("n-cli").innerHTML = `<b>Cliente registrado: ${esc(c.nombre)}</b> · ${count || 0} servicio(s) anteriores. Datos de contacto completados${r ? " y preferencias del último servicio (pago, cobro, vehículo, pasajeros)" : ""}.
+    ${r ? `<div class="small" style="margin-top:6px">Último viaje (${esc(fecha(r.fecha_hora))}): ${esc(r.origen)} → ${esc(r.destino)}${r.precio != null ? ` · ${clp(r.precio)}` : ""}</div>
+    <div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-mismo">Mismo trayecto</button><button class="btn ghost sm" type="button" id="n-inv">Trayecto de vuelta</button><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`
+    : `<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`}`;
+  const usar = (o, d, inv) => {
+    $("n-origen").value = o; $("n-destino").value = d;
+    if (r.precio != null) $("n-precio").value = r.precio;
+    const tipo = inv ? ({ ida: "regreso", regreso: "ida" }[r.tipo_servicio] || r.tipo_servicio) : r.tipo_servicio;
+    if (tipo) $("n-tipo").value = tipo;
+  };
+  $("n-mismo")?.addEventListener("click", () => usar(r.origen, r.destino, false));
+  $("n-inv")?.addEventListener("click", () => usar(r.destino, r.origen, true));
+  $("n-quitar").addEventListener("click", () => { clienteSel = null; $("n-cli").hidden = true; });
+}
+$("n-buscar").addEventListener("input", e => pintarSugerencias(buscarClientes(e.target.value)));
+$("n-buscar").addEventListener("keydown", e => { if (e.key === "Escape") pintarSugerencias([]); });
+// Si escriben directo un teléfono o correo de un cliente existente, se ofrece usar sus datos.
+function detectarCliente() {
+  if (clienteSel) return;
+  const d = tel8($("n-tel").value), m = norm($("n-mail").value).trim();
+  const c = baseClientes.find(x => (d.length === 8 && tel8(x.telefono) === d) || (m && x.correo && norm(x.correo) === m));
+  if (!c) return;
+  $("n-cli").hidden = false;
+  $("n-cli").innerHTML = `Este contacto ya es cliente: <b>${esc(c.nombre)}</b>. <button class="btn ghost sm" type="button" id="n-usar">Usar sus datos</button>`;
+  $("n-usar").addEventListener("click", () => elegirCliente(c.id));
+}
+$("n-tel").addEventListener("change", detectarCliente);
+$("n-mail").addEventListener("change", detectarCliente);
+
 $("nf").addEventListener("submit", async e => {
   e.preventDefault();
   const req = ["n-nombre", "n-tel", "n-fecha", "n-origen", "n-destino"];
@@ -812,10 +883,11 @@ $("nf").addEventListener("submit", async e => {
     precio: $("n-precio").value === "" ? null : Number($("n-precio").value), forma_pago: $("n-pago").value || null,
     comentarios: $("n-com").value.trim() || null, estado: "confirmada"
   };
+  if (clienteSel) fila.cliente_id = clienteSel;
   const { data, error } = await sb.from("reservas").insert(fila).select("codigo").single();
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", `Reserva ${data.codigo} guardada como confirmada.`, "ok");
-  $("nf").reset();
+  $("nf").reset(); clienteSel = null; $("n-cli").hidden = true;
 });
 
 // ---- Equipo y roles (solo admin)

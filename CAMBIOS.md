@@ -1,6 +1,11 @@
 # Cambios
 
-## 9 nov 2026 · Cobros: todo servicio queda pendiente hasta que administración lo marque pagado (pendiente de publicar)
+## 9 nov 2026 · Nueva reserva con clientes registrados
+- En "Nueva reserva" hay un buscador de clientes (nombre, teléfono o correo). Al elegir uno se completan nombre, teléfono y correo, y las preferencias de su último servicio (forma de pago, tipo de cobro, vehículo, pasajeros, maletas). Botones "Mismo trayecto" y "Trayecto de vuelta" (invierte origen/destino y el tipo ida/regreso, con el precio anterior).
+- Si se escribe a mano un teléfono o correo que ya es de un cliente, avisa "Este contacto ya es cliente" con "Usar sus datos".
+- La reserva queda unida a ese cliente.
+
+## 9 nov 2026 · Cobros: todo servicio queda pendiente hasta que administración lo marque pagado
 - Corregido: "Clientes y cobros" mostraba $0 pendiente porque al agregar las calificaciones se cruzó el orden de dos consultas (leía calificaciones en vez de cobros).
 - Regla nueva del dueño: todo servicio no cancelado (realizado o por realizar) queda **pendiente de pago** hasta que un administrador lo marque como pagado. Aplica a la lista de clientes, la ficha del cliente, el filtro "Por cobrar (no pagados)" y la planilla Excel (que ahora incluye la columna "Estado del servicio").
 - La ficha del cliente muestra por defecto todos los servicios (sin fecha "hasta"); un taxímetro aún no finalizado aparece como "se calcula al finalizar".
