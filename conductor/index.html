@@ -129,7 +129,7 @@ $("reload").addEventListener("click", () => cargar());
 
 async function iniciar(session) {
   $("login").hidden = true;
-  await sb.rpc("aceptar_invitacion");
+  try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
   const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce").eq("id", session.user.id).maybeSingle();
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; return; }
   yo = data;
@@ -443,7 +443,21 @@ async function enviarUbicacion(forzar) {
   if (!forzar && Date.now() - ultimoEnvio < cada) return;
   enviando = true;
   const c = ultimaPos.coords, num = v => (v === null || v === undefined || isNaN(v)) ? null : Math.round(v);
-  const { error } = await sb.rpc("conductor_ubicacion", { p_lat: c.latitude, p_lng: c.longitude, p_precision: num(c.accuracy), p_rumbo: num(c.heading), p_velocidad: c.speed == null || isNaN(c.speed) ? null : Math.round(c.speed * 3.6) });
+  const args = { p_lat: c.latitude, p_lng: c.longitude, p_precision: num(c.accuracy), p_rumbo: num(c.heading), p_velocidad: c.speed == null || isNaN(c.speed) ? null : Math.round(c.speed * 3.6) };
+  // En la app Android se envía por la conexión nativa: Android no la frena cuando la app está en segundo plano.
+  let error = null, hecho = false;
+  if (NATIVO) {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await window.Capacitor.registerPlugin("CapacitorHttp").post({
+        url: window.FK_CONFIG.url + "/rest/v1/rpc/conductor_ubicacion",
+        headers: { apikey: window.FK_CONFIG.anonKey, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
+        data: args
+      });
+      if (res.status >= 400) error = { message: (res.data && res.data.message) || "Error " + res.status }; else hecho = true;
+    } catch (_) { /* si falla, se intenta por la vía normal */ }
+  }
+  if (!hecho && !error) ({ error } = await sb.rpc("conductor_ubicacion", args));
   enviando = false;
   if (error) return gpsEstado("err", "No se pudo enviar la ubicación: " + errText(error));
   ultimoEnvio = Date.now();
@@ -482,6 +496,18 @@ async function revisarVersionApp() {
 let ocultar = false; try { ocultar = localStorage.getItem("fk_apk_x") === "1"; } catch (_) {}
 if (!NATIVO && !ocultar && /android/i.test(navigator.userAgent)) $("install").hidden = false;
 $("install-x").addEventListener("click", () => { $("install").hidden = true; try { localStorage.setItem("fk_apk_x", "1"); } catch (_) {} });
+
+// Si algo falla, se muestra en pantalla en vez de quedar en blanco.
+function mostrarFalla(t) {
+  if ($("falla")) return;
+  const d = document.createElement("section"); d.id = "falla"; d.className = "panel";
+  d.innerHTML = `<p class="msg err" style="margin:0">Algo falló al cargar: ${esc(String(t).slice(0, 300))}</p><div class="actions"><button class="btn" type="button">Reintentar</button></div><p class="small muted">Si se repite, envíe una captura de esta pantalla a gerencia@fk-servicios.com.</p>`;
+  d.querySelector("button").onclick = () => location.reload();
+  document.querySelector("main").prepend(d);
+}
+window.addEventListener("error", e => { if (!yo) mostrarFalla(e.message); });
+window.addEventListener("unhandledrejection", e => { if (!yo) mostrarFalla(e.reason && (e.reason.message || e.reason)); });
+setTimeout(() => { if (!yo && $("login").hidden && $("noaccess").hidden) mostrarFalla("la app no respondió a tiempo. Revise su internet."); }, 15000);
 
 let iniciado = false;
 sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
