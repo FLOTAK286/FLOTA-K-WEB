@@ -32,9 +32,8 @@ jobs:
             FK_KEYSTORE="$RUNNER_TEMP/flotak.jks" ./gradlew assembleRelease --no-daemon
             cp app/build/outputs/apk/release/app-release.apk ../flota-k-conductor.apk
           else
-            echo "::warning::Sin llave de firma: se arma una versión de prueba que no se puede instalar encima de la anterior."
-            ./gradlew assembleDebug --no-daemon
-            cp app/build/outputs/apk/debug/app-debug.apk ../flota-k-conductor.apk
+            echo "::error::Falta la llave de firma (secretos FK_KEYSTORE_B64 y FK_KEYSTORE_PASS). No se publica ninguna app sin firma fija."
+            exit 1
           fi
       - uses: softprops/action-gh-release@v2
         with:

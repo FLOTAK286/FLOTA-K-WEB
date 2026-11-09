@@ -64,6 +64,7 @@
       <div class="tabs" role="tablist" style="border:0">
         <button role="tab" data-v="hoy" aria-selected="true">Hoy</button>
         <button role="tab" data-v="prox" aria-selected="false">Próximos</button>
+        <button role="tab" data-v="gan" aria-selected="false">Ganancias</button>
       </div>
     </div>
     <div class="panel install" id="upd" hidden style="margin-top:12px">
@@ -160,12 +161,40 @@ async function cargar() {
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   items = data || [];
-  if (pendiente || obsAbierta) return; // no borrar lo que el conductor está escribiendo
+  if (pendiente || obsAbierta || vista === "gan") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
   pintar();
 }
 
+// ---- Ganancias: lo generado por servicios finalizados (hoy, semana, mes)
+async function pintarGanancias() {
+  $("list").innerHTML = '<p class="muted">Cargando…</p>';
+  const { data, error } = await sb.from("v_cobro").select("id, codigo, fecha_hora, nombre_pasajero, origen, destino, tipo_cobro, valor_base, gastos, total, pagado")
+    .eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", new Date(Date.now() - 45 * 864e5).toISOString()).order("fecha_hora", { ascending: false });
+  if (vista !== "gan") return;
+  if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const rows = data || [], hoy = diaKey(new Date().toISOString());
+  // Lunes de esta semana y día 1 del mes, en hora de Chile
+  const [y, m, d] = hoy.split("-").map(Number), base = new Date(Date.UTC(y, m - 1, d));
+  const lunes = new Date(base.getTime() - ((base.getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
+  const mes = hoy.slice(0, 8) + "01";
+  const suma = desde => { const r = rows.filter(x => diaKey(x.fecha_hora) >= desde); return { n: r.length, t: r.reduce((a, x) => a + (x.total || 0), 0), g: r.reduce((a, x) => a + (x.gastos || 0), 0), p: r.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0) }; };
+  const caja = (titulo, v) => `<div class="pay" style="display:grid;gap:2px"><small class="muted" style="text-transform:uppercase;letter-spacing:.06em">${titulo}</small>
+    <span class="time" style="font-size:1.7rem">${clp(v.t)}</span><span class="small muted">${v.n} servicio(s)${v.g ? ` · incluye ${clp(v.g)} en gastos` : ""}${v.p ? ` · ${clp(v.p)} por cobrar` : ""}</span></div>`;
+  const delMes = rows.filter(x => diaKey(x.fecha_hora) >= mes);
+  $("list").innerHTML = `
+    <div style="display:grid;gap:10px">${caja("Hoy", suma(hoy))}${caja("Esta semana (desde el lunes)", suma(lunes))}${caja("Este mes", suma(mes))}</div>
+    <h3 style="margin:14px 0 4px">Servicios finalizados del mes</h3>
+    ${delMes.length ? delMes.map(x => `<div class="card" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <div><b>${esc(new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "numeric", month: "short" }))} · ${esc(hora(x.fecha_hora))}</b> <span class="muted small">${esc(x.codigo)}</span><br>
+      <span class="small">${esc(x.nombre_pasajero)} · ${esc(x.origen)} → ${esc(x.destino)}</span><br>
+      <span class="small muted">${x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija"}${x.gastos ? ` · gastos ${clp(x.gastos)}` : ""}</span></div>
+      <div style="text-align:right"><b>${clp(x.total)}</b><br><span class="small ${x.pagado ? "muted" : ""}">${x.pagado ? "Pagado" : "Por cobrar"}</span></div></div>`).join("") : '<p class="muted">Aún no hay servicios finalizados este mes.</p>'}
+    <p class="small muted">Montos de lo cobrado al cliente (valor del servicio más gastos como TAG, peajes o estacionamiento). Servicios cancelados no se cuentan.</p>`;
+}
+
 function pintar() {
+  if (vista === "gan") return pintarGanancias();
   const hoy = diaKey(new Date().toISOString());
   // "Hoy" = lo de hoy más todo lo de las próximas 12 horas (vuelos de madrugada).
   const enHoy = r => diaKey(r.fecha_hora) === hoy || new Date(r.fecha_hora).getTime() < Date.now() + 12 * 3600e3;

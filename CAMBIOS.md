@@ -1,5 +1,13 @@
 # Cambios
 
+## 9 nov 2026 · Pestaña "Ganancias" en la app del conductor (pendiente de publicar)
+- Muestra lo generado hoy, esta semana (desde el lunes) y este mes, con cantidad de servicios, gastos incluidos y lo que falta por cobrar. Debajo, la lista de servicios finalizados del mes (pagado / por cobrar).
+- Cada conductor ve solo sus servicios (probado en base de datos).
+- Seguridad de la app Android: GitHub ya no arma la app si falta la llave de firma; `app-android/version.json` queda en 1 hasta que la llave esté guardada (luego se sube a 2 y aparece el aviso "Actualizar app").
+
+### Pendiente del dueño
+- Guardar los secretos `FK_KEYSTORE_PASS` y `FK_KEYSTORE_B64` en GitHub (archivo llave-flota-k.txt enviado el 9 nov). Recordatorio programado.
+
 ## 9 nov 2026 · Actualización automática de la app Android (pendiente: llave de firma)
 - La app abre la página, así que **todas las mejoras de pantallas y funciones llegan solas**, sin descargar nada.
 - Si cambia la parte instalada (pocas veces), la app muestra "Hay una versión nueva" con un botón "Actualizar app" que se instala encima. La versión se lleva en `app-android/version.json`.
