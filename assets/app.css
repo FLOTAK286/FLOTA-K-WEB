@@ -68,7 +68,17 @@ dialog .panel { border: 0; }
 .mapa.alto { height: 460px; }
 .leaflet-container { font: inherit; }
 .fk-pin span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--gold); color: #17130a; font-family: var(--font-display); font-weight: 700; font-size: 1rem; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45); }
-.fk-pin.viejo span { background: #8a8d93; }
+.fk-pin.libre span { background: #3ecf7f; color: #062b16; }
+.fk-pin.ocupado span { background: #e5533d; color: #fff; }
+.fk-pin.pronto span { background: var(--gold); }
+.fk-pin.viejo span { background: #8a8d93; color: #fff; }
+.mp-ley { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .88rem; }
+.mp-ley i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.mp-est { font-weight: 700; font-size: .85rem; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.mp-est.libre { background: #3ecf7f22; color: #1f9d5a; border: 1px solid #3ecf7f; }
+.mp-est.pronto { background: #d4a64a22; color: #a8801f; border: 1px solid var(--gold); }
+.mp-est.ocupado { background: #e5533d22; color: #c0392b; border: 1px solid #e5533d; }
+.mp-est.viejo { background: #8a8d9322; color: #6b6e74; border: 1px solid #8a8d93; }
 .gps { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); font-size: .92rem; }
 .gps.ok { border-color: #2f8a5b; }
 .gps.err { border-color: #c0392b; }

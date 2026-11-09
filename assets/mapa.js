@@ -7,8 +7,10 @@ window.FKMapa = {
     }).addTo(m);
     return m;
   },
-  icono(txt, viejo) {
-    return L.divIcon({ className: "fk-pin" + (viejo ? " viejo" : ""), html: "<span>" + (txt || "K") + "</span>", iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] });
+  // estilo: true = sin señal (gris), o "libre" / "ocupado" / "viejo"
+  icono(txt, estilo) {
+    const c = estilo === true ? "viejo" : (estilo || "");
+    return L.divIcon({ className: "fk-pin" + (c ? " " + c : ""), html: "<span>" + (txt || "K") + "</span>", iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] });
   },
   hace(iso) {
     const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));

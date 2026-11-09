@@ -78,9 +78,10 @@
 
     <div data-pane="mapa" class="panel" style="margin-top:14px" hidden>
       <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Mapa en vivo</h2><span class="muted small" id="mp-act"></span></div>
+      <div class="mp-ley"><span><i style="background:#3ecf7f"></i>Disponible</span><span><i style="background:#d4a64a"></i>Disponible, con servicio en menos de 1 hora</span><span><i style="background:#e5533d"></i>Ocupado (en servicio)</span><span><i style="background:#8a8d93"></i>Sin señal / app cerrada</span></div>
       <div id="mp-mapa" class="mapa alto"></div>
       <div id="mp-lista" class="list"></div>
-      <p class="muted small">Se actualiza solo cada 15 segundos. Cada conductor envía su ubicación mientras tiene abierta la app del conductor (cada 15 s en servicio, cada minuto sin servicio). En gris: sin señal hace más de 3 minutos.</p>
+      <p class="muted small">Se actualiza solo cada 15 segundos. Con la app Android, cada conductor envía su ubicación aunque use otras apps (cada 15 s en servicio, cada minuto sin servicio). Gris: sin señal hace más de 3 minutos (app cerrada, sin internet o teléfono apagado).</p>
     </div>
 
     <div data-pane="nueva" class="panel" style="margin-top:14px" hidden>
@@ -310,39 +311,63 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
-// ---- Mapa en vivo
+// ---- Mapa en vivo: dónde está cada conductor y si está disponible, ocupado o con un servicio próximo
 let mapaEq = null, pinesEq = {}, timerMapa = null, centradoEq = false;
+const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
 async function cargarMapa() {
   if (!window.L || !window.FKMapa) { $("mp-lista").innerHTML = '<p class="msg err">No se pudo cargar el mapa. Revise su conexión.</p>'; return; }
   if (!mapaEq) mapaEq = FKMapa.crear($("mp-mapa"));
   setTimeout(() => mapaEq.invalidateSize(), 60);
-  const { data: us, error } = await sb.from("ubicaciones").select("conductor_id, reserva_id, lat, lng, precision_m, velocidad_kmh, actualizado_en").order("actualizado_en", { ascending: false });
+  if (!conductores.length) await cargarRecursos();
+  const desde = new Date(Date.now() - 12 * 3600e3).toISOString(), hasta = new Date(Date.now() + 36 * 3600e3).toISOString();
+  const [{ data: us, error }, { data: rs }] = await Promise.all([
+    sb.from("ubicaciones").select("conductor_id, reserva_id, lat, lng, precision_m, velocidad_kmh, actualizado_en"),
+    sb.from("reservas").select("id, codigo, estado, fecha_hora, nombre_pasajero, origen, destino, conductor_id")
+      .not("conductor_id", "is", null).in("estado", ["confirmada", "asignada", "en_camino", "en_lugar", "a_bordo"])
+      .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora")
+  ]);
   if (error) { $("mp-lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
-  const ids = (us || []).map(u => u.reserva_id).filter(Boolean);
-  const { data: rs } = ids.length ? await sb.from("reservas").select("id, codigo, estado, nombre_pasajero, destino").in("id", ids) : { data: [] };
+  const ids = new Set([...conductores.map(c => c.id), ...(us || []).map(u => u.conductor_id)]);
+  const filas = [...ids].map(id => {
+    const u = (us || []).find(x => x.conductor_id === id);
+    const mias = (rs || []).filter(r => r.conductor_id === id);
+    const actual = mias.find(r => EN_CURSO.includes(r.estado));
+    const proximo = mias.find(r => !EN_CURSO.includes(r.estado) && new Date(r.fecha_hora) > Date.now() - 30 * 60e3);
+    const sinSenal = !u || Date.now() - new Date(u.actualizado_en) > 3 * 60e3;
+    const pronto = proximo && new Date(proximo.fecha_hora) - Date.now() < 60 * 60e3;
+    const est = actual ? "ocupado" : sinSenal ? "viejo" : pronto ? "pronto" : "libre";
+    const txt = actual ? `Ocupado · ${ESTADOS[actual.estado].t}` : sinSenal ? "Sin señal" : pronto ? "Disponible · sale pronto" : "Disponible";
+    return { id, u, actual, proximo, sinSenal, est, txt, nom: nombreConductor(id) || "Conductor" };
+  }).sort((a, b) => ({ ocupado: 0, pronto: 1, libre: 2, viejo: 3 }[a.est] - { ocupado: 0, pronto: 1, libre: 2, viejo: 3 }[b.est]) || (a.sinSenal - b.sinSenal) || a.nom.localeCompare(b.nom));
+  const det = r => `${esc(r.codigo)} · ${esc(hora(r.fecha_hora))} · ${esc(r.nombre_pasajero)} · ${esc(r.origen)} → ${esc(r.destino)}`;
   const vivos = new Set();
-  (us || []).forEach(u => {
-    const r = (rs || []).find(x => x.id === u.reserva_id && ["en_camino", "en_lugar", "a_bordo"].includes(x.estado));
-    const nom = nombreConductor(u.conductor_id) || "Conductor";
-    const viejo = Date.now() - new Date(u.actualizado_en) > 3 * 60e3;
-    const pop = `<b>${esc(nom)}</b><br>${r ? `${esc(r.codigo)} · ${esc(ESTADOS[r.estado].t)}<br>${esc(r.nombre_pasajero)} → ${esc(r.destino)}` : "Sin servicio en curso"}<br><small>${FKMapa.hace(u.actualizado_en)}${u.velocidad_kmh != null ? " · " + u.velocidad_kmh + " km/h" : ""}</small>`;
-    vivos.add(u.conductor_id);
-    const ic = FKMapa.icono(esc(nom.trim()[0] || "K").toUpperCase(), viejo);
-    if (!pinesEq[u.conductor_id]) pinesEq[u.conductor_id] = L.marker([u.lat, u.lng], { icon: ic, title: nom }).addTo(mapaEq).bindPopup(pop);
-    else pinesEq[u.conductor_id].setLatLng([u.lat, u.lng]).setIcon(ic).setPopupContent(pop);
-    u._r = r; u._nom = nom; u._viejo = viejo;
+  filas.filter(f => f.u).forEach(f => {
+    const pop = `<b>${esc(f.nom)}</b> · ${esc(f.txt)}${f.sinSenal ? " (sin señal)" : ""}<br>` +
+      (f.actual ? `Ahora: ${det(f.actual)}<br>` : "") + (f.proximo ? `Próximo: ${det(f.proximo)}<br>` : "Sin servicios próximos<br>") +
+      `<small>Ubicación ${FKMapa.hace(f.u.actualizado_en)}${f.u.velocidad_kmh != null ? " · " + f.u.velocidad_kmh + " km/h" : ""}</small>`;
+    const ic = FKMapa.icono(esc((f.nom.trim()[0] || "K").toUpperCase()), f.sinSenal ? "viejo" : f.est);
+    vivos.add(f.id);
+    if (!pinesEq[f.id]) pinesEq[f.id] = L.marker([f.u.lat, f.u.lng], { icon: ic, title: f.nom }).addTo(mapaEq).bindPopup(pop);
+    else pinesEq[f.id].setLatLng([f.u.lat, f.u.lng]).setIcon(ic).setPopupContent(pop);
   });
   Object.keys(pinesEq).forEach(k => { if (!vivos.has(k)) { pinesEq[k].remove(); delete pinesEq[k]; } });
-  if (!centradoEq && us && us.length) {
+  const conPos = filas.filter(f => f.u);
+  if (!centradoEq && conPos.length) {
     centradoEq = true;
-    if (us.length === 1) mapaEq.setView([us[0].lat, us[0].lng], 14); else mapaEq.fitBounds(us.map(u => [u.lat, u.lng]), { padding: [40, 40], maxZoom: 15 });
+    if (conPos.length === 1) mapaEq.setView([conPos[0].u.lat, conPos[0].u.lng], 14); else mapaEq.fitBounds(conPos.map(f => [f.u.lat, f.u.lng]), { padding: [40, 40], maxZoom: 15 });
   }
-  $("mp-lista").innerHTML = us && us.length ? us.map(u => `
-    <div class="card" data-c="${esc(u.conductor_id)}" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
-      <div><b>${esc(u._nom)}</b> <span class="muted small">${FKMapa.hace(u.actualizado_en)}${u._viejo ? " · sin señal reciente" : ""}</span><br>
-      <span class="small">${u._r ? `${esc(u._r.codigo)} · ${esc(u._r.nombre_pasajero)} → ${esc(u._r.destino)}` : "Sin servicio en curso"}</span></div>
-      ${u._r ? pill(u._r.estado) : ""}
-    </div>`).join("") : '<p class="muted">Todavía ningún conductor ha compartido su ubicación. Aparecerá aquí cuando abra la app del conductor.</p>';
+  const cuenta = k => filas.filter(f => f.est === k).length;
+  $("mp-lista").innerHTML = (filas.length ? `<p class="small" style="margin:0"><b>${cuenta("libre") + cuenta("pronto")}</b> disponible(s) · <b>${cuenta("ocupado")}</b> ocupado(s) · <b>${cuenta("viejo")}</b> sin señal</p>` : "") +
+    (filas.length ? filas.map(f => `
+    <div class="card" data-c="${esc(f.id)}" style="cursor:pointer;display:grid;gap:4px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <div><b>${esc(f.nom)}</b> <span class="muted small">${f.u ? "ubicación " + FKMapa.hace(f.u.actualizado_en) : "nunca ha compartido ubicación"}</span></div>
+        <span class="mp-est ${f.est}">${esc(f.txt)}</span>
+      </div>
+      ${f.sinSenal ? `<span class="small">${f.actual ? '<span class="mp-est viejo">Sin señal</span> ' : ""}${f.u ? "La app está cerrada o el teléfono sin internet." : "Debe instalar y abrir la app del conductor."}</span>` : ""}
+      ${f.actual ? `<span class="small">Ahora: ${det(f.actual)}</span>` : ""}
+      <span class="small muted">${f.proximo ? "Próximo: " + det(f.proximo) : "Sin servicios agendados en las próximas 36 horas."}</span>
+    </div>`).join("") : '<p class="muted">No hay conductores. Marque "Conduce" en Equipo y roles.</p>');
   $("mp-lista").querySelectorAll("[data-c]").forEach(el => el.addEventListener("click", () => {
     const m = pinesEq[el.dataset.c]; if (m) { mapaEq.setView(m.getLatLng(), 15); m.openPopup(); $("mp-mapa").scrollIntoView({ behavior: "smooth", block: "center" }); }
   }));

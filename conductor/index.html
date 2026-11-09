@@ -6,7 +6,6 @@
 <title>Flota-K Conductor</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0a0b0d">
-<link rel="manifest" href="/conductor/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/img/icono-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Flota-K">
@@ -68,9 +67,9 @@
       </div>
     </div>
     <div class="panel install" id="install" hidden style="margin-top:12px">
-      <b>Instale la app en su teléfono</b>
-      <p class="small muted" id="install-txt">Así la abre con un toque, como cualquier aplicación.</p>
-      <div class="actions"><button class="btn sm" id="install-btn" type="button" hidden>Instalar</button><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
+      <b>Instale la app Android de Flota-K</b>
+      <p class="small muted">Sigue enviando su ubicación aunque use Waze o Cabify. Si tenía instalada la versión anterior (desde Chrome), desinstálela: mantenga presionado su ícono → Desinstalar.</p>
+      <div class="actions"><a class="btn sm" href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">Descargar app</a><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
     </div>
     <div class="gps" id="gps" style="margin-top:12px"><span class="dot"></span><span id="gps-txt">Ubicación: iniciando…</span><button class="btn ghost sm" id="gps-btn" type="button" hidden>Activar ubicación</button></div>
     <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
@@ -352,15 +351,11 @@ $("gps-btn").addEventListener("click", () => {
 setInterval(() => { if (geoId === null && watcherId === null && !gpsBloqueado && yo) iniciarGPS(); enviarUbicacion(); }, 15000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) { enviarUbicacion(true); pantallaEncendida(); } });
 
-// ---- Instalar como app
-if (!NATIVO && "serviceWorker" in navigator) navigator.serviceWorker.register("/conductor/sw.js", { scope: "/conductor/" }).catch(() => {});
-let promptInstalar = null;
-const yaInstalada = NATIVO || window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-let ocultar = false; try { ocultar = localStorage.getItem("fk_install_x") === "1"; } catch (_) {}
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalar = e; if (!yaInstalada && !ocultar) { $("install").hidden = false; $("install-btn").hidden = false; } });
-if (!yaInstalada && !ocultar && /iphone|ipad/i.test(navigator.userAgent)) { $("install").hidden = false; $("install-txt").textContent = "En iPhone: toque el botón Compartir y luego \"Agregar a inicio\"."; }
-$("install-btn").addEventListener("click", async () => { if (!promptInstalar) return; promptInstalar.prompt(); await promptInstalar.userChoice; $("install").hidden = true; });
-$("install-x").addEventListener("click", () => { $("install").hidden = true; try { localStorage.setItem("fk_install_x", "1"); } catch (_) {} });
+// ---- App Android: la versión instalada desde Chrome quedó obsoleta.
+if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+let ocultar = false; try { ocultar = localStorage.getItem("fk_apk_x") === "1"; } catch (_) {}
+if (!NATIVO && !ocultar && /android/i.test(navigator.userAgent)) $("install").hidden = false;
+$("install-x").addEventListener("click", () => { $("install").hidden = true; try { localStorage.setItem("fk_apk_x", "1"); } catch (_) {} });
 
 let iniciado = false;
 sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
