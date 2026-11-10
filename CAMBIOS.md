@@ -1,5 +1,9 @@
 # Cambios
 
+## 10 nov 2026 · Eliminar reservas con papelera (pendiente de publicar)
+- Base de datos (`etapa15_eliminar_reservas_papelera`): "eliminar" no borra; la reserva queda cancelada y **oculta en todas partes** (despacho, agenda, reportes, cobros, app del conductor), con motivo, fecha y quién la eliminó. Solo el administrador; no se puede eliminar un servicio en curso. `restaurar_reserva` la devuelve con el estado que tenía. Probado (con reversión): oculta, aparece en la papelera, se restaura y un no administrador queda bloqueado.
+- Panel → ficha de la reserva: botón **"Cancelar reserva"** (pide motivo, queda en el historial) y, para el administrador, **"Eliminar"**. Reservas → filtro **"Eliminadas (papelera)"** con botón **Restaurar**.
+
 ## 9 nov 2026 · Cierre diario solo con km recorridos (pendiente de publicar)
 - A pedido del dueño, el cierre ya no pide odómetro inicial y final: solo **los kilómetros recorridos en el día** (Flota-K + Cabify + otras). Función nueva `guardar_cierre_km` (`etapa14b_cierre_solo_km`); la anterior queda sin uso. El Excel del panel ya no trae columnas de odómetro.
 

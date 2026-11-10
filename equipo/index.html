@@ -81,6 +81,7 @@
             <option value="porcobrar">Por cobrar (no pagados)</option>
             <option value="califbaja">Calificación baja por revisar (3★ o menos)</option>
             <option value="mensajes">Con mensajes (últimas 24 horas)</option>
+            <option value="eliminadas" id="op-eliminadas" hidden>🗑 Eliminadas (papelera)</option>
           </select></div>
         <div class="f" style="flex:1;min-width:180px"><label for="buscar">Buscar</label><input id="buscar" placeholder="Nombre, código, teléfono o comuna"></div>
       </div>
@@ -431,7 +432,7 @@ async function iniciar(session) {
   }
   yo = data;
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
-  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin";
+  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos(); cargarCuentas();
   cargarDespacho(); timerDespacho = setInterval(() => { if (!document.hidden && pestanaActual() === "despacho") cargarDespacho(); }, 30000);
@@ -618,6 +619,7 @@ async function cargarMapa() {
 // ---- Reservas
 async function cargarReservas() {
   const f = $("filtro").value;
+  if (f === "eliminadas") return cargarPapelera();
   const ahora = new Date();
   const ini = new Date(ahora); ini.setHours(0, 0, 0, 0);
   const fin = new Date(ini); fin.setDate(fin.getDate() + 1);
@@ -654,7 +656,30 @@ function pintar() {
   $("lista").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
 }
 $("filtro").addEventListener("change", cargarReservas);
-$("buscar").addEventListener("input", pintar);
+// Papelera: reservas eliminadas (solo administrador). Se pueden restaurar.
+async function cargarPapelera() {
+  cache = [];
+  const { data, error } = await sb.rpc("reservas_eliminadas");
+  if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const t = $("buscar").value.trim().toLowerCase();
+  const rows = (data || []).filter(r => !t || [r.o_pasajero, r.o_codigo, r.o_origen, r.o_destino].join(" ").toLowerCase().includes(t));
+  $("lista").innerHTML = `<p class="small muted" style="margin:0">Reservas eliminadas: no aparecen en el despacho, la agenda, los reportes ni los cobros. Si eliminó una por error, use <b>Restaurar</b> y vuelve con el estado que tenía.</p>` +
+    (rows.length ? rows.map(r => `
+    <div class="card">
+      <div class="top"><span class="when">${esc(fecha(r.o_fecha_hora))}</span><span class="pill s-cancel">Eliminada</span></div>
+      <div><b>${esc(r.o_pasajero)}</b> · <span class="code">${esc(r.o_codigo)}</span></div>
+      <div>${esc(r.o_origen)} → ${esc(r.o_destino)}</div>
+      <div class="small muted">Eliminada ${esc(fecha(r.o_eliminada_en))}${r.o_por ? " por " + esc(r.o_por) : ""}${r.o_motivo ? " · motivo: " + esc(r.o_motivo) : ""}</div>
+      <div class="actions"><button class="btn ghost sm" type="button" data-rest="${esc(r.o_id)}">↩ Restaurar</button></div>
+    </div>`).join("") : '<p class="muted">La papelera está vacía.</p>');
+  $("lista").querySelectorAll("[data-rest]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    const { error } = await sb.rpc("restaurar_reserva", { p_reserva: b.dataset.rest });
+    if (error) { b.disabled = false; return alert(errText(error)); }
+    cargarPapelera();
+  }));
+}
+$("buscar").addEventListener("input", () => $("filtro").value === "eliminadas" ? cargarPapelera() : pintar());
 
 async function abrir(id) {
   const r = cache.find(x => x.id === id) || tablero.find(x => x.id === id); if (!r) return;
@@ -711,6 +736,10 @@ async function abrir(id) {
     <h3 style="margin:6px 0 0">Estado y cobro</h3>
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
+    <div class="actions" style="border-top:1px solid var(--line, #ddd);padding-top:10px">
+      ${r.estado !== "cancelada" && r.estado !== "finalizada" ? '<button class="btn ghost sm" type="button" id="d-cancelar">✕ Cancelar reserva</button>' : ""}
+      ${yo && yo.rol === "admin" ? '<button class="btn ghost sm" type="button" id="d-eliminar" style="color:#b42318">🗑 Eliminar</button>' : ""}
+    </div>
     <div id="cobro-box"></div>
     <div id="calif-box"></div>
     <h3 style="margin:6px 0 0">Mensajes del viaje (pasajero y conductor)</h3>
@@ -725,6 +754,23 @@ async function abrir(id) {
   $("det").showModal();
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
+  if ($("d-cancelar")) $("d-cancelar").onclick = async () => {
+    const motivo = prompt(`¿Cancelar la reserva ${r.codigo} de ${r.nombre_pasajero}?\nEscriba el motivo (queda en el historial):`, "");
+    if (motivo === null) return;
+    msg("d-msg", "Cancelando…");
+    const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: "cancelada", p_nota: "Cancelada: " + (motivo.trim() || "sin motivo") });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar();
+  };
+  if ($("d-eliminar")) $("d-eliminar").onclick = async () => {
+    if (["en_camino", "en_lugar", "a_bordo"].includes(r.estado)) return msg("d-msg", "El servicio está en curso: no se puede eliminar.", "err");
+    const motivo = prompt(`¿Eliminar la reserva ${r.codigo} de ${r.nombre_pasajero}?\nDesaparece del despacho, la agenda, los reportes y los cobros. Se puede restaurar desde Reservas → Eliminadas (papelera).\n\nMotivo (ej.: prueba, duplicada):`, "");
+    if (motivo === null) return;
+    msg("d-msg", "Eliminando…");
+    const { error } = await sb.rpc("eliminar_reserva", { p_reserva: r.id, p_motivo: motivo });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar();
+  };
   pintarCobro(r);
   pintarCalificaciones(r); pintarMensajes(r); pintarCambios(r); notasCliente(r);
   $("wa-pas").onclick = () => enviarConfirmacion(r, false);
