@@ -1,5 +1,10 @@
 # Cambios
 
+## 10 nov 2026 · Cuentas del equipo sin correo (pendiente de publicar)
+- Problema: el correo gratuito de Supabase solo llega a direcciones del propio equipo de Supabase (y máximo 2 por hora), así que las invitaciones a correos externos nunca llegaban (Paola estaba invitada desde el 9 nov sin poder entrar).
+- **Paola Quichiz** (plquichiz@gmail.com) creada como **administradora** con contraseña provisoria.
+- Función nueva `crear-miembro` (Supabase Edge Function, gratis): el administrador crea la cuenta con correo, rol y contraseña provisoria, y le envía los datos por WhatsApp. También **"🔑 Nueva contraseña"** para quien la olvide (solo personas de la misma empresa). Usa la clave de servicio solo dentro de Supabase; nunca llega al navegador.
+
 ## 10 nov 2026 · Panel del despachador: celular, avisos, resumen y más (pendiente de publicar)
 - **Celular:** barra inferior (Despacho, Reservas, Nueva, Mapa, Más), botones y campos más grandes, y el tablero se ve como tarjetas.
 - **Avisos con sonido y notificación del navegador** (botón "🔔 Activar avisos"): reserva nueva y toda alerta roja nueva (sin conductor, atrasado, pasajero pide ayuda, pasajero sin mapa). Siguen llegando con la pestaña en segundo plano.

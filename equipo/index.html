@@ -26,7 +26,7 @@
       <label for="pass" style="margin-top:6px">Contraseña</label>
       <input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
-      <p class="small muted" style="margin-top:10px">¿Primera vez o olvidó su contraseña? <button class="linkbtn" type="button" id="magic">Enviarme un enlace al correo</button> y luego cree su contraseña.</p>
+      <p class="small muted" style="margin-top:10px">¿Primera vez u olvidó su contraseña? Pídale al administrador una contraseña provisoria. <button class="linkbtn" type="button" id="magic">O envíeme un enlace al correo</button>.</p>
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
@@ -269,15 +269,17 @@
 
     <div data-pane="equipo" class="panel" style="margin-top:14px" hidden>
       <h2>Equipo y roles</h2>
-      <p class="muted">Invite a una persona con su correo y elija su rol. Al ingresar por primera vez en esta página, queda con ese rol.</p>
+      <p class="muted">Cree la cuenta con el correo, el rol y una contraseña provisoria. No se envía ningún correo: usted le pasa los datos por WhatsApp y la persona entra de inmediato (luego cambia su contraseña con el botón "Contraseña").</p>
       <form id="inv" class="row3" novalidate>
         <div class="f"><label for="i-mail">Correo</label><input id="i-mail" type="email" required></div>
         <div class="f"><label for="i-nombre">Nombre</label><input id="i-nombre" required></div>
         <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="propietario">Propietario de vehículo (ve reportes de sus autos)</option><option value="admin">Administrador</option></select></div>
-        <div class="actions"><button class="btn" type="submit">Invitar</button></div>
+        <div class="f"><label for="i-clave">Contraseña provisoria</label><input id="i-clave" minlength="8" maxlength="72" autocomplete="off"></div>
+        <div class="actions"><button class="btn" type="submit">Crear cuenta</button></div>
       </form>
       <div id="i-msg" class="msg" hidden></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
+      <div id="i-datos" class="pay" hidden></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Conduce</th><th>Estado</th><th></th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
       <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
       <div id="pend" class="muted">—</div>
       <h3 style="margin:8px 0 0">Tarifas del taxímetro</h3>
@@ -2135,6 +2137,7 @@ async function cargarEquipo() {
       <td><input type="checkbox" class="cond" aria-label="Conduce" ${p.conduce ? "checked" : ""}></td>
       <td>${p.activo ? "Activo" : '<span class="muted">Desactivado</span>'}</td>
       <td>${p.id === yo.id ? "" : `<button class="btn ghost sm tog" type="button">${p.activo ? "Desactivar" : "Activar"}</button>`}</td>
+      <td>${p.id === yo.id ? "" : '<button class="btn ghost sm clv" type="button" title="Si olvidó su contraseña">🔑 Nueva contraseña</button>'}</td>
     </tr>`).join("");
   $("miembros").querySelectorAll("tr").forEach(tr => {
     const id = tr.dataset.id, p = m.find(x => x.id === id);
@@ -2146,6 +2149,16 @@ async function cargarEquipo() {
       const { error } = await sb.from("perfiles").update({ conduce: ev.target.checked }).eq("id", id);
       if (error) msg("i-msg", errText(error), "err"); else { msg("i-msg", `${p.nombre}: ${ev.target.checked ? "puede recibir servicios" : "ya no recibe servicios"}.`, "ok"); cargarRecursos(); }
     });
+    tr.querySelector(".clv")?.addEventListener("click", async () => {
+      const clave = prompt(`Nueva contraseña provisoria para ${p.nombre} (mínimo 8 caracteres):`, claveProvisoria());
+      if (clave === null) return;
+      if (clave.trim().length < 8) return msg("i-msg", "La contraseña provisoria debe tener al menos 8 caracteres.", "err");
+      msg("i-msg", "Cambiando contraseña…");
+      const { data: r, error } = await sb.functions.invoke("crear-miembro", { body: { accion: "clave", id, clave: clave.trim() } });
+      const e = error ? await errFuncion(error) : r && r.error;
+      if (e) return msg("i-msg", e, "err");
+      $("i-msg").hidden = true; mostrarDatos(p.nombre, null, null, clave.trim(), true);
+    });
     tr.querySelector(".tog")?.addEventListener("click", async () => {
       const { error } = await sb.from("perfiles").update({ activo: !p.activo }).eq("id", id);
       if (error) msg("i-msg", errText(error), "err"); else cargarEquipo();
@@ -2154,12 +2167,33 @@ async function cargarEquipo() {
   const { data: inv } = await sb.from("invitaciones").select("correo, nombre, rol, creada_en").is("aceptada_en", null).order("creada_en", { ascending: false });
   $("pend").innerHTML = inv && inv.length ? inv.map(i => `${esc(i.nombre)} · ${esc(i.correo)} · ${esc(ROLES[i.rol])}`).join("<br>") : "No hay invitaciones pendientes.";
 }
+// Cuentas del equipo sin correo: se crean con contraseña provisoria (función crear-miembro)
+const claveProvisoria = () => { const a = "abcdefghjkmnpqrstuvwxyz", d = "23456789", x = new Uint32Array(8); crypto.getRandomValues(x); return "Flotak-" + [...x].map((n, i) => i < 4 ? a[n % a.length] : d[n % d.length]).join(""); };
+async function errFuncion(error) { try { const j = await error.context.json(); return j.error || errText(error); } catch (_) { return errText(error); } }
+const DESTINO_ROL = { conductor: "/conductor/", propietario: "/propietario/" };
+function mostrarDatos(nombre, correo, rol, clave, soloClave) {
+  const url = location.origin + (DESTINO_ROL[rol] || "/equipo/");
+  const t = soloClave
+    ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria de Flota-K es: ${clave}\nEntre con su correo y esa contraseña, y luego cámbiela con el botón "Contraseña".`
+    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso a Flota-K como ${ROLES[rol]}.\n\nEntre a: ${url}\nCorreo: ${correo}\nContraseña provisoria: ${clave}\n\nAl entrar, cámbiela con el botón "Contraseña".` + (rol === "conductor" ? "\nInstale la app del conductor desde esa misma página." : "");
+  $("i-datos").hidden = false;
+  $("i-datos").innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Cuenta lista"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
+    <div class="actions"><button class="btn sm" type="button" id="i-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="i-cp">⧉ Copiar</button></div>`;
+  $("i-wa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
+  $("i-cp").onclick = () => navigator.clipboard?.writeText(t).then(() => $("i-cp").textContent = "Copiado").catch(() => {});
+}
+$("i-clave").value = claveProvisoria();
 $("inv").addEventListener("submit", async e => {
   e.preventDefault();
-  const { data, error } = await sb.rpc("invitar_miembro", { p_correo: $("i-mail").value, p_nombre: $("i-nombre").value, p_rol: $("i-rol").value });
-  if (error) return msg("i-msg", errText(error), "err");
-  msg("i-msg", data === "agregado" ? "Persona agregada con su rol." : `Invitación creada. Pídale que entre a ${back} con ese correo.`, "ok");
-  $("inv").reset(); cargarEquipo();
+  const correo = $("i-mail").value.trim(), nombre = $("i-nombre").value.trim(), rol = $("i-rol").value, clave = $("i-clave").value.trim();
+  if (clave.length < 8) return msg("i-msg", "La contraseña provisoria debe tener al menos 8 caracteres.", "err");
+  msg("i-msg", "Creando cuenta…"); $("i-datos").hidden = true;
+  const { data: r, error } = await sb.functions.invoke("crear-miembro", { body: { correo, nombre, rol, clave } });
+  const err = error ? await errFuncion(error) : r && r.error;
+  if (err) return msg("i-msg", err, "err");
+  if (r.existia) { msg("i-msg", `${nombre} ya tenía cuenta: quedó con el rol ${ROLES[rol]} y entra con su contraseña de siempre. Si no la recuerda, use "🔑 Nueva contraseña" en la lista.`, "ok"); }
+  else { $("i-msg").hidden = true; mostrarDatos(nombre, correo, rol, clave); }
+  $("inv").reset(); $("i-clave").value = claveProvisoria(); cargarEquipo();
 });
 
 // ---- Reportar
