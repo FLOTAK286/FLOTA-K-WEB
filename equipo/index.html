@@ -1093,7 +1093,7 @@ async function cargarFlota() {
   $("fl-alertas").innerHTML = al || pr ? `<p class="msg ${al ? "err" : ""}" style="margin:0">${al ? `${al} documento(s) vencidos o por vencer en los próximos 30 días. ` : ""}${pr ? `${pr} documento(s) subidos por conductores esperan revisión.` : ""}</p>` : "";
 }
 function pintarDocs() {
-  const de = d => d.conductor_id ? (flPerf.find(p => p.id === d.conductor_id) || {}).nombre || "Conductor" : "🚗 " + ((flVehs.find(v => v.id === d.vehiculo_id) || {}).patente || "Vehículo");
+  const de = d => d.conductor_id && !d.vehiculo_id ? (flPerf.find(p => p.id === d.conductor_id) || {}).nombre || "Conductor" : "🚗 " + ((flVehs.find(v => v.id === d.vehiculo_id) || {}).patente || "Vehículo");
   const lista = flDocs.filter(d => flFiltro === "todos" || (flFiltro === "pendiente" ? d.estado === "pendiente" : ["roja", "amarilla"].includes(estadoDoc(d).c)));
   $("fl-docs").innerHTML = lista.length ? lista.map(d => { const e = estadoDoc(d); return `<tr data-d="${d.id}">
     <td>${esc(de(d))}</td><td>${esc(DOCS[d.tipo] || d.tipo)}${d.notas ? `<br><span class="muted small">${esc(d.notas)}</span>` : ""}</td><td>${esc(d.numero || "—")}</td>

@@ -1,5 +1,10 @@
 # Cambios
 
+## 10 nov 2026 · El conductor registra su vehículo y errores en español (pendiente de publicar)
+- **App del conductor → Perfil → Mi vehículo:** el conductor nuevo registra su vehículo (patente, marca, modelo, año, color, categoría, pasajeros y foto) y puede editarlo. En el inicio le aparece un aviso si aún no lo registra. Los documentos del vehículo (permiso de circulación, revisión técnica, SOAP, seguro, padrón) se suben desde "Subir documento". La central recibe un mensaje automático para revisarlo.
+- Base de datos (`etapa17_conductor_registra_vehiculo`): `conductor_guardar_vehiculo` (no permite tocar vehículos de Flota-K ni repetir patentes; queda como vehículo de prestador), foto solo en su carpeta, documentos solo de su propio vehículo. Probado con reversión.
+- **Errores en español** en todas las páginas (ej.: "La contraseña nueva debe ser distinta de la actual"). Cambiar contraseña ahora permite ver lo que se escribe.
+
 ## 10 nov 2026 · Cuentas del equipo sin correo (pendiente de publicar)
 - Problema: el correo gratuito de Supabase solo llega a direcciones del propio equipo de Supabase (y máximo 2 por hora), así que las invitaciones a correos externos nunca llegaban (Paola estaba invitada desde el 9 nov sin poder entrar).
 - **Paola Quichiz** (plquichiz@gmail.com) creada como **administradora** con contraseña provisoria.

@@ -24,7 +24,25 @@
   const clp = n => (n == null || n === "") ? "—" : (Number(n) < 0 ? "-$" : "$") + Math.abs(Number(n)).toLocaleString("es-CL");
   const fecha = iso => iso ? new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
   const pill = e => { const x = ESTADOS[e] || { t: e, c: "" }; return `<span class="pill ${x.c}">${esc(x.t)}</span>`; };
-  const errText = e => (e && (e.message || e.error_description)) || "Ocurrió un error. Intente de nuevo.";
+  // Errores de Supabase traducidos a español simple
+  const ERRORES = [
+    [/should be different from the old password/i, "La contraseña nueva debe ser distinta de la actual (por ejemplo, de la provisoria que le dieron). Escriba otra."],
+    [/password should be at least|weak password|password is too weak/i, "La contraseña es muy débil: use al menos 8 caracteres, con letras y números."],
+    [/invalid login credentials/i, "Correo o contraseña incorrectos."],
+    [/email not confirmed/i, "Su correo aún no está confirmado. Pida ayuda al administrador."],
+    [/rate limit|only request this after|too many requests/i, "Demasiados intentos seguidos. Espere unos minutos e intente de nuevo."],
+    [/signups not allowed|user not found/i, "Este correo no tiene cuenta. Pida acceso al administrador."],
+    [/jwt expired|invalid jwt|session.*(missing|expired)|refresh token/i, "Su sesión venció. Cierre sesión y vuelva a ingresar."],
+    [/failed to fetch|networkerror|network request failed|load failed/i, "Sin conexión a internet. Revise su señal e intente de nuevo."],
+    [/payload too large|entity too large|exceeded the maximum allowed size/i, "El archivo es muy grande. Pruebe con una foto más liviana."],
+    [/duplicate key|already exists/i, "Ese dato ya está registrado."]
+  ];
+  const errText = e => {
+    const m = (e && (e.message || e.error_description)) || "";
+    if (!m) return "Ocurrió un error. Intente de nuevo.";
+    const t = ERRORES.find(([re]) => re.test(m));
+    return t ? t[1] : m;
+  };
 
   // "2026-12-15T06:40" escrito en hora de Chile -> ISO con la zona correcta (considera horario de verano).
   function chileLocalToISO(local) {
