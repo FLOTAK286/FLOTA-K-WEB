@@ -684,7 +684,6 @@ async function pintarGanancias() {
   const kpi = (t, v, sub) => `<div class="kpi"><small>${t}</small><b>${v}</b><span>${sub}</span></div>`;
   const perTxt = R.d0 === R.d1 ? diaCorto(R.d0) : `${diaCorto(R.d0)} al ${diaCorto(R.d1)}`;
   $("list").innerHTML = `
-    <div id="cierre-box"></div>
     <div class="svc rep">
       <b>📊 Mis reportes</b>
       <div class="chips" id="rep-per">${Object.entries(PER_TXT).map(([k, t]) => `<button type="button" class="chip ${repPer === k ? "on" : ""}" data-per="${k}">${t}</button>`).join("")}</div>
@@ -721,6 +720,7 @@ async function pintarGanancias() {
       <div><b class="small">Por horario</b>${porFr.map(x => hBar(x.n, x.t, maxFr, `${clp(x.t)} · ${x.s}`, x === mejorFr && x.t > 0)).join("")}</div>
       ${mejorDs.prom > 0 ? `<p class="small" style="margin:0">Su mejor día es el <b>${esc(mejorDs.n.toLowerCase())}</b> y su mejor horario, la <b>${esc(mejorFr.n.split(" (")[0].toLowerCase())}</b>. Conectarse en esos momentos le da más servicios.</p>` : ""}
     </div>` : ""}
+    <div id="cierre-box"></div>
     <div class="pay meta"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Meta del mes</b>
       <label class="small">Meta: $ <input id="meta-in" type="number" min="0" step="50000" inputmode="numeric" style="width:120px;padding:4px 6px" value="${meta || ""}" placeholder="Ej.: 2000000"></label></div>
       ${meta ? `<div class="barra"><span style="width:${Math.min(100, Math.round(totMes / meta * 100))}%"></span></div><span class="small">${clp(totMes)} de ${clp(meta)} · ${Math.min(100, Math.round(totMes / meta * 100))}%${totMes < meta ? ` · faltan ${clp(meta - totMes)}${diasMes - diaMes > 0 ? ` (${clp(Math.ceil((meta - totMes) / (diasMes - diaMes + 1)))} al día)` : ""}` : " · ¡Meta cumplida!"}</span>` : '<span class="small muted">Escriba una meta para ver su avance.</span>'}</div>
