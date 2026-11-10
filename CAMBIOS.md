@@ -1,5 +1,10 @@
 # Cambios
 
+## 10 nov 2026 · Más capacidad y avisos en vivo, gratis (pendiente de publicar)
+- **Sin tope de 1.000 filas** (`etapa18_resumenes_en_servidor`): los totales de Clientes y cobros, empresas y "por cobrar" se calculan en la base de datos; la ficha de cada cliente o empresa trae todos sus servicios; reportes, base de clientes, cierres, la app del conductor y el portal del propietario traen todo por partes. La pestaña Central siempre muestra los mensajes más nuevos (antes, pasando los 1.000 mensajes, dejaban de aparecer). Índices nuevos para que las búsquedas sigan rápidas.
+- **Avisos en vivo** (`etapa19_avisos_en_vivo`, Supabase Realtime): el panel y la app del conductor se actualizan al instante cuando cambia una reserva o llega un mensaje. Con la conexión en vivo, la revisión completa pasa de cada 30 segundos a cada 1–2 minutos (las alertas por hora y GPS se recalculan cada 30 s sin volver a traer todo). Si la conexión en vivo falla, todo vuelve solo a revisar cada 30 segundos. Las ubicaciones GPS no van por esta vía (superarían el límite gratis).
+- Indicador "● En vivo" en el despacho y en la app del conductor.
+
 ## 10 nov 2026 · Reportes del conductor en la Billetera (pendiente de publicar)
 - **Mis reportes** con período a elección (hoy, semana, mes, mes anterior, 30 días o fechas): ganado y comparación con el período anterior, servicios y promedio, **le corresponde** (descontando la comisión de Flota-K de su vehículo, si tiene), **ganancia por hora en servicio**, ingreso por km, TAG y peajes, clientes por pagar, calificación, **puntualidad** y proyección del mes.
 - **Utilidad con todas sus apps** (vehículos de Flota-K con cierre diario): Flota-K + Cabify + otras − TAG/peajes − combustible − otros gastos, por km y con el costo de referencia de $410/km.

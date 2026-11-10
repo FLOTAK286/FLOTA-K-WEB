@@ -455,9 +455,44 @@ async function iniciar(session) {
   $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos(); cargarCuentas();
-  cargarDespacho(); timerDespacho = setInterval(() => { if ((!document.hidden && pestanaActual() === "despacho") || avisosActivos()) cargarDespacho(); }, 30000);
+  conectarEnVivo();
+  cargarDespacho(); timerDespacho = setInterval(() => {
+    if (!((!document.hidden && pestanaActual() === "despacho") || avisosActivos())) return;
+    // En vivo: los cambios llegan al instante; revisión completa cada 2 minutos por seguridad. Sin conexión en vivo: cada 30 segundos.
+    if (!enVivo || Date.now() - ultimaCargaDesp > 120000) cargarDespacho(); else refrescoLiviano();
+  }, 30000);
   pintarBotonAvisos();
   if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
+}
+
+// ---- Avisos en vivo: el servidor avisa cuando cambia una reserva o llega un mensaje (gratis, hasta 200 conexiones)
+let enVivo = false, canalVivo = null, rtEspera = {}, ultBadge = 0;
+function cambioEnVivo(tabla) {
+  clearTimeout(rtEspera[tabla]);
+  rtEspera[tabla] = setTimeout(() => {
+    const t = pestanaActual();
+    if (tabla === "reservas" || tabla === "mensajes") { if (t === "despacho" || avisosActivos()) cargarDespacho(); }
+    if (tabla === "reservas") {
+      if (t === "reservas" && !$("sel-modo").checked && $("filtro").value !== "eliminadas") cargarReservas();
+      if (t === "agenda") cargarAgenda();
+    }
+    if (tabla === "mensajes" && $("det").open && typeof msjFicha === "function") msjFicha();
+    if (tabla === "mensajes" || tabla === "soporte_mensajes") { if (t === "central") cargarCentral(); else revisarBadgeCentral(); }
+  }, 1200);
+}
+function conectarEnVivo() {
+  try {
+    if (canalVivo) sb.removeChannel(canalVivo);
+    canalVivo = sb.channel("panel-" + Math.random().toString(36).slice(2))
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservas" }, () => cambioEnVivo("reservas"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "mensajes" }, () => cambioEnVivo("mensajes"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "soporte_mensajes" }, () => cambioEnVivo("soporte_mensajes"))
+      .subscribe(st => {
+        const antes = enVivo; enVivo = st === "SUBSCRIBED";
+        if (enVivo && !antes) cargarDespacho(); // al reconectar, se ponen al día
+        if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(st)) setTimeout(() => { if (!enVivo) conectarEnVivo(); }, 30000);
+      });
+  } catch (_) { enVivo = false; }
 }
 
 // ---- Pestañas
@@ -635,7 +670,7 @@ async function pintarCalificaciones(r) {
     if (error) return msg("d-msg", errText(error), "err"); pintarCalificaciones(r);
   });
 }
-let timerMsj = null;
+let timerMsj = null, msjFicha = null;
 const TEMA_TXT = { objeto_perdido: "Objeto perdido", ayuda: "Necesita ayuda", otro: "Consulta" };
 async function pintarMensajes(r) {
   clearInterval(timerMsj);
@@ -649,7 +684,8 @@ async function pintarMensajes(r) {
     chat.pintar((data || []).filter(m => m.canal !== "central"));
     chatC.pintar((data || []).filter(m => m.canal === "central").map(m => ({ ...m, texto: (m.tema && m.autor === "pasajero" ? "[" + TEMA_TXT[m.tema] + "] " : "") + m.texto })));
   };
-  cargarMsj(); timerMsj = setInterval(cargarMsj, 10000);
+  let ultMsj = 0; msjFicha = () => { ultMsj = Date.now(); return cargarMsj(); };
+  msjFicha(); timerMsj = setInterval(() => { if (!enVivo || Date.now() - ultMsj > 60000) msjFicha(); }, 10000);
 }
 
 // ---- Mapa en vivo: dónde está cada conductor y si está disponible, ocupado o con un servicio próximo
@@ -1209,7 +1245,8 @@ async function abrirCentral(id) {
   if (pend.length) { await sb.from("soporte_mensajes").update({ leido: true }).in("id", pend); ctMsgs.forEach(m => { if (pend.includes(m.id)) m.leido = true; }); }
   cargarCentral();
 }
-setInterval(() => { if (!yo || document.hidden) return; if (pestanaActual() === "central") cargarCentral(); else { sb.from("mensajes").select("id", { count: "exact", head: true }).eq("canal", "central").eq("autor", "pasajero").eq("atendido", false).then(({ count }) => { pasPend = count || 0; pintarBadgeCentral(); }); } if (pestanaActual() !== "central") sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").eq("autor", "conductor").eq("leido", false).then(({ data }) => { if (data) { ctMsgs = ctMsgs.filter(m => m.leido || m.autor !== "conductor").concat(data.filter(d => !ctMsgs.some(m => m.id === d.id))); pintarBadgeCentral(); } }); }, 20000);
+setInterval(() => { if (!yo || document.hidden) return; if (enVivo && Date.now() - ultBadge < 120000) return; if (pestanaActual() === "central") cargarCentral(); else revisarBadgeCentral(); }, 20000);
+function revisarBadgeCentral() { ultBadge = Date.now(); { sb.from("mensajes").select("id", { count: "exact", head: true }).eq("canal", "central").eq("autor", "pasajero").eq("atendido", false).then(({ count }) => { pasPend = count || 0; pintarBadgeCentral(); }); } if (pestanaActual() !== "central") sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").eq("autor", "conductor").eq("leido", false).then(({ data }) => { if (data) { ctMsgs = ctMsgs.filter(m => m.leido || m.autor !== "conductor").concat(data.filter(d => !ctMsgs.some(m => m.id === d.id))); pintarBadgeCentral(); } }); }
 
 // ---- Reportes del negocio (solo administrador)
 let rpFilas = [];
@@ -1347,7 +1384,9 @@ function alertasDe(r, extra) {
   }
   return a;
 }
+let ultimaCargaDesp = 0, extrasDesp = { ultimoMsg: {}, ayuda: {}, enLugar: {}, baja: new Set() };
 async function cargarDespacho() {
+  ultimaCargaDesp = Date.now();
   const desde = new Date(Date.now() - 12 * 3600e3).toISOString(), hasta = new Date(Date.now() + 48 * 3600e3).toISOString();
   const [{ data: rs, error }, { data: pend }] = await Promise.all([
     sb.from("reservas").select("*").gte("fecha_hora", desde).lte("fecha_hora", hasta).neq("estado", "cancelada").order("fecha_hora"),
@@ -1374,6 +1413,17 @@ async function cargarDespacho() {
   ubDe = {}; (ubs || []).forEach(u => ubDe[u.conductor_id] = new Date(u.actualizado_en).getTime());
   etqDe = {}; (cls || []).forEach(c => etqDe[c.id] = c.etiquetas || []);
   porCobrarTotal = Number(pc) || 0;
+  extrasDesp = { ultimoMsg, ayuda, enLugar, baja };
+  recalcularDespacho();
+}
+// Alertas que dependen de la hora (atrasado, faltan X min, GPS): se recalculan sin volver a traer todo
+async function refrescoLiviano() {
+  const { data: ubs } = await sb.from("ubicaciones").select("conductor_id, actualizado_en");
+  if (ubs) { ubDe = {}; ubs.forEach(u => ubDe[u.conductor_id] = new Date(u.actualizado_en).getTime()); }
+  recalcularDespacho();
+}
+function recalcularDespacho() {
+  const { ultimoMsg, ayuda, enLugar, baja } = extrasDesp;
   tablero.forEach(r => {
     r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", ayuda: ayuda[r.id], enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id), ub: ubDe[r.conductor_id] });
     r._urg = r._al.reduce((a, x) => Math.max(a, x.n), 0);
@@ -1388,7 +1438,7 @@ async function cargarDespacho() {
   alertasConocidas = new Set(urg.keys());
   if (nuevaWeb || nuevas.length) avisoNuevo([...(nuevaWeb ? ["Llegó una reserva nueva por confirmar"] : []), ...nuevas.map(k => urg.get(k))].join("\n"));
   pintarDespacho(); mapaTablero();
-  $("tb-act").textContent = "Actualizado " + hora(new Date().toISOString());
+  $("tb-act").textContent = (enVivo ? "● En vivo · " : "") + "Actualizado " + hora(new Date().toISOString());
 }
 // Mapa al lado del tablero (pantallas grandes): conductores con su estado
 let mapaTb = null, pinesTb = {};

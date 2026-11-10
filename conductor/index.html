@@ -259,10 +259,11 @@ async function iniciar(session) {
   $("who").textContent = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre.split(" ")[0] + (mio ? ` · ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
   pintarConexion();
-  cargar(); revisarCentral(); setInterval(revisarCentral, 20000);
+  cargar(); revisarCentral(); conectarEnVivo();
+  setInterval(() => { if (!enVivo || Date.now() - ultCentral > 90000) revisarCentral(); }, 20000);
   iniciarGPS();
   revisarVersionApp(); setInterval(revisarVersionApp, 6 * 3600e3);
-  setInterval(cargar, 30000);
+  setInterval(() => { if (!enVivo || Date.now() - ultCarga > 60000) cargar(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
 }
 
@@ -273,8 +274,27 @@ function irA(v) {
 }
 document.querySelectorAll('.bottom-nav [data-v]').forEach(b => b.addEventListener("click", () => irA(b.dataset.v)));
 
+// ---- Avisos en vivo: el servidor avisa al instante cuando cambia uno de sus servicios o le llega un mensaje.
+// Si la conexión en vivo falla, la app vuelve a revisar cada 30 segundos como antes.
+let enVivo = false, canalVivo = null, rtEsp = {}, ultCarga = 0, ultCentral = 0, ultMsjs = 0;
+function vivo(k) { clearTimeout(rtEsp[k]); rtEsp[k] = setTimeout(() => { if (k === "r") cargar(); if (k === "m") revisarMensajes(); if (k === "c") revisarCentral(); }, 800); }
+function conectarEnVivo() {
+  try {
+    if (canalVivo) sb.removeChannel(canalVivo);
+    canalVivo = sb.channel("cond-" + yo.id + "-" + Math.random().toString(36).slice(2))
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservas", filter: "conductor_id=eq." + yo.id }, () => vivo("r"))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "mensajes" }, () => vivo("m"))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "soporte_mensajes", filter: "conductor_id=eq." + yo.id }, () => vivo("c"))
+      .subscribe(st => {
+        const antes = enVivo; enVivo = st === "SUBSCRIBED";
+        if (enVivo && !antes && ultCarga) cargar();
+        if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(st)) setTimeout(() => { if (!enVivo) conectarEnVivo(); }, 30000);
+      });
+  } catch (_) { enVivo = false; }
+}
 async function cargar() {
   if (!yo) return;
+  ultCarga = Date.now();
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
@@ -289,7 +309,7 @@ async function cargar() {
   if (enServicio()) enviarUbicacion(); // con un servicio en curso se comparte aunque esté desconectado
   await cargarCalificaciones(); revisarMensajes();
   if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
-  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada 30 segundos";
+  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · " + (enVivo ? "● en vivo" : "se actualiza solo cada 30 segundos");
   pintar();
 }
 
@@ -422,7 +442,7 @@ async function refrescarAMano() {
   if (vista === "gan") pintarGanancias(); else if (vista === "perfil") pintarPerfil();
   gananciaHoy(); revisarCentral();
   b.disabled = false; b.textContent = "⟳ Actualizar";
-  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · se actualiza solo cada 30 segundos";
+  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · " + (enVivo ? "● en vivo" : "se actualiza solo cada 30 segundos");
   if (navigator.vibrate) navigator.vibrate(30);
 }
 $("refrescar").addEventListener("click", refrescarAMano);
@@ -512,6 +532,7 @@ function pintarBadges() {
 }
 let avisados = new Set(), primeraRevision = true;
 async function revisarMensajes() {
+  ultMsjs = Date.now();
   const ids = items.filter(r => r.estado !== "cancelada").map(r => r.id);
   if (!ids.length) return;
   const { data } = await sb.from("mensajes").select("id, reserva_id, autor, texto, creado_en").in("reserva_id", ids).eq("canal", "viaje").order("id");
@@ -529,7 +550,7 @@ async function revisarMensajes() {
   if (chatVivo && chatAbiertoId) { chatVivo.pintar(msgsPor[chatAbiertoId] || []); marcarLeido(chatAbiertoId); }
   pintarBadges();
 }
-setInterval(() => { if (yo) revisarMensajes(); }, 15000);
+setInterval(() => { if (yo && (!enVivo || chatAbiertoId || Date.now() - ultMsjs > 60000)) revisarMensajes(); }, 15000);
 
 // ---- Cierre del día: solo vehículos propios de Flota-K (suma Flota-K + Cabify u otras apps, con costo y ganancia por km)
 const KM_REF = 410; // costo operativo de referencia por km (combustible, mantención, desgaste)
@@ -811,6 +832,7 @@ function estadoDoc(d) {
 let centralChat = null, centralMsgs = [];
 const vistoCentral = () => { try { return Number(localStorage.getItem("fk_central_visto")) || 0; } catch (_) { return 0; } };
 async function revisarCentral() {
+  ultCentral = Date.now();
   const { data } = await sb.from("soporte_mensajes").select("id, autor, texto, creado_en").eq("conductor_id", yo.id).order("id").limit(500);
   const antes = centralMsgs.length; centralMsgs = data || [];
   const nuevos = centralMsgs.filter(m => m.autor === "central" && m.id > vistoCentral());
