@@ -1,5 +1,9 @@
 # Cambios
 
+## 10 nov 2026 · App del conductor: avisos de cambios y actualizar a mano (pendiente de publicar)
+- **Avisos con sonido, vibración y notificación** cuando: le asignan un servicio, se lo quitan (reasignado o eliminado), lo cancelan, o le cambian la hora, el retiro o el destino. Quedan en pantalla hasta tocar "Entendido". También avisa al abrir la app si algo cambió mientras estaba cerrada.
+- **Botón "⟳ Actualizar"** y **deslizar hacia abajo** (desde arriba de la pantalla) para actualizar al instante. La lista se sigue actualizando sola cada 30 segundos y al volver a la app.
+
 ## 10 nov 2026 · El conductor registra su vehículo y errores en español (pendiente de publicar)
 - **App del conductor → Perfil → Mi vehículo:** el conductor nuevo registra su vehículo (patente, marca, modelo, año, color, categoría, pasajeros y foto) y puede editarlo. En el inicio le aparece un aviso si aún no lo registra. Los documentos del vehículo (permiso de circulación, revisión técnica, SOAP, seguro, padrón) se suben desde "Subir documento". La central recibe un mensaje automático para revisarlo.
 - Base de datos (`etapa17_conductor_registra_vehiculo`): `conductor_guardar_vehiculo` (no permite tocar vehículos de Flota-K ni repetir patentes; queda como vehículo de prestador), foto solo en su carpeta, documentos solo de su propio vehículo. Probado con reversión.

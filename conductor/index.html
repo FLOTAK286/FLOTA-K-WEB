@@ -112,6 +112,16 @@ try { const t = localStorage.getItem("fk_tema") || "dark"; document.documentElem
   .btn.navegar { width: 100%; background: #2a6fdb; color: #fff; border-color: #2a6fdb; font-size: 1.05rem; padding: 12px; text-align: center; }
   .svc { border-radius: 12px; }
   #gps { font-size: .85rem; padding: 6px 10px; }
+#avisos { position: fixed; left: 10px; right: 10px; top: calc(10px + env(safe-area-inset-top)); z-index: 60; display: grid; gap: 8px; }
+#avisos .aviso-cambio { margin: 0; box-shadow: 0 6px 20px rgba(0,0,0,.4); display: grid; gap: 6px; }
+#avisos .aviso-cambio.quitado { border-color: #e5533d; background: #3a1712; color: #ffd9d2; }
+#avisos .aviso-cambio.asignado { border-color: #3ecf7f; background: #12301f; color: #d5f7e3; }
+#avisos .aviso-cambio.cambio { border-color: var(--gold); background: #33290f; color: #fbecc6; }
+#avisos .aviso-cambio .btn { justify-self: start; }
+body.drv { overscroll-behavior-y: contain; }
+#ptr { position: fixed; left: 50%; top: 0; transform: translate(-50%, -60px); z-index: 55; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 8px 16px; font-weight: 700; font-size: .9rem; box-shadow: 0 4px 14px rgba(0,0,0,.3); transition: transform .15s; pointer-events: none; }
+#ptr.listo { color: var(--gold); }
+.act-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -164,7 +174,9 @@ try { const t = localStorage.getItem("fk_tema") || "dark"; document.documentElem
     <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze, Cabify u otra app. Mientras esté en segundo plano verá una notificación de Flota-K.</p>
     <div id="inicio-mapa" class="mapa drv-mapa" hidden></div>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
-    <p class="muted small" id="updated" style="margin-top:10px"></p>
+    <div class="act-fila"><p class="muted small" id="updated" style="margin:0"></p><button class="btn ghost sm" id="refrescar" type="button">⟳ Actualizar</button></div>
+    <div id="ptr" aria-hidden="true">↓ Deslice para actualizar</div>
+    <div id="avisos" aria-live="assertive"></div>
   </section>
 </main>
 
@@ -258,11 +270,11 @@ async function cargar() {
   items = data || [];
   // Si el servicio con el chat abierto ya terminó, se cierra el chat (si no, la lista dejaría de actualizarse)
   if (chatAbiertoId && !items.some(x => x.id === chatAbiertoId && ["en_camino", "en_lugar", "a_bordo"].includes(x.estado))) { chatAbiertoId = null; chatVivo = null; }
-  avisarNuevos(); programarRecordatorios(); avisoSalida();
+  avisarNuevos(); await avisarCambios(); programarRecordatorios(); avisoSalida();
   if (enServicio()) enviarUbicacion(); // con un servicio en curso se comparte aunque esté desconectado
   await cargarCalificaciones(); revisarMensajes();
   if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
-  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada minuto";
+  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · se actualiza solo cada 30 segundos";
   pintar();
 }
 
@@ -343,6 +355,80 @@ function avisarNuevos() {
   nuevos.forEach(r => { if (LN) LN.schedule({ notifications: [{ id: 1800000000 + (parseInt(r.id.replace(/\D/g, "").slice(0, 7)) || 1), title: "Servicio nuevo · " + hora(r.fecha_hora), body: `${r.nombre_pasajero}: ${r.origen} → ${r.destino}` }] }).catch(() => {}); });
   try { localStorage.setItem("fk_avisados", JSON.stringify(vistos.concat(nuevos.map(r => r.id)).slice(-200))); } catch (_) {}
 }
+// Avisos de cambios: servicio asignado, quitado (reasignado o eliminado), cancelado, o con hora/dirección cambiada.
+// Se compara con lo que la app tenía guardada la vez anterior (también al volver a abrirla).
+function sonarAlerta() {
+  try { const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .25, .5].forEach((d, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = i % 2 ? 523 : 784; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(.3, ctx.currentTime + d); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + .2); }); } catch (_) {}
+}
+function mostrarAviso(tipo, titulo, texto) {
+  const box = $("avisos"), d = document.createElement("div");
+  d.className = "msg aviso-cambio " + tipo;
+  d.innerHTML = `<b>${esc(titulo)}</b><span>${esc(texto)}</span><button class="btn sm" type="button">Entendido</button>`;
+  d.querySelector("button").onclick = () => d.remove();
+  box.appendChild(d); while (box.children.length > 4) box.firstChild.remove();
+  if (LN) LN.schedule({ notifications: [{ id: 1600000000 + Math.floor(Math.random() * 99999999), title: titulo, body: texto }] }).catch(() => {});
+}
+async function avisarCambios() {
+  const resumen = r => ({ c: r.codigo, f: r.fecha_hora, o: r.origen, d: r.destino, n: r.nombre_pasajero });
+  const activos = items.filter(r => r.estado !== "finalizada");
+  let antes = null; try { antes = JSON.parse(localStorage.getItem("fk_snap_" + yo.id) || "null"); } catch (_) {}
+  const ahora = {}; activos.forEach(r => ahora[r.id] = resumen(r));
+  try { localStorage.setItem("fk_snap_" + yo.id, JSON.stringify(ahora)); } catch (_) {}
+  if (!antes) return; // primera vez en este teléfono: solo se guarda
+  const txt = x => `${x.c} · ${FK.fecha(x.f)} · ${x.n}: ${x.o} → ${x.d}`;
+  let hubo = false;
+  // Quitados o cancelados (los finalizados no cuentan; tampoco los que solo salieron del rango de días)
+  const idos = Object.keys(antes).filter(id => !ahora[id] && !items.some(r => r.id === id) && new Date(antes[id].f).getTime() > Date.now() - 17 * 3600e3);
+  if (idos.length) {
+    const { data: cs } = await sb.from("reservas").select("id, estado, conductor_id").in("id", idos);
+    idos.forEach(id => {
+      const x = antes[id], r = (cs || []).find(c => c.id === id);
+      if (r && r.estado === "cancelada" && r.conductor_id === yo.id) mostrarAviso("quitado", "❌ Servicio CANCELADO", txt(x) + ". No debe realizarlo.");
+      else mostrarAviso("quitado", "⚠ Le quitaron un servicio", txt(x) + ". Ya no está a su cargo (la central lo reasignó o lo eliminó). No debe realizarlo.");
+      hubo = true;
+    });
+  }
+  activos.forEach(r => {
+    const x = antes[r.id];
+    if (!x) { if (!porResponder(r)) { mostrarAviso("asignado", "✅ Servicio asignado", txt(resumen(r))); hubo = true; } return; } // los que piden respuesta ya avisan con su propio sonido
+    const cambios = [];
+    if (x.f !== r.fecha_hora) cambios.push(`hora: antes ${FK.fecha(x.f)}, ahora ${FK.fecha(r.fecha_hora)}`);
+    if (x.o !== r.origen) cambios.push(`retiro: ahora ${r.origen}`);
+    if (x.d !== r.destino) cambios.push(`destino: ahora ${r.destino}`);
+    if (cambios.length) { mostrarAviso("cambio", "✏️ Cambió un servicio · " + r.codigo, `${r.nombre_pasajero} · ${cambios.join(" · ")}`); hubo = true; }
+  });
+  if (hubo) { sonarAlerta(); if (navigator.vibrate) navigator.vibrate([300, 120, 300, 120, 300]); }
+}
+// Actualizar a mano: botón y deslizar hacia abajo desde arriba de la pantalla
+async function refrescarAMano() {
+  const b = $("refrescar"); b.disabled = true; b.textContent = "⟳ Actualizando…";
+  await cargar();
+  if (vista === "gan") pintarGanancias(); else if (vista === "perfil") pintarPerfil();
+  gananciaHoy(); revisarCentral();
+  b.disabled = false; b.textContent = "⟳ Actualizar";
+  $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · se actualiza solo cada 30 segundos";
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+$("refrescar").addEventListener("click", refrescarAMano);
+(function () {
+  let y0 = null, dy = 0;
+  const ptr = $("ptr"), UMBRAL = 80;
+  document.body.classList.add("drv");
+  window.addEventListener("touchstart", e => { const tg = e.target && e.target.closest ? e.target : document.body;
+    y0 = ((window.scrollY || document.documentElement.scrollTop) <= 0 && e.touches.length === 1 && !tg.closest(".swipe, .mapa, input, textarea, select, dialog")) ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  window.addEventListener("touchmove", e => {
+    if (y0 === null) return; dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || window.scrollY > 0) { ptr.style.transform = "translate(-50%, -60px)"; return; }
+    const d = Math.min(dy, 140); ptr.style.transform = `translate(-50%, ${d / 2}px)`;
+    ptr.classList.toggle("listo", dy > UMBRAL); ptr.textContent = dy > UMBRAL ? "↻ Suelte para actualizar" : "↓ Deslice para actualizar";
+  }, { passive: true });
+  window.addEventListener("touchend", () => {
+    if (y0 !== null && dy > UMBRAL && window.scrollY <= 0) { ptr.textContent = "⟳ Actualizando…"; ptr.style.transform = "translate(-50%, 30px)"; refrescarAMano().then(() => setTimeout(() => { ptr.style.transform = "translate(-50%, -60px)"; }, 300)); }
+    else ptr.style.transform = "translate(-50%, -60px)";
+    y0 = null; dy = 0;
+  });
+})();
 // Recordatorios 2 horas y 45 minutos antes (en la app Android quedan programados aunque la app esté cerrada)
 let recordados = new Set();
 function programarRecordatorios() {
