@@ -1,5 +1,17 @@
 # Cambios
 
+## 10 nov 2026 · Panel del despachador: celular, avisos, resumen y más (pendiente de publicar)
+- **Celular:** barra inferior (Despacho, Reservas, Nueva, Mapa, Más), botones y campos más grandes, y el tablero se ve como tarjetas.
+- **Avisos con sonido y notificación del navegador** (botón "🔔 Activar avisos"): reserva nueva y toda alerta roja nueva (sin conductor, atrasado, pasajero pide ayuda, pasajero sin mapa). Siguen llegando con la pestaña en segundo plano.
+- **Alertas de GPS:** "Pasajero no ve al conductor (sin GPS)", "GPS con retraso" y "Conductor sin GPS activo" antes del retiro. En la ficha: estado del mapa del pasajero y botón **"👁 Ver lo que ve el pasajero"**.
+- **Resumen del día en cuadros** (servicios, sin asignar, alertas, ganado hoy, por cobrar, conductores); se pueden tocar para filtrar.
+- **Duplicar** y **Crear regreso** (origen y destino invertidos) desde la ficha.
+- **Mensajes de WhatsApp por momento:** confirmación, recordatorio del día anterior, conductor en camino, conductor llegó, gracias + calificar (elige solo el adecuado según el estado).
+- **Agenda en línea de tiempo** por conductor (bloques por hora, choques en rojo, línea de la hora actual); se mantiene la vista en columnas.
+- **Acciones en grupo** en Reservas: confirmar varias y marcar varias como pagadas (solo administrador).
+- **Etiquetas de cliente** (`etapa16_etiquetas_clientes`): VIP, Frecuente, Empresa, Requiere factura, Paga tarde, Mascota en canil, Llamar al llegar, Exigente. Se ven en el despacho, la ficha y al tomar una reserva.
+- **Buscador único** arriba del panel: reservas (código, nombre, teléfono, dirección, vuelo) y clientes.
+
 ## 10 nov 2026 · Eliminar reservas con papelera (pendiente de publicar)
 - Base de datos (`etapa15_eliminar_reservas_papelera`): "eliminar" no borra; la reserva queda cancelada y **oculta en todas partes** (despacho, agenda, reportes, cobros, app del conductor), con motivo, fecha y quién la eliminó. Solo el administrador; no se puede eliminar un servicio en curso. `restaurar_reserva` la devuelve con el estado que tenía. Probado (con reversión): oculta, aparece en la papelera, se restaura y un no administrador queda bloqueado.
 - Panel → ficha de la reserva: botón **"Cancelar reserva"** (pide motivo, queda en el historial) y, para el administrador, **"Eliminar"**. Reservas → filtro **"Eliminadas (papelera)"** con botón **Restaurar**.

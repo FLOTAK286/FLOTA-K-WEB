@@ -38,7 +38,8 @@
   </section>
 
   <!-- Panel -->
-  <section id="app" hidden>
+  <section id="app" class="eq" hidden>
+    <div class="gsearch"><input id="gbuscar" type="search" placeholder="🔎 Buscar reserva o cliente: código, nombre, teléfono, dirección" autocomplete="off" aria-label="Buscar en todo el panel"><div id="gres" class="gres" hidden></div></div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="despacho" aria-selected="true">Despacho</button>
       <button role="tab" data-tab="reservas" aria-selected="false">Reservas</button>
@@ -52,6 +53,13 @@
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
+    <nav class="mnav" aria-label="Menú rápido">
+      <button type="button" data-go="despacho" class="on"><span aria-hidden="true">🚦</span>Despacho</button>
+      <button type="button" data-go="reservas"><span aria-hidden="true">📋</span>Reservas</button>
+      <button type="button" data-go="nueva"><span aria-hidden="true">➕</span>Nueva</button>
+      <button type="button" data-go="mapa"><span aria-hidden="true">📍</span>Mapa</button>
+      <button type="button" id="mnav-mas"><span aria-hidden="true">☰</span>Más</button>
+    </nav>
 
     <div data-pane="despacho" class="panel" style="margin-top:14px">
       <div class="actions" style="justify-content:space-between;align-items:center">
@@ -62,9 +70,9 @@
           <button type="button" class="chip" data-f="curso">En curso <span id="c-curso"></span></button>
           <button type="button" class="chip" data-f="hoy">Hoy</button>
         </div>
-        <span class="actions"><label class="chk small"><input type="checkbox" id="tb-vermapa"> Ver mapa al lado</label><span class="muted small" id="tb-act"></span></span>
+        <span class="actions"><button class="btn ghost sm" type="button" id="tb-avisos">🔔 Activar avisos</button><label class="chk small"><input type="checkbox" id="tb-vermapa"> Ver mapa al lado</label><span class="muted small" id="tb-act"></span></span>
       </div>
-      <div id="tb-resumen" class="tb-resumen"></div>
+      <div id="tb-resumen" class="kpis"></div>
       <div id="tb-split"><div class="tblwrap"><table class="tbl tb"><thead><tr><th>Hora</th><th>Servicio</th><th>Pasajero</th><th>Trayecto</th><th>Vuelo</th><th>Conductor</th><th>Valor</th><th>Alertas</th></tr></thead><tbody id="tb-body"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody></table></div><div id="tb-mapa" class="mapa alto" hidden></div></div>
       <p class="muted small" style="margin:0">Muestra desde 12 horas atrás hasta 2 días adelante, más toda reserva por confirmar. Se actualiza solo cada 30 segundos. Toque una fila para abrir la ficha; el conductor se puede asignar directo en la fila.</p>
     </div>
@@ -85,6 +93,15 @@
           </select></div>
         <div class="f" style="flex:1;min-width:180px"><label for="buscar">Buscar</label><input id="buscar" placeholder="Nombre, código, teléfono o comuna"></div>
       </div>
+      <div class="actions bulk" id="bulk-bar">
+        <label class="chk small"><input type="checkbox" id="sel-modo"> Seleccionar varias</label>
+        <span id="bulk" class="actions" hidden><b id="bulk-n">0</b> seleccionada(s)
+          <button class="btn ghost sm" type="button" id="bulk-todas">Todas</button>
+          <button class="btn ghost sm" type="button" id="bulk-conf">✔ Confirmar</button>
+          <span class="actions" id="bulk-pagwrap"><select id="bulk-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost sm" type="button" id="bulk-pag">$ Marcar pagadas</button></span>
+          <button class="btn ghost sm" type="button" id="bulk-limpiar">Limpiar</button></span>
+        <span id="bulk-msg" class="small"></span>
+      </div>
       <div id="lista" class="list"><p class="muted">Cargando…</p></div>
     </div>
 
@@ -94,6 +111,7 @@
         <button class="btn ghost sm" id="ag-prev" type="button">◀ Día anterior</button>
         <button class="btn ghost sm" id="ag-hoy" type="button">Hoy</button>
         <button class="btn ghost sm" id="ag-next" type="button">Día siguiente ▶</button>
+        <span class="chips" id="ag-vista" style="margin-left:auto"><button type="button" class="chip" data-agv="tl">Línea de tiempo</button><button type="button" class="chip" data-agv="col">Columnas</button></span>
       </div>
       <div id="agenda" class="agenda"><p class="muted">Cargando…</p></div>
       <p class="muted small">En rojo: servicios que se cruzan para el mismo conductor. Se considera la duración estimada de cada servicio más 15 minutos de margen.</p>
@@ -435,13 +453,17 @@ async function iniciar(session) {
   $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos(); cargarCuentas();
-  cargarDespacho(); timerDespacho = setInterval(() => { if (!document.hidden && pestanaActual() === "despacho") cargarDespacho(); }, 30000);
+  cargarDespacho(); timerDespacho = setInterval(() => { if ((!document.hidden && pestanaActual() === "despacho") || avisosActivos()) cargarDespacho(); }, 30000);
+  pintarBotonAvisos();
   if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
 }
 
 // ---- Pestañas
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  document.body.classList.remove("tabs-open");
+  document.querySelectorAll(".mnav [data-go]").forEach(x => x.classList.toggle("on", x.dataset.go === b.dataset.tab));
+  if (window.matchMedia("(max-width: 760px)").matches) window.scrollTo({ top: 0 });
   document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
   clearInterval(timerMapa);
   if (b.dataset.tab === "mapa") { cargarMapa(); timerMapa = setInterval(cargarMapa, 15000); }
@@ -457,13 +479,74 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "equipo") cargarTarifas();
 }));
 
+document.querySelectorAll(".mnav [data-go]").forEach(b => b.addEventListener("click", () => document.querySelector(`.tabs button[data-tab="${b.dataset.go}"]`).click()));
+$("mnav-mas").addEventListener("click", () => { document.body.classList.toggle("tabs-open"); if (document.body.classList.contains("tabs-open")) window.scrollTo({ top: 0, behavior: "smooth" }); });
+
+// ---- Etiquetas de cliente (las ve solo el equipo)
+const ETIQUETAS = ["VIP", "Frecuente", "Empresa", "Requiere factura", "Paga tarde", "Mascota en canil", "Llamar al llegar", "Exigente"];
+const etqHtml = arr => (arr || []).map(t => `<span class="etq ${t === "VIP" ? "oro" : t === "Paga tarde" ? "roja" : ""}">${esc(t)}</span>`).join(" ");
+
+// ---- Buscador de todo el panel
+let gTimer = null, abrirClienteTras = null;
+$("gbuscar").addEventListener("input", () => { clearTimeout(gTimer); gTimer = setTimeout(buscarGlobal, 300); });
+$("gbuscar").addEventListener("keydown", e => { if (e.key === "Escape") $("gres").hidden = true; });
+$("gbuscar").addEventListener("focus", () => { if ($("gres").innerHTML && $("gbuscar").value.trim().length >= 2) $("gres").hidden = false; });
+document.addEventListener("click", e => { if (!e.target.closest(".gsearch")) $("gres").hidden = true; });
+async function buscarGlobal() {
+  const orig = $("gbuscar").value.trim(), q = orig.replace(/[,()%*\\:"'.]/g, " ").replace(/\s+/g, " ").trim();
+  if (q.length < 2) { $("gres").hidden = true; return; }
+  const pat = `%${q}%`, dig = q.replace(/\D/g, ""), num = dig.length >= 4 ? dig.slice(-4) : null;
+  const orR = [`codigo.ilike.${pat}`, `nombre_pasajero.ilike.${pat}`, `solicitante_nombre.ilike.${pat}`, `origen.ilike.${pat}`, `destino.ilike.${pat}`, `vuelo.ilike.${pat}`];
+  const orC = [`nombre.ilike.${pat}`, `correo.ilike.${pat}`];
+  if (num) { orR.push(`telefono.ilike.%${num}%`, `solicitante_telefono.ilike.%${num}%`); orC.push(`telefono.ilike.%${num}%`); }
+  const [{ data: rs }, { data: cs }] = await Promise.all([
+    sb.from("reservas").select("*").or(orR.join(",")).order("fecha_hora", { ascending: false }).limit(12),
+    sb.from("clientes").select("id, nombre, telefono, correo, etiquetas").or(orC.join(",")).order("nombre").limit(6)
+  ]);
+  if ($("gbuscar").value.trim() !== orig) return;
+  const ok = t => !num || dig.length < 6 || tel8(t).includes(dig.slice(-Math.min(8, dig.length)));
+  const R = (rs || []).filter(r => !/^\d[\d\s+-]*$/.test(q) || ok(r.telefono) || ok(r.solicitante_telefono)).slice(0, 8);
+  const C = (cs || []).filter(c => !/^\d[\d\s+-]*$/.test(q) || ok(c.telefono));
+  $("gres").innerHTML = (R.length ? `<h4>Reservas</h4>` + R.map(r => `<button type="button" data-r="${esc(r.id)}"><span><b>${esc(r.codigo)}</b> · ${esc(fecha(r.fecha_hora))} · ${esc(r.nombre_pasajero)}<br><span class="muted small">${esc(r.origen)} → ${esc(r.destino)}</span></span>${pill(r.estado)}</button>`).join("") : "") +
+    (C.length ? `<h4>Clientes</h4>` + C.map(c => `<button type="button" data-c="${esc(c.id)}"><span><b>${esc(c.nombre)}</b> ${etqHtml(c.etiquetas)}<br><span class="muted small">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}</span></span></button>`).join("") : "") ||
+    '<p class="muted small" style="padding:10px">Sin resultados.</p>';
+  $("gres").hidden = false;
+  $("gres").querySelectorAll("[data-r]").forEach(b => b.addEventListener("click", () => {
+    const r = R.find(x => x.id === b.dataset.r); const i = cache.findIndex(x => x.id === r.id); if (i >= 0) cache[i] = r; else cache.push(r);
+    $("gres").hidden = true; abrir(r.id);
+  }));
+  $("gres").querySelectorAll("[data-c]").forEach(b => b.addEventListener("click", () => {
+    $("gres").hidden = true; abrirClienteTras = b.dataset.c; document.querySelector('.tabs button[data-tab="clientes"]').click();
+  }));
+}
+
 // ---- Confirmación por WhatsApp (se abre su WhatsApp con el mensaje armado; usted lo envía)
-function enviarConfirmacion(r, alSolicitante) {
+const PLANTILLAS = { confirmacion: "Confirmación de la reserva", recordatorio: "Recordatorio (día anterior)", encamino: "Su conductor va en camino", enlugar: "Su conductor llegó", gracias: "Gracias + calificar" };
+function plantillaSugerida(r) {
+  if (r.estado === "en_camino") return "encamino";
+  if (r.estado === "en_lugar" || r.estado === "a_bordo") return "enlugar";
+  if (r.estado === "finalizada") return "gracias";
+  const man = new Date(); man.setDate(man.getDate() + 1);
+  const dia = d => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
+  return dia(new Date(r.fecha_hora)) === dia(man) ? "recordatorio" : "confirmacion";
+}
+function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
   const tel = alSolicitante ? r.solicitante_telefono : r.telefono;
   let d = (tel || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d; if (d.length === 8) d = "569" + d;
   if (!d) return msg("d-msg", "No hay teléfono registrado.", "err");
   const nombre = (alSolicitante ? r.solicitante_nombre : r.nombre_pasajero || "").split(" ")[0];
   const v = vehDe(r.conductor_id, r.vehiculo_id), cond = r.conductor_id ? etiquetaConductor(r.conductor_id).split(" · ").slice(0, 2).join(" · ") : "";
+  const link = `${location.origin}/seguimiento/?t=${r.token_seguimiento}`;
+  const vTxt = v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "";
+  const quien = alSolicitante ? `el conductor de ${r.nombre_pasajero}` : "su conductor";
+  const datos = `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") + (cond ? `\nConductor: móvil ${cond}` : "") + vTxt;
+  const otros = {
+    recordatorio: `Hola ${nombre}, le recordamos ${alSolicitante ? `el traslado de ${r.nombre_pasajero}` : "su traslado"} con Flota-K para mañana.\n\n${datos}\n\nSi necesita cambiar algo, responda este mensaje.\nSiga el traslado aquí: ${link}\n\nComprometidos con su traslado. Flota-K`,
+    encamino: `Hola ${nombre}, ${quien} va en camino${cond ? ` (móvil ${cond})` : ""}.${vTxt}\n\nVea su ubicación en el mapa aquí: ${link}\n\nFlota-K`,
+    enlugar: `Hola ${nombre}, ${quien} ya está en el punto de retiro: ${r.origen}.${vTxt}\n\nSi necesita ubicarlo, escríbale desde aquí: ${link}\n\nFlota-K`,
+    gracias: `Hola ${nombre}, gracias por viajar con Flota-K. Nos ayudaría mucho que califique ${alSolicitante ? `el traslado de ${r.nombre_pasajero}` : "su traslado"} aquí: ${link}\n\nPara su próximo viaje, reserve en fk-servicios.com o responda este mensaje.\n\nComprometidos con su traslado. Flota-K`
+  };
+  if (otros[tipo]) return window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(otros[tipo]), "_blank", "noopener");
   const t = `Hola ${nombre}, ${alSolicitante ? `el traslado de ${r.nombre_pasajero} está confirmado` : "su traslado con Flota-K está confirmado"}.\n\n` +
     `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
     (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
@@ -471,7 +554,7 @@ function enviarConfirmacion(r, alSolicitante) {
   window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(t), "_blank", "noopener");
 }
 // ---- Copiar reserva: abre "Nueva reserva" con los mismos datos (falta poner la fecha)
-function copiarReserva(r) {
+function copiarReserva(r, regreso) {
   $("det").close();
   document.querySelector('.tabs button[data-tab="nueva"]').click();
   $("nf").reset();
@@ -483,6 +566,11 @@ function copiarReserva(r) {
   set("n-origen", r.origen); set("n-destino", r.destino); set("n-tipo", r.tipo_servicio); set("n-veh", r.vehiculo || "auto"); set("n-pax", r.pasajeros); set("n-maletas", r.maletas);
   set("n-precio", r.precio); set("n-pago", r.forma_pago || ""); set("n-cobro", r.tipo_cobro || "fija"); set("n-cc", r.centro_costo); set("n-com", r.comentarios);
   clienteSel = r.cliente_id || null;
+  if (regreso) {
+    set("n-origen", r.destino); set("n-destino", r.origen); $("n-vuelo").value = "";
+    set("n-tipo", r.tipo_servicio === "ida" ? "regreso" : r.tipo_servicio === "regreso" ? "ida" : r.tipo_servicio);
+    msg("n-msg", `Regreso de ${r.codigo}: origen y destino invertidos. Ponga la fecha, hora y vuelo del regreso y revise antes de guardar.`, "ok");
+  } else
   msg("n-msg", `Copia de ${r.codigo}: ponga la nueva fecha y hora y revise antes de guardar.`, "ok");
   $("n-fecha").focus();
 }
@@ -506,8 +594,20 @@ async function sugerirConductor(r) {
 // ---- Notas internas del cliente (las ve solo el equipo)
 async function notasCliente(r) {
   if (!r.cliente_id) return;
-  const { data } = await sb.from("clientes").select("notas").eq("id", r.cliente_id).maybeSingle();
-  if (data && data.notas) $("d-notas").innerHTML = `<p class="msg" style="margin:0;border-color:var(--gold)"><b>📝 Notas del cliente:</b> ${esc(data.notas)}</p>`;
+  const { data } = await sb.from("clientes").select("notas, etiquetas").eq("id", r.cliente_id).maybeSingle();
+  if (data && (data.notas || (data.etiquetas || []).length)) $("d-notas").innerHTML = `<p class="msg" style="margin:0;border-color:var(--gold)">${etqHtml(data.etiquetas)}${data.notas ? ` <b>📝 Notas del cliente:</b> ${esc(data.notas)}` : ""}</p>`;
+}
+// ---- ¿El pasajero ve al conductor en el mapa?
+async function estadoGps(r) {
+  const box = $("d-gps"); if (!box || !r.conductor_id || r.derivado_a || ["finalizada", "cancelada"].includes(r.estado)) return;
+  const { data: u } = await sb.from("ubicaciones").select("actualizado_en").eq("conductor_id", r.conductor_id).maybeSingle();
+  const min = u ? (Date.now() - new Date(u.actualizado_en)) / 60000 : Infinity, hace = u ? FKMapa.hace(u.actualizado_en) : "";
+  const enCurso = EN_CURSO.includes(r.estado);
+  box.innerHTML = enCurso
+    ? (min <= 3 ? `<span class="ok-txt">📍 El pasajero ve a su conductor en el mapa (ubicación ${esc(hace)}).</span>`
+      : min <= 15 ? `<span class="warn">⚠ La ubicación viene con retraso (${esc(hace)}). El pasajero ve el último punto conocido.</span>`
+      : `<span class="warn"><b>⚠ El pasajero NO ve al conductor en el mapa:</b> la app del conductor no envía ubicación${u ? " " + esc(hace) : ""}. Pídale abrir la app Flota-K Conductor y permitir la ubicación "todo el tiempo".</span>`)
+    : `<span class="muted">El pasajero verá el mapa cuando el conductor marque «En camino». GPS del conductor: ${min <= 15 ? "activo (" + esc(hace) + ")" : u ? "sin señal (" + esc(hace) + ")" : "nunca ha enviado ubicación"}.</span>`;
 }
 // ---- Historial de cambios (quién cambió qué)
 const CAMPOS = { fecha_hora: "Fecha y hora", origen: "Origen", destino: "Destino", precio: "Precio", forma_pago: "Forma de pago", tipo_cobro: "Tipo de cobro", conductor_id: "Conductor", vehiculo_id: "Vehículo", derivado_a: "Derivado a", pagado: "Pagado", vehiculo: "Vehículo que pide", pasajeros: "Pasajeros", vuelo: "Vuelo", centro_costo: "Centro de costo" };
@@ -642,23 +742,53 @@ async function cargarReservas() {
   if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   cache = data; pintar();
 }
+let selRes = new Set();
+function pintarBulk() {
+  $("bulk").hidden = !$("sel-modo").checked; $("bulk-n").textContent = selRes.size;
+  $("bulk-pagwrap").hidden = !(yo && yo.rol === "admin");
+}
 function pintar() {
   const t = $("buscar").value.trim().toLowerCase();
+  $("bulk-bar").hidden = false; pintarBulk();
   const rows = cache.filter(r => !t || [r.nombre_pasajero, r.codigo, r.telefono, r.comuna, r.origen, r.destino].join(" ").toLowerCase().includes(t));
   $("lista").innerHTML = rows.length ? rows.map(r => `
-    <button class="card" type="button" data-id="${esc(r.id)}">
-      <div class="top"><span class="when">${esc(fecha(r.fecha_hora))}</span>${pill(r.estado)}</div>
+    <button class="card ${selRes.has(r.id) ? "sel" : ""}" type="button" data-id="${esc(r.id)}">
+      <div class="top"><span class="when">${$("sel-modo").checked ? (selRes.has(r.id) ? "☑ " : "☐ ") : ""}${esc(fecha(r.fecha_hora))}</span>${pill(r.estado)}</div>
       <div><b>${esc(r.nombre_pasajero)}</b> · ${esc(r.telefono)}</div>
       <div>${esc(r.origen)} → ${esc(r.destino)}</div>
       <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")} · ${esc(r.canal)}</span><span>${clp(r.precio ?? r.tarifa_web)}</span></div>
       <div class="small ${r.conductor_id || r.derivado_a ? "" : "warn"}">${esc(asignadoTxt(r))}</div>
     </button>`).join("") : '<p class="muted">No hay reservas para mostrar.</p>';
-  $("lista").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
+  $("lista").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => {
+    if (!$("sel-modo").checked) return abrir(c.dataset.id);
+    selRes.has(c.dataset.id) ? selRes.delete(c.dataset.id) : selRes.add(c.dataset.id); pintar();
+  }));
 }
-$("filtro").addEventListener("change", cargarReservas);
+$("filtro").addEventListener("change", () => { selRes.clear(); cargarReservas(); });
+$("sel-modo").addEventListener("change", () => { selRes.clear(); $("bulk-msg").textContent = ""; pintar(); });
+$("bulk-limpiar").addEventListener("click", () => { selRes.clear(); pintar(); });
+$("bulk-todas").addEventListener("click", () => { $("lista").querySelectorAll(".card[data-id]").forEach(c => selRes.add(c.dataset.id)); pintar(); });
+$("bulk-conf").addEventListener("click", async () => {
+  const xs = cache.filter(r => selRes.has(r.id)), pend = xs.filter(r => r.estado === "recibida");
+  if (!xs.length) return ($("bulk-msg").textContent = "Seleccione reservas tocándolas.");
+  if (!pend.length) return ($("bulk-msg").textContent = "Ninguna de las seleccionadas está por confirmar.");
+  if (!confirm(`¿Confirmar ${pend.length} reserva(s)?` + (xs.length > pend.length ? ` (${xs.length - pend.length} ya estaban confirmadas o más avanzadas y no se tocan)` : ""))) return;
+  $("bulk-msg").textContent = "Confirmando…"; let malas = 0;
+  for (const r of pend) { const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: "confirmada", p_nota: "Confirmada en grupo" }); if (error) malas++; }
+  $("bulk-msg").textContent = `${pend.length - malas} confirmada(s)` + (malas ? `, ${malas} con error` : "") + "."; selRes.clear(); cargarReservas();
+});
+$("bulk-pag").addEventListener("click", async () => {
+  const xs = cache.filter(r => selRes.has(r.id) && r.estado !== "cancelada" && !r.pagado);
+  if (!xs.length) return ($("bulk-msg").textContent = "No hay reservas seleccionadas pendientes de pago.");
+  if (!confirm(`¿Marcar ${xs.length} reserva(s) como pagadas por ${$("bulk-medio").value}?`)) return;
+  $("bulk-msg").textContent = "Guardando…";
+  const { error } = await sb.rpc("marcar_pagado", { p_reservas: xs.map(r => r.id), p_pagado: true, p_medio: $("bulk-medio").value, p_fecha: null });
+  if (error) return ($("bulk-msg").textContent = errText(error));
+  $("bulk-msg").textContent = `${xs.length} reserva(s) marcadas como pagadas.`; selRes.clear(); cargarReservas();
+});
 // Papelera: reservas eliminadas (solo administrador). Se pueden restaurar.
 async function cargarPapelera() {
-  cache = [];
+  cache = []; $("bulk-bar").hidden = true;
   const { data, error } = await sb.rpc("reservas_eliminadas");
   if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const t = $("buscar").value.trim().toLowerCase();
@@ -703,7 +833,7 @@ async function abrir(id) {
       <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
       <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
       <dt>Canal</dt><dd>${esc(r.canal)}</dd>
-      <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">Copiar</button></dd>
+      <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">Copiar</button> <a class="btn ghost sm" href="${esc(seg)}" target="_blank" rel="noopener">👁 Ver lo que ve el pasajero</a><div id="d-gps" class="small" style="margin-top:4px"></div></dd>
     </dl>
     <div class="row2">
       <div class="f"><label for="d-precio">Precio final</label><input id="d-precio" type="number" min="0" step="1000" value="${esc(r.precio ?? "")}"></div>
@@ -717,7 +847,8 @@ async function abrir(id) {
       <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
       <div class="f"><label for="d-nota">Nota (queda en el historial)</label><input id="d-nota" maxlength="1000"></div>
     </div>
-    <div class="actions"><button class="btn ghost sm" type="button" id="wa-pas">📲 Enviar confirmación al pasajero</button>${r.solicitante_nombre ? '<button class="btn ghost sm" type="button" id="wa-sol">📲 Enviar confirmación a quien reservó</button>' : ""}<button class="btn ghost sm" type="button" id="d-copiar">⧉ Copiar reserva</button></div>
+    <div class="actions"><select id="wa-tipo" aria-label="Mensaje de WhatsApp" style="max-width:240px">${Object.entries(PLANTILLAS).map(([k, v]) => `<option value="${k}" ${k === plantillaSugerida(r) ? "selected" : ""}>${esc(v)}</option>`).join("")}</select><button class="btn ghost sm" type="button" id="wa-pas">📲 WhatsApp al pasajero</button>${r.solicitante_nombre ? '<button class="btn ghost sm" type="button" id="wa-sol">📲 A quien reservó</button>' : ""}</div>
+    <div class="actions"><button class="btn ghost sm" type="button" id="d-copiar">⧉ Duplicar</button><button class="btn ghost sm" type="button" id="d-regreso">↩ Crear regreso</button></div>
     <div id="d-notas"></div>
     <h3 style="margin:6px 0 0">Asignación</h3>
     <div id="a-sug" class="small"></div>
@@ -773,9 +904,11 @@ async function abrir(id) {
   };
   pintarCobro(r);
   pintarCalificaciones(r); pintarMensajes(r); pintarCambios(r); notasCliente(r);
-  $("wa-pas").onclick = () => enviarConfirmacion(r, false);
-  if ($("wa-sol")) $("wa-sol").onclick = () => enviarConfirmacion(r, true);
+  $("wa-pas").onclick = () => enviarConfirmacion(r, false, $("wa-tipo").value);
+  if ($("wa-sol")) $("wa-sol").onclick = () => enviarConfirmacion(r, true, $("wa-tipo").value);
   $("d-copiar").onclick = () => copiarReserva(r);
+  $("d-regreso").onclick = () => copiarReserva(r, true);
+  estadoGps(r);
   if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
   $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
   const margen = () => {
@@ -1180,7 +1313,7 @@ $("rp-xlsx").addEventListener("click", () => {
 });
 
 // ---- Tablero de despacho: una línea por servicio, lo urgente arriba
-let tablero = [], tbFiltro = "todo", timerDespacho = null, conocidasWeb = null;
+let tablero = [], tbFiltro = "todo", timerDespacho = null, conocidasWeb = null, alertasConocidas = null, ubDe = {}, etqDe = {}, porCobrarTotal = 0, audioCtx = null;
 const vueloLink = v => v ? `<a href="https://www.google.com/search?q=${encodeURIComponent(v + " estado del vuelo")}" target="_blank" rel="noopener" class="vuelo" title="Ver estado del vuelo en Google">✈ ${esc(v)}</a>` : '<span class="muted">—</span>';
 const antesDeSalirR = r => ["recibida", "confirmada", "asignada"].includes(r.estado);
 function alertasDe(r, extra) {
@@ -1202,6 +1335,12 @@ function alertasDe(r, extra) {
   if (extra.ayuda) a.push({ n: 3, c: "roja", t: extra.ayuda === "objeto_perdido" ? "Objeto perdido" : extra.ayuda === "ayuda" ? "Pasajero pide ayuda" : "Consulta del pasajero" });
   if (r.observacion_conductor && !r.observacion_revisada) a.push({ n: 1, c: "gris", t: "Observación" });
   if (extra.califBaja) a.push({ n: 2, c: "amarilla", t: "Calificación baja" });
+  if (r.conductor_id && !r.derivado_a) {
+    const age = extra.ub ? (ahora - extra.ub) / 60000 : Infinity;
+    if (EN_CURSO.includes(r.estado) && age > 15) a.push({ n: 3, c: "roja", t: "Pasajero no ve al conductor (sin GPS)" });
+    else if (EN_CURSO.includes(r.estado) && age > 3) a.push({ n: 2, c: "amarilla", t: "GPS con retraso" });
+    else if (antesDeSalir && min <= 45 && min > -60 && age > 15) a.push({ n: 2, c: "amarilla", t: "Conductor sin GPS activo" });
+  }
   return a;
 }
 async function cargarDespacho() {
@@ -1222,14 +1361,28 @@ async function cargarDespacho() {
   const ultimoMsg = {}, ayuda = {}; (ms || []).forEach(m => { if (m.canal === "central") { if (m.autor === "pasajero" && !m.atendido) ayuda[m.reserva_id] = m.tema || "otro"; } else ultimoMsg[m.reserva_id] = m; });
   const enLugar = {}; (evs || []).forEach(e => enLugar[e.reserva_id] = Math.max(enLugar[e.reserva_id] || 0, new Date(e.creado_en).getTime()));
   const baja = new Set((cs || []).map(c => c.reserva_id));
+  const cids = [...new Set(tablero.map(r => r.cliente_id).filter(Boolean))];
+  const [{ data: ubs }, { data: cls }, { data: pc }] = await Promise.all([
+    sb.from("ubicaciones").select("conductor_id, actualizado_en"),
+    cids.length ? sb.from("clientes").select("id, etiquetas").in("id", cids) : Promise.resolve({ data: [] }),
+    sb.from("v_cobro").select("total").eq("estado", "finalizada").eq("pagado", false).limit(5000)
+  ]);
+  ubDe = {}; (ubs || []).forEach(u => ubDe[u.conductor_id] = new Date(u.actualizado_en).getTime());
+  etqDe = {}; (cls || []).forEach(c => etqDe[c.id] = c.etiquetas || []);
+  porCobrarTotal = (pc || []).reduce((a, x) => a + (x.total || 0), 0);
   tablero.forEach(r => {
-    r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", ayuda: ayuda[r.id], enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id) });
+    r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", ayuda: ayuda[r.id], enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id), ub: ubDe[r.conductor_id] });
     r._urg = r._al.reduce((a, x) => Math.max(a, x.n), 0);
   });
   // Aviso sonoro cuando llega una reserva nueva por confirmar
   const web = new Set(tablero.filter(r => r.estado === "recibida").map(r => r.id));
-  if (conocidasWeb && [...web].some(id => !conocidasWeb.has(id))) avisoNuevo();
+  const nuevaWeb = conocidasWeb && [...web].some(id => !conocidasWeb.has(id));
   conocidasWeb = web;
+  // Aviso (sonido + notificación) cuando aparece una alerta roja nueva
+  const urg = new Map(); tablero.forEach(r => r._al.filter(x => x.n >= 3).forEach(x => urg.set(r.id + "|" + x.t.replace(/\d+/g, "#"), `${r.codigo} · ${(r.nombre_pasajero || "").split(" ")[0]}: ${x.t}`)));
+  const nuevas = alertasConocidas ? [...urg.keys()].filter(k => !alertasConocidas.has(k) && !(nuevaWeb && k.endsWith("|Por confirmar"))) : [];
+  alertasConocidas = new Set(urg.keys());
+  if (nuevaWeb || nuevas.length) avisoNuevo([...(nuevaWeb ? ["Llegó una reserva nueva por confirmar"] : []), ...nuevas.map(k => urg.get(k))].join("\n"));
   pintarDespacho(); mapaTablero();
   $("tb-act").textContent = "Actualizado " + hora(new Date().toISOString());
 }
@@ -1254,22 +1407,54 @@ async function mapaTablero() {
   if (pts.length && !mapaTb._fk) { mapaTb._fk = 1; pts.length === 1 ? mapaTb.setView(pts[0], 13) : mapaTb.fitBounds(pts, { padding: [30, 30], maxZoom: 14 }); }
 }
 try { $("tb-vermapa").checked = localStorage.getItem("fk_tbmapa") === "1"; } catch (_) {}
+// Avisos: sonido y notificación del navegador (siguen funcionando con la pestaña en segundo plano)
+const avisosActivos = () => "Notification" in window && Notification.permission === "granted";
+function pintarBotonAvisos() {
+  const b = $("tb-avisos"), N = "Notification" in window ? Notification.permission : "nada";
+  b.textContent = N === "granted" ? "🔔 Avisos activados" : N === "denied" ? "🔕 Avisos bloqueados" : audioCtx ? "🔔 Sonido activado" : "🔔 Activar avisos";
+  b.title = N === "denied" ? "El navegador bloqueó las notificaciones: actívelas en el candado junto a la dirección de la página." : "Suena y muestra un aviso cuando llega una reserva o aparece una alerta roja (sin conductor, atrasado, pasajero sin mapa, pide ayuda).";
+}
+$("tb-avisos").addEventListener("click", async () => {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (_) {}
+  if ("Notification" in window && Notification.permission === "default") { try { await Notification.requestPermission(); } catch (_) {} }
+  pintarBotonAvisos();
+  if (window.Notification?.permission === "denied") alert("El navegador tiene bloqueadas las notificaciones de esta página. Toque el candado junto a la dirección y permita Notificaciones. Mientras tanto, el panel igual suena si está abierto.");
+  avisoNuevo("Avisos activados: así sonará cuando haya algo urgente.");
+});
 const aplicarSplit = () => { $("tb-split").classList.toggle("split", $("tb-vermapa").checked); $("tb-mapa").hidden = !$("tb-vermapa").checked; mapaTablero(); };
 $("tb-vermapa").addEventListener("change", () => { try { localStorage.setItem("fk_tbmapa", $("tb-vermapa").checked ? "1" : "0"); } catch (_) {} aplicarSplit(); });
 setTimeout(aplicarSplit, 0);
-function avisoNuevo() {
+function avisoNuevo(texto = "Nueva reserva") {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if ("Notification" in window && Notification.permission === "granted") {
+      const n = new Notification("Flota-K · Despacho", { body: texto, tag: "fk-despacho", renotify: true });
+      n.onclick = () => { window.focus(); document.querySelector('.tabs button[data-tab="despacho"]').click(); n.close(); };
+    }
+  } catch (_) {}
+  try {
+    const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
     [0, 0.25].forEach(d => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.2, ctx.currentTime + d); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.18); });
   } catch (_) {}
-  const t0 = document.title; let n = 0; const iv = setInterval(() => { document.title = n++ % 2 ? t0 : "● Nueva reserva"; if (n > 10) { clearInterval(iv); document.title = t0; } }, 800);
+  const t0 = document.title; let n = 0; const iv = setInterval(() => { document.title = n++ % 2 ? t0 : "● " + texto.split("\n")[0].slice(0, 40); if (n > 10) { clearInterval(iv); document.title = t0; } }, 800);
 }
 function pintarDespacho() {
   const enCurso = r => ["en_camino", "en_lugar", "a_bordo"].includes(r.estado);
   const sinAsig = r => !r.conductor_id && !r.derivado_a && r.estado !== "finalizada";
   const hoyK = hoyChile(), diaK = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
   const deHoy = tablero.filter(r => diaK(r.fecha_hora) === hoyK);
-  $("tb-resumen").innerHTML = `<span><b>${deHoy.length}</b> servicio(s) hoy</span><span><b>${clp(deHoy.reduce((x, r) => x + (r.precio ?? r.tarifa_web ?? 0), 0))}</b> en valor</span><span><b>${deHoy.filter(r => r.estado === "finalizada").length}</b> finalizados</span><span><b>${tablero.filter(enCurso).length}</b> en curso</span><span class="${tablero.filter(sinAsig).length ? "warn" : ""}"><b>${tablero.filter(sinAsig).length}</b> sin asignar</span><span><b>${conductores.filter(c => c.disponible).length}</b> de ${conductores.length} conductor(es) conectado(s)</span>`;
+  const valor = r => (r.tipo_cobro === "taximetro" ? r.taxi_total : (r.precio ?? r.tarifa_web)) || 0;
+  const finHoy = deHoy.filter(r => r.estado === "finalizada"), nSin = tablero.filter(sinAsig).length, nAt = tablero.filter(r => r._urg >= 2).length;
+  $("tb-resumen").innerHTML = `
+    <button type="button" class="kpi" data-k="hoy"><small>Servicios hoy</small><b>${deHoy.length}</b><span>${finHoy.length} finalizado(s) · ${tablero.filter(enCurso).length} en curso</span></button>
+    <button type="button" class="kpi ${nSin ? "mal" : ""}" data-k="sinasignar"><small>Sin asignar</small><b>${nSin}</b><span>${nSin ? "toque para verlos" : "todo asignado"}</span></button>
+    <button type="button" class="kpi ${nAt ? "mal" : ""}" data-k="atencion"><small>Requieren atención</small><b>${nAt}</b><span>${nAt ? "toque para verlas" : "sin alertas"}</span></button>
+    <div class="kpi"><small>Ganado hoy</small><b>${clp(finHoy.reduce((x, r) => x + valor(r), 0))}</b><span>de ${clp(deHoy.reduce((x, r) => x + valor(r), 0))} del día</span></div>
+    <button type="button" class="kpi" data-k="cobrar"><small>Por cobrar</small><b>${clp(porCobrarTotal)}</b><span>servicios hechos sin pagar</span></button>
+    <div class="kpi"><small>Conductores</small><b>${conductores.filter(c => c.disponible).length} / ${conductores.length}</b><span>conectados</span></div>`;
+  $("tb-resumen").querySelectorAll("[data-k]").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.k === "cobrar") { $("filtro").value = "porcobrar"; return document.querySelector('.tabs button[data-tab="reservas"]').click(); }
+    document.querySelector(`[data-pane="despacho"] .chips .chip[data-f="${b.dataset.k}"]`).click();
+  }));
   const cuenta = { atencion: tablero.filter(r => r._urg >= 2).length, sinasignar: tablero.filter(sinAsig).length, curso: tablero.filter(enCurso).length };
   Object.entries(cuenta).forEach(([k, n]) => $("c-" + k).textContent = n ? `(${n})` : "");
   const filtros = { todo: () => true, atencion: r => r._urg >= 2, sinasignar: sinAsig, curso: enCurso, hoy: r => diaK(r.fecha_hora) === hoyK };
@@ -1283,7 +1468,7 @@ function pintarDespacho() {
     <tr data-id="${esc(r.id)}" class="${r._urg >= 3 ? "urg3" : r._urg === 2 ? "urg2" : ""} ${r.estado === "finalizada" ? "fin" : ""}">
       <td class="nowrap"><b>${esc(hora(r.fecha_hora))}</b><br><span class="muted small">${diaK(r.fecha_hora) === hoyK ? "hoy" : esc(new Date(r.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric" }))}</span></td>
       <td class="nowrap"><span class="code">${esc(r.codigo)}</span><br>${pill(r.estado)}</td>
-      <td><b>${esc(r.nombre_pasajero)}</b>${r.solicitante_nombre ? `<br><span class="small muted">paga: ${esc(r.solicitante_nombre)}</span>` : ""}<br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
+      <td><b>${esc(r.nombre_pasajero)}</b> ${etqHtml(etqDe[r.cliente_id])}${r.solicitante_nombre ? `<br><span class="small muted">paga: ${esc(r.solicitante_nombre)}</span>` : ""}<br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
       <td class="tray" title="${esc(r.origen)} → ${esc(r.destino)}">${corto(r.origen)}<br><span class="muted">→ ${corto(r.destino)}</span></td>
       <td class="nowrap">${vueloLink(r.vuelo)}</td>
       <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
@@ -1336,6 +1521,9 @@ async function cargarAgenda() {
     g.items.push(r);
   });
   const fin = r => new Date(r.fecha_hora).getTime() + ((r.duracion_min || 90) + 15) * 60000;
+  $("agenda").classList.toggle("agenda", agVista !== "tl");
+  document.querySelectorAll("#ag-vista .chip").forEach(c => c.classList.toggle("on", c.dataset.agv === agVista));
+  if (agVista === "tl") return pintarLinea(grupos.filter(g => g.items.length || (g.id && g.id !== "red")), fin, d);
   $("agenda").innerHTML = grupos.filter(g => g.items.length || (g.id && g.id !== "red")).map(g => {
     const choca = new Set();
     if (g.id && g.id !== "red") g.items.forEach((a, i) => g.items.forEach((b, j) => {
@@ -1350,6 +1538,33 @@ async function cargarAgenda() {
       </button>`).join("") : '<p class="muted small">Sin servicios</p>'}</div>`;
   }).join("") || '<p class="muted">No hay servicios este día.</p>';
   $("agenda").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
+}
+
+// Vista "línea de tiempo": una fila por conductor, los servicios como bloques según su hora y duración
+let agVista = "tl";
+try { agVista = localStorage.getItem("fk_agv") || "tl"; } catch (_) {}
+document.querySelectorAll("#ag-vista .chip").forEach(c => c.addEventListener("click", () => { agVista = c.dataset.agv; try { localStorage.setItem("fk_agv", agVista); } catch (_) {} cargarAgenda(); }));
+function pintarLinea(grupos, fin, d) {
+  const d0 = new Date(FK.chileLocalToISO(d + "T00:00")).getTime(), t = r => new Date(r.fecha_hora).getTime();
+  const todos = grupos.flatMap(g => g.items);
+  let h0 = 6, h1 = 23;
+  todos.forEach(r => { h0 = Math.min(h0, Math.floor((t(r) - d0) / 36e5)); h1 = Math.max(h1, Math.ceil((fin(r) - d0) / 36e5)); });
+  h0 = Math.max(0, h0); h1 = Math.min(30, Math.max(h1, h0 + 1)); const span = h1 - h0;
+  const pos = ms => ((ms - d0) / 36e5 - h0) / span * 100;
+  const horas = Array.from({ length: span + 1 }, (_, i) => h0 + i), ahoraP = pos(Date.now());
+  const lineas = horas.map(h => `<i class="tl-l" style="left:${(h - h0) / span * 100}%"></i>`).join("") + (ahoraP > 0 && ahoraP < 100 ? `<i class="tl-ahora" style="left:${ahoraP}%"></i>` : "");
+  $("agenda").innerHTML = `<div class="tl-scroll"><div class="tl">
+    <div class="tl-fila tl-regla"><div class="tl-nom"></div><div class="tl-pista">${horas.map(h => `<span style="left:${(h - h0) / span * 100}%">${String(h % 24).padStart(2, "0")}:00</span>`).join("")}</div></div>
+    ${grupos.map(g => {
+      const choca = new Set();
+      if (g.id && g.id !== "red") g.items.forEach((a, i) => g.items.forEach((b, j) => { if (i < j && t(a) < fin(b) && t(b) < fin(a)) { choca.add(a.id); choca.add(b.id); } }));
+      return `<div class="tl-fila"><div class="tl-nom">${esc(g.nombre)} <span class="muted small">${g.items.length}</span></div><div class="tl-pista">${lineas}${g.items.map(r => {
+        const a = pos(t(r)), w = Math.max(pos(t(r) + (r.duracion_min || 90) * 60000) - a, 2.5);
+        return `<button type="button" class="tl-b e-${esc(r.estado)} ${choca.has(r.id) ? "choque" : ""}" data-id="${esc(r.id)}" style="left:${a}%;width:${w}%" title="${esc(hora(r.fecha_hora) + " · " + r.nombre_pasajero + " · " + r.origen + " → " + r.destino)}"><b>${esc(hora(r.fecha_hora))}</b> ${esc((r.nombre_pasajero || "").split(" ")[0])}</button>`;
+      }).join("")}</div></div>`;
+    }).join("")}</div></div>
+    <p class="small muted">Cada bloque es un servicio con su duración estimada; los espacios vacíos son tiempo libre. En rojo: servicios que se cruzan. La línea dorada es la hora actual. Toque un bloque para abrir la reserva.</p>`;
+  $("agenda").querySelectorAll(".tl-b").forEach(c => c.addEventListener("click", () => abrir(c.dataset.id)));
 }
 
 // ---- Cobro de una reserva (ficha)
@@ -1424,13 +1639,14 @@ async function pintarCobro(r) {
 let clientes = [], cobros = [];
 async function cargarClientes() {
   const [{ data: cs }, { data: vs }, { data: ks }] = await Promise.all([
-    sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas").order("nombre"),
+    sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas, etiquetas").order("nombre"),
     sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000),
     sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000)
   ]);
   clientes = cs || []; cobros = vs || []; califCli = {}; await cargarCuentas();
   (ks || []).forEach(k => { const x = califCli[k.cliente_id] = califCli[k.cliente_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   pintarClientes();
+  if (abrirClienteTras) { const id = abrirClienteTras; abrirClienteTras = null; fichaCliente(id); }
 }
 let califCli = {};
 const califTxt = x => x ? `${(x.s / x.n).toFixed(1).replace(".", ",")} ★ <span class="muted small">(${x.n})</span>` : '<span class="muted small">—</span>';
@@ -1466,6 +1682,7 @@ function fichaCliente(id) {
     <div class="actions"><button class="btn ghost sm" id="cl-volver" type="button">◀ Volver a clientes</button></div>
     <h2 style="margin-top:10px">${esc(c.nombre)}</h2>
     <div class="f"><label for="cf-notas">Notas internas (solo el equipo las ve; aparecen al tomar sus reservas)</label><textarea id="cf-notas" rows="2" maxlength="1000" placeholder="Ej.: siempre pide factura; viaja con mascota en canil; prefiere que lo llamen al llegar">${esc(c.notas || "")}</textarea></div>
+    <div class="f"><label>Etiquetas (se ven en el despacho y al tomar sus reservas)</label><div class="chips" id="cf-etq">${ETIQUETAS.map(t => `<button type="button" class="chip ${(c.etiquetas || []).includes(t) ? "on" : ""}" data-etq="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>
     <p class="muted">${esc([c.telefono, c.correo].filter(Boolean).join(" · "))}${c.cuenta_corporativa_id ? ` · Empresa: <b>${esc((cuentas.find(x => x.id === c.cuenta_corporativa_id) || {}).razon_social || "")}</b>` : ""}</p>
     <div class="row3">
       <div class="f"><label for="cf-desde">Desde</label><input id="cf-desde" type="date"></div>
@@ -1481,6 +1698,13 @@ function fichaCliente(id) {
       ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
     </div>
     <div id="cf-msg" class="msg" hidden></div>`;
+  $("cf-etq").querySelectorAll("[data-etq]").forEach(b => b.addEventListener("click", async () => {
+    const actual = new Set(c.etiquetas || []); actual.has(b.dataset.etq) ? actual.delete(b.dataset.etq) : actual.add(b.dataset.etq);
+    const nuevas = ETIQUETAS.filter(t => actual.has(t)).concat([...actual].filter(t => !ETIQUETAS.includes(t)));
+    const { error } = await sb.from("clientes").update({ etiquetas: nuevas }).eq("id", c.id);
+    if (error) return msg("cf-msg", errText(error), "err");
+    c.etiquetas = nuevas; b.classList.toggle("on", actual.has(b.dataset.etq)); msg("cf-msg", "Etiquetas guardadas.", "ok");
+  }));
   $("cf-notas").addEventListener("change", async ev => {
     const { error } = await sb.from("clientes").update({ notas: ev.target.value.trim() || null }).eq("id", c.id);
     if (error) return msg("cf-msg", errText(error), "err"); c.notas = ev.target.value.trim(); msg("cf-msg", "Notas guardadas.", "ok");
@@ -1778,7 +2002,7 @@ let baseClientes = [], clienteSel = null;
 const norm = t => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const tel8 = t => (t || "").replace(/\D/g, "").slice(-8);
 async function cargarBaseClientes() {
-  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas").order("nombre").limit(5000);
+  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas, etiquetas").order("nombre").limit(5000);
   baseClientes = data || [];
 }
 function buscarClientes(q) {
@@ -1813,7 +2037,7 @@ async function elegirCliente(id) {
   }
   const { count } = await sb.from("reservas").select("id", { count: "exact", head: true }).eq("cliente_id", c.id).neq("estado", "cancelada");
   $("n-cli").hidden = false;
-  $("n-cli").innerHTML = (c.notas ? `<div style="margin-bottom:6px">📝 <b>Notas:</b> ${esc(c.notas)}</div>` : "") + `<b>Cliente registrado: ${esc(c.nombre)}</b> · ${count || 0} servicio(s) anteriores. Datos de contacto completados${r ? " y preferencias del último servicio (pago, cobro, vehículo, pasajeros)" : ""}.
+  $("n-cli").innerHTML = ((c.etiquetas || []).length ? `<div style="margin-bottom:6px">${etqHtml(c.etiquetas)}</div>` : "") + (c.notas ? `<div style="margin-bottom:6px">📝 <b>Notas:</b> ${esc(c.notas)}</div>` : "") + `<b>Cliente registrado: ${esc(c.nombre)}</b> · ${count || 0} servicio(s) anteriores. Datos de contacto completados${r ? " y preferencias del último servicio (pago, cobro, vehículo, pasajeros)" : ""}.
     ${r ? `<div class="small" style="margin-top:6px">Último viaje (${esc(fecha(r.fecha_hora))}): ${esc(r.origen)} → ${esc(r.destino)}${r.precio != null ? ` · ${clp(r.precio)}` : ""}</div>
     <div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-mismo">Mismo trayecto</button><button class="btn ghost sm" type="button" id="n-inv">Trayecto de vuelta</button><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`
     : `<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`}`;
