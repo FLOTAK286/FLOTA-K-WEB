@@ -95,7 +95,7 @@ async function iniciar(session) {
 }
 async function cargar() {
   const [desde, hasta, txt] = rango();
-  const { data, error } = await sb.rpc("propietario_servicios", { p_desde: desde, p_hasta: hasta });
+  const { data, error } = await FK.todo(() => sb.rpc("propietario_servicios", { p_desde: desde, p_hasta: hasta }));
   if (error) { $("tbody").innerHTML = `<tr><td colspan="8" class="msg err">${esc(errText(error))}</td></tr>`; return; }
   filas = data || [];
   const fin = filas.filter(r => r.o_estado === "finalizada");

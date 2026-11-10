@@ -653,7 +653,7 @@ async function pintarMensajes(r) {
 }
 
 // ---- Mapa en vivo: dónde está cada conductor y si está disponible, ocupado o con un servicio próximo
-let mapaEq = null, pinesEq = {}, timerMapa = null, centradoEq = false;
+let mapaEq = null, pinesEq = {}, timerMapa = null, centradoEq = false, califCondCache = null;
 const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
 async function cargarMapa() {
   if (!window.L || !window.FKMapa) { $("mp-lista").innerHTML = '<p class="msg err">No se pudo cargar el mapa. Revise su conexión.</p>'; return; }
@@ -666,8 +666,10 @@ async function cargarMapa() {
     sb.from("reservas").select("id, codigo, estado, fecha_hora, nombre_pasajero, origen, destino, conductor_id")
       .not("conductor_id", "is", null).in("estado", ["confirmada", "asignada", "en_camino", "en_lugar", "a_bordo"])
       .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora"),
-    sb.from("calificaciones").select("conductor_id, estrellas").eq("autor", "pasajero").gte("creado_en", new Date(Date.now() - 90 * 864e5).toISOString()).limit(10000)
+    califCondCache && Date.now() - califCondCache.t < 600000 ? Promise.resolve({ data: califCondCache.d }) :
+      FK.todo(() => sb.from("calificaciones").select("conductor_id, estrellas").eq("autor", "pasajero").gte("creado_en", new Date(Date.now() - 90 * 864e5).toISOString()).order("id"))
   ]);
+  if (ks && !(califCondCache && califCondCache.d === ks)) califCondCache = { t: Date.now(), d: ks };
   const califCond = {}; (ks || []).forEach(k => { const x = califCond[k.conductor_id] = califCond[k.conductor_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   if (error) { $("mp-lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const ids = new Set([...conductores.map(c => c.id), ...(us || []).map(u => u.conductor_id)]);
@@ -1170,8 +1172,8 @@ $("vf").addEventListener("submit", async e => {
 // ---- Central: chat con los conductores
 let ctConductor = null, ctMsgs = [], ctChat = null;
 async function cargarCentral() {
-  const { data } = await sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").order("id").limit(3000);
-  ctMsgs = data || [];
+  const { data } = await FK.todo(() => sb.from("soporte_mensajes").select("id, conductor_id, autor, texto, leido, creado_en").gte("creado_en", new Date(Date.now() - 60 * 864e5).toISOString()).order("id", { ascending: false }), 10000);
+  ctMsgs = (data || []).reverse();
   const porCond = new Map(); ctMsgs.forEach(m => porCond.set(m.conductor_id, m));
   const sinLeer = id => ctMsgs.filter(m => m.conductor_id === id && m.autor === "conductor" && !m.leido).length;
   const ids = [...new Set([...conductores.map(c => c.id), ...porCond.keys()])].sort((a, b) => ((porCond.get(b) || {}).id || 0) - ((porCond.get(a) || {}).id || 0));
@@ -1223,8 +1225,8 @@ async function cargarReportes() {
   const { desde, hasta, txt } = rangoReporte();
   $("rp-body").innerHTML = '<p class="muted">Cargando…</p>';
   const [{ data: rs, error }, { data: vs }] = await Promise.all([
-    sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros, vehiculo_id").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000),
-    sb.from("v_cobro").select("id, total, gastos, pagado").gte("fecha_hora", desde).lt("fecha_hora", hasta).limit(10000)
+    FK.todo(() => sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros, vehiculo_id").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("fecha_hora").order("id")),
+    FK.todo(() => sb.from("v_cobro").select("id, total, gastos, pagado").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("fecha_hora").order("id"))
   ]);
   if (error) { $("rp-body").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const tot = new Map((vs || []).map(v => [v.id, v]));
@@ -1271,7 +1273,7 @@ $("rp-per").addEventListener("change", cargarReportes);
 let rpCierres = [];
 async function pintarCierres(desde, hasta, filas) {
   const d0 = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(desde)), d1 = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(new Date(hasta).getTime() - 1000));
-  const { data: cs, error } = await sb.from("cierres_diarios").select("*").gte("fecha", d0).lte("fecha", d1).order("fecha", { ascending: false });
+  const { data: cs, error } = await FK.todo(() => sb.from("cierres_diarios").select("*").gte("fecha", d0).lte("fecha", d1).order("fecha", { ascending: false }).order("vehiculo_id"));
   if (error) { $("rp-cierres").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
   rpCierres = (cs || []).map(c => {
@@ -1367,11 +1369,11 @@ async function cargarDespacho() {
   const [{ data: ubs }, { data: cls }, { data: pc }] = await Promise.all([
     sb.from("ubicaciones").select("conductor_id, actualizado_en"),
     cids.length ? sb.from("clientes").select("id, etiquetas").in("id", cids) : Promise.resolve({ data: [] }),
-    sb.from("v_cobro").select("total").eq("estado", "finalizada").eq("pagado", false).limit(5000)
+    sb.rpc("total_por_cobrar")
   ]);
   ubDe = {}; (ubs || []).forEach(u => ubDe[u.conductor_id] = new Date(u.actualizado_en).getTime());
   etqDe = {}; (cls || []).forEach(c => etqDe[c.id] = c.etiquetas || []);
-  porCobrarTotal = (pc || []).reduce((a, x) => a + (x.total || 0), 0);
+  porCobrarTotal = Number(pc) || 0;
   tablero.forEach(r => {
     r._al = alertasDe(r, { msgSinResp: ultimoMsg[r.id] && ultimoMsg[r.id].autor === "pasajero", ayuda: ayuda[r.id], enLugarDesde: enLugar[r.id], califBaja: baja.has(r.id), ub: ubDe[r.conductor_id] });
     r._urg = r._al.reduce((a, x) => Math.max(a, x.n), 0);
@@ -1638,15 +1640,21 @@ async function pintarCobro(r) {
 }
 
 // ---- Clientes y cobros
-let clientes = [], cobros = [];
+let clientes = [], cobros = [], resCobro = {};
+// Trae el detalle de cobros de un cliente o empresa (todas sus filas) y lo deja en "cobros"
+async function traerCobros(campo, id) {
+  const { data } = await FK.todo(() => sb.from("v_cobro").select("*").eq(campo, id).order("fecha_hora", { ascending: false }).order("id"));
+  cobros = cobros.filter(x => x[campo] !== id).concat(data || []);
+}
 async function cargarClientes() {
-  const [{ data: cs }, { data: vs }, { data: ks }] = await Promise.all([
-    sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas, etiquetas").order("nombre"),
-    sb.from("v_cobro").select("*").neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(5000),
-    sb.from("calificaciones").select("cliente_id, estrellas").eq("autor", "conductor").limit(10000)
+  const [{ data: cs }, { data: rs }, { data: ks }] = await Promise.all([
+    FK.todo(() => sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas, etiquetas").order("nombre").order("id")),
+    FK.todo(() => sb.rpc("resumen_cobros")),
+    FK.todo(() => sb.rpc("resumen_calif_clientes"))
   ]);
-  clientes = cs || []; cobros = vs || []; califCli = {}; await cargarCuentas();
-  (ks || []).forEach(k => { const x = califCli[k.cliente_id] = califCli[k.cliente_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
+  clientes = cs || []; cobros = []; resCobro = {}; califCli = {}; await cargarCuentas();
+  (rs || []).forEach(x => resCobro[x.o_tipo + ":" + x.o_id] = x);
+  (ks || []).forEach(k => califCli[k.o_cliente] = { n: k.o_n, s: k.o_suma });
   pintarClientes();
   if (abrirClienteTras) { const id = abrirClienteTras; abrirClienteTras = null; fichaCliente(id); }
 }
@@ -1654,10 +1662,8 @@ let califCli = {};
 const califTxt = x => x ? `${(x.s / x.n).toFixed(1).replace(".", ",")} ★ <span class="muted small">(${x.n})</span>` : '<span class="muted small">—</span>';
 // Todo servicio no cancelado queda pendiente de pago hasta que un administrador lo marque como pagado.
 function resumenCliente(id) {
-  const fin = cobros.filter(x => x.cliente_id === id && x.estado !== "cancelada");
-  const total = fin.reduce((a, x) => a + (x.total || 0), 0);
-  const pagado = fin.filter(x => x.pagado).reduce((a, x) => a + (x.total || 0), 0);
-  return { servicios: cobros.filter(x => x.cliente_id === id).length, finalizados: fin.length, total, pagado, pendiente: total - pagado };
+  const x = resCobro["cliente:" + id] || {};
+  return { servicios: x.o_servicios || 0, total: Number(x.o_total) || 0, pagado: Number(x.o_pagado) || 0, pendiente: Number(x.o_pendiente) || 0 };
 }
 function pintarClientes() {
   const t = $("cl-buscar").value.trim().toLowerCase(), soloSaldo = $("cl-saldo").checked;
@@ -1675,8 +1681,9 @@ function pintarClientes() {
 $("cl-buscar").addEventListener("input", pintarClientes);
 $("cl-saldo").addEventListener("change", pintarClientes);
 
-function fichaCliente(id) {
+async function fichaCliente(id) {
   const c = clientes.find(x => x.id === id); if (!c) return;
+  await traerCobros("cliente_id", id);
   const admin = yo.rol === "admin";
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
   $("cl-lista").hidden = true; $("cl-ficha").hidden = false;
@@ -1735,8 +1742,7 @@ function fichaCliente(id) {
     const { data, error } = await sb.rpc("marcar_pagado", { p_reservas: ids, p_pagado: true, p_medio: $("cf-medio").value, p_fecha: null });
     if (error) return msg("cf-msg", errText(error), "err");
     msg("cf-msg", `${data} servicio(s) marcados como pagados.`, "ok");
-    const { data: vs } = await sb.from("v_cobro").select("*").eq("cliente_id", id);
-    cobros = cobros.filter(x => x.cliente_id !== id).concat(vs || []); pintar();
+    await traerCobros("cliente_id", id); pintar();
   });
   $("cf-xlsx").addEventListener("click", () => planilla(c, filtrar(), $("cf-desde").value, $("cf-hasta").value));
   // Cobranza: arma el mensaje; usted lo revisa y lo envía desde su WhatsApp o su correo.
@@ -1824,9 +1830,8 @@ $("cl-ver-emp").addEventListener("click", async () => { await cargarCuentas(); v
 function pintarEmpresas() {
   $("em-tbody").innerHTML = cuentas.length ? cuentas.map(e => {
     const pas = clientes.filter(c => c.cuenta_corporativa_id === e.id).length;
-    const sv = cobros.filter(x => x.cuenta_corporativa_id === e.id && x.estado !== "cancelada");
-    const tot = sv.reduce((a, x) => a + (x.total || 0), 0), pend = sv.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0);
-    return `<tr data-e="${esc(e.id)}" style="cursor:pointer"><td><b>${esc(e.razon_social)}</b>${e.activa ? "" : ' <span class="muted small">(inactiva)</span>'}<br><span class="muted small">${esc([e.rut, e.contacto].filter(Boolean).join(" · "))}</span></td><td>${pas}</td><td>${sv.length}</td><td>${clp(tot)}</td><td>${pend ? `<b class="warn">${clp(pend)}</b>` : clp(0)}</td></tr>`;
+    const x = resCobro["cuenta:" + e.id] || {}, tot = Number(x.o_total) || 0, pend = Number(x.o_pendiente) || 0;
+    return `<tr data-e="${esc(e.id)}" style="cursor:pointer"><td><b>${esc(e.razon_social)}</b>${e.activa ? "" : ' <span class="muted small">(inactiva)</span>'}<br><span class="muted small">${esc([e.rut, e.contacto].filter(Boolean).join(" · "))}</span></td><td>${pas}</td><td>${x.o_servicios || 0}</td><td>${clp(tot)}</td><td>${pend ? `<b class="warn">${clp(pend)}</b>` : clp(0)}</td></tr>`;
   }).join("") : '<tr><td colspan="5" class="muted">Aún no hay empresas. Cree la primera con "+ Nueva empresa".</td></tr>';
   $("em-tbody").querySelectorAll("tr[data-e]").forEach(tr => tr.addEventListener("click", () => fichaEmpresa(tr.dataset.e)));
 }
@@ -1839,8 +1844,9 @@ $("em-form").addEventListener("submit", async ev => {
   if (error) return msg("em-msg", errText(error), "err");
   $("em-form").reset(); $("em-form").hidden = true; await cargarCuentas(); pintarEmpresas();
 });
-function fichaEmpresa(id) {
+async function fichaEmpresa(id) {
   const e = cuentas.find(x => x.id === id); if (!e) return;
+  await traerCobros("cuenta_corporativa_id", id);
   const admin = yo.rol === "admin";
   const [y, m] = hoyChile().split("-");
   $("em-lista").hidden = true; $("cl-ficha").hidden = false;
@@ -1930,8 +1936,7 @@ function fichaEmpresa(id) {
     const { data, error } = await sb.rpc("marcar_pagado", { p_reservas: ids, p_pagado: true, p_medio: $("cf-medio").value, p_fecha: null });
     if (error) return msg("cf-msg", errText(error), "err");
     msg("cf-msg", `${data} servicio(s) marcados como pagados.`, "ok");
-    const { data: vs } = await sb.from("v_cobro").select("*").eq("cuenta_corporativa_id", e.id);
-    cobros = cobros.filter(x => x.cuenta_corporativa_id !== e.id).concat(vs || []); pintar();
+    await traerCobros("cuenta_corporativa_id", e.id); pintar();
   });
   const comoCliente = rows => ({ nombre: e.razon_social, rut: e.rut, telefono: e.contacto, correo: e.correo_facturacion,
     porCentro: porCentro(rows).map(([k, v]) => [k, `${v.n} servicio(s)`, v.t]) });
@@ -2004,7 +2009,7 @@ let baseClientes = [], clienteSel = null;
 const norm = t => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const tel8 = t => (t || "").replace(/\D/g, "").slice(-8);
 async function cargarBaseClientes() {
-  const { data } = await sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas, etiquetas").order("nombre").limit(5000);
+  const { data } = await FK.todo(() => sb.from("clientes").select("id, nombre, telefono, correo, cuenta_corporativa_id, notas, etiquetas").order("nombre").order("id"));
   baseClientes = data || [];
 }
 function buscarClientes(q) {

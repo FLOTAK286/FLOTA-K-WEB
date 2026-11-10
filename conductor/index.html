@@ -627,10 +627,10 @@ async function pintarGanancias() {
   const desdeTodo = [R.p0, hace90, masDias(R.hoy, -8)].sort()[0], hastaTodo = [R.d1, R.hoy].sort()[1];
   const ini = isoDe(R.d0), fin = isoDe(masDias(R.d1, 1));
   const [{ data, error }, { data: rs }, { data: evs }, { data: cs }, { data: cie }] = await Promise.all([
-    sb.from("v_cobro").select("id, codigo, fecha_hora, nombre_pasajero, origen, destino, tipo_cobro, valor_base, gastos, total, pagado, taxi_metros, taxi_segundos")
-      .eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", isoDe(desdeTodo)).lt("fecha_hora", isoDe(masDias(hastaTodo, 1))).order("fecha_hora", { ascending: false }).limit(5000),
-    sb.from("reservas").select("id, tipo_servicio, vehiculo_id").eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", ini).lt("fecha_hora", fin).limit(5000),
-    sb.from("reserva_eventos").select("reserva_id, estado, creado_en").in("estado", ["en_camino", "en_lugar", "finalizada"]).gte("creado_en", isoDe(masDias(R.d0, -1))).lt("creado_en", isoDe(masDias(R.d1, 2))).limit(10000),
+    FK.todo(() => sb.from("v_cobro").select("id, codigo, fecha_hora, nombre_pasajero, origen, destino, tipo_cobro, valor_base, gastos, total, pagado, taxi_metros, taxi_segundos")
+      .eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", isoDe(desdeTodo)).lt("fecha_hora", isoDe(masDias(hastaTodo, 1))).order("fecha_hora", { ascending: false }).order("id")),
+    FK.todo(() => sb.from("reservas").select("id, tipo_servicio, vehiculo_id").eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", ini).lt("fecha_hora", fin).order("id")),
+    FK.todo(() => sb.from("reserva_eventos").select("reserva_id, estado, creado_en").in("estado", ["en_camino", "en_lugar", "finalizada"]).gte("creado_en", isoDe(masDias(R.d0, -1))).lt("creado_en", isoDe(masDias(R.d1, 2))).order("id")),
     sb.from("calificaciones").select("estrellas, comentario, creado_en").eq("conductor_id", yo.id).eq("autor", "pasajero").gte("creado_en", ini).lt("creado_en", fin).order("creado_en", { ascending: false }),
     sb.from("cierres_diarios").select("*").eq("conductor_id", yo.id).gte("fecha", R.d0).lte("fecha", R.d1)
   ]);

@@ -65,5 +65,17 @@
     return sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: volverA } });
   }
 
-  window.FK = { sb, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
+  // Trae todas las filas de una consulta, de a 1.000 (armar = función que devuelve la consulta, ya ordenada).
+  async function todo(armar, max = 100000) {
+    const out = []; let desde = 0;
+    for (;;) {
+      const { data, error } = await armar().range(desde, desde + 999);
+      if (error) return { data: out.length ? out : null, error };
+      out.push(...(data || []));
+      if (!data || data.length < 1000 || out.length >= max) return { data: out, error: null };
+      desde += 1000;
+    }
+  }
+
+  window.FK = { sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
 })();
