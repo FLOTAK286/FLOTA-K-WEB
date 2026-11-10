@@ -122,6 +122,21 @@ body.drv { overscroll-behavior-y: contain; }
 #ptr { position: fixed; left: 50%; top: 0; transform: translate(-50%, -60px); z-index: 55; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 8px 16px; font-weight: 700; font-size: .9rem; box-shadow: 0 4px 14px rgba(0,0,0,.3); transition: transform .15s; pointer-events: none; }
 #ptr.listo { color: var(--gold); }
 .act-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.rep { gap: 10px; }
+.rep .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rep .kpi .sube { color: #3ecf7f; font-weight: 700; } .rep .kpi .baja { color: #e5533d; font-weight: 700; }
+.barras { display: flex; align-items: flex-end; gap: 2px; height: 110px; margin-top: 6px; border-bottom: 1px solid var(--line); }
+.barras i { flex: 1; background: var(--gold); border-radius: 3px 3px 0 0; min-height: 2px; opacity: .85; }
+.barras i.hoy { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
+.barras-ley { display: flex; justify-content: space-between; gap: 6px; font-size: .72rem; color: var(--muted); margin-top: 3px; }
+.hbar { display: grid; grid-template-columns: 7.5em 1fr auto; gap: 8px; align-items: center; font-size: .85rem; margin-top: 4px; }
+.hbar i { height: 10px; border-radius: 99px; background: var(--muted); opacity: .55; }
+.hbar.dest i { background: var(--gold); opacity: 1; } .hbar.dest span { font-weight: 700; }
+.hbar b { font-size: .8rem; white-space: nowrap; }
+.util { display: grid; gap: 3px; }
+.u-fila { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--line); padding: 2px 0; }
+.u-fila.tot { border-bottom: 1px solid var(--line); font-weight: 700; }
+.coment { margin: 4px 0 0; font-style: italic; }
 </style>
 </head>
 <body>
@@ -580,62 +595,184 @@ async function pintarCierre(rows) {
 }
 
 // ---- Ganancias: lo generado por servicios finalizados (hoy, semana, mes)
+let repPer = "mes", repDesde = "", repHasta = "";
+try { repPer = localStorage.getItem("fk_rep_per") || "mes"; } catch (_) {}
+const masDias = (k, n) => { const [y, m, d] = k.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+const entreDias = (a, b) => Math.round((Date.UTC(...b.split("-").map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.split("-").map((x, i) => i === 1 ? x - 1 : +x))) / 864e5);
+const diaCorto = k => new Date(k + "T12:00:00Z").toLocaleDateString("es-CL", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+const PER_TXT = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes", mesant: "Mes anterior", d30: "Últimos 30 días", rango: "Elegir fechas" };
+function rangoPeriodo() {
+  const hoy = diaKey(new Date().toISOString()), [y, m, d] = hoy.split("-").map(Number);
+  const lunes = masDias(hoy, -((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7));
+  const mes01 = hoy.slice(0, 8) + "01", mesAnt01 = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10), finMesAnt = masDias(mes01, -1);
+  let d0, d1, p0, p1, txt;
+  if (repPer === "hoy") { d0 = d1 = hoy; p0 = p1 = masDias(hoy, -1); txt = "ayer"; }
+  else if (repPer === "semana") { d0 = lunes; d1 = hoy; p0 = masDias(lunes, -7); p1 = masDias(hoy, -7); txt = "la semana pasada a esta altura"; }
+  else if (repPer === "mes") { d0 = mes01; d1 = hoy; p0 = mesAnt01; p1 = [masDias(mesAnt01, d - 1), finMesAnt].sort()[0]; txt = "el mes pasado a esta altura"; }
+  else if (repPer === "mesant") { d0 = mesAnt01; d1 = finMesAnt; p0 = new Date(Date.UTC(y, m - 3, 1)).toISOString().slice(0, 10); p1 = masDias(mesAnt01, -1); txt = "el mes anterior a ese"; }
+  else if (repPer === "rango" && repDesde && repHasta && repDesde <= repHasta) { d0 = repDesde; d1 = repHasta; const n = entreDias(d0, d1) + 1; p0 = masDias(d0, -n); p1 = masDias(d0, -1); txt = "los " + n + " días anteriores"; }
+  else { d0 = masDias(hoy, -29); d1 = hoy; p0 = masDias(hoy, -59); p1 = masDias(hoy, -30); txt = "los 30 días anteriores"; }
+  return { hoy, d0, d1, p0, p1, txt, mes01 };
+}
+const isoDe = k => FK.chileLocalToISO(k + "T00:00");
+function variacion(a, b) {
+  if (!b) return a ? '<span class="sube">nuevo</span>' : "";
+  const p = Math.round((a - b) / b * 100);
+  return p === 0 ? '<span class="muted">igual</span>' : `<span class="${p > 0 ? "sube" : "baja"}">${p > 0 ? "▲" : "▼"} ${Math.abs(p)}%</span>`;
+}
 async function pintarGanancias() {
   let meta = 0; try { meta = Number(localStorage.getItem("fk_meta")) || 0; } catch (_) {}
   $("list").innerHTML = '<p class="muted">Cargando…</p>';
-  const { data, error } = await sb.from("v_cobro").select("id, codigo, fecha_hora, nombre_pasajero, origen, destino, tipo_cobro, valor_base, gastos, total, pagado")
-    .eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", new Date(Date.now() - 45 * 864e5).toISOString()).order("fecha_hora", { ascending: false });
+  const R = rangoPeriodo(), hace90 = masDias(R.hoy, -89);
+  const desdeTodo = [R.p0, hace90, masDias(R.hoy, -8)].sort()[0], hastaTodo = [R.d1, R.hoy].sort()[1];
+  const ini = isoDe(R.d0), fin = isoDe(masDias(R.d1, 1));
+  const [{ data, error }, { data: rs }, { data: evs }, { data: cs }, { data: cie }] = await Promise.all([
+    sb.from("v_cobro").select("id, codigo, fecha_hora, nombre_pasajero, origen, destino, tipo_cobro, valor_base, gastos, total, pagado, taxi_metros, taxi_segundos")
+      .eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", isoDe(desdeTodo)).lt("fecha_hora", isoDe(masDias(hastaTodo, 1))).order("fecha_hora", { ascending: false }).limit(5000),
+    sb.from("reservas").select("id, tipo_servicio, vehiculo_id").eq("conductor_id", yo.id).eq("estado", "finalizada").gte("fecha_hora", ini).lt("fecha_hora", fin).limit(5000),
+    sb.from("reserva_eventos").select("reserva_id, estado, creado_en").in("estado", ["en_camino", "en_lugar", "finalizada"]).gte("creado_en", isoDe(masDias(R.d0, -1))).lt("creado_en", isoDe(masDias(R.d1, 2))).limit(10000),
+    sb.from("calificaciones").select("estrellas, comentario, creado_en").eq("conductor_id", yo.id).eq("autor", "pasajero").gte("creado_en", ini).lt("creado_en", fin).order("creado_en", { ascending: false }),
+    sb.from("cierres_diarios").select("*").eq("conductor_id", yo.id).gte("fecha", R.d0).lte("fecha", R.d1)
+  ]);
   if (vista !== "gan") return;
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
-  const rows = data || [], hoy = diaKey(new Date().toISOString());
-  // Lunes de esta semana y día 1 del mes, en hora de Chile
-  const [y, m, d] = hoy.split("-").map(Number), base = new Date(Date.UTC(y, m - 1, d));
-  const lunes = new Date(base.getTime() - ((base.getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
-  const mes = hoy.slice(0, 8) + "01";
-  const suma = desde => { const r = rows.filter(x => diaKey(x.fecha_hora) >= desde); return { n: r.length, t: r.reduce((a, x) => a + (x.total || 0), 0), g: r.reduce((a, x) => a + (x.gastos || 0), 0), p: r.filter(x => !x.pagado).reduce((a, x) => a + (x.total || 0), 0) }; };
-  const caja = (titulo, v) => `<div class="pay" style="display:grid;gap:2px"><small class="muted" style="text-transform:uppercase;letter-spacing:.06em">${titulo}</small>
-    <span class="time" style="font-size:1.7rem">${clp(v.t)}</span><span class="small muted">${v.n} servicio(s)${v.g ? ` · incluye ${clp(v.g)} en gastos` : ""}${v.p ? ` · ${clp(v.p)} por cobrar` : ""}</span></div>`;
-  const delMes = rows.filter(x => diaKey(x.fecha_hora) >= mes);
-  const { data: cs } = await sb.from("calificaciones").select("estrellas").eq("conductor_id", yo.id).eq("autor", "pasajero").gte("creado_en", new Date(Date.now() - 90 * 864e5).toISOString());
-  if (vista !== "gan") return;
-  const prom = cs && cs.length ? cs.reduce((a, c) => a + c.estrellas, 0) / cs.length : null;
+  const rows = data || [], enRango = (x, a, b) => { const k = diaKey(x.fecha_hora); return k >= a && k <= b; };
+  const P = rows.filter(x => enRango(x, R.d0, R.d1)), A = rows.filter(x => enRango(x, R.p0, R.p1)), H = rows.filter(x => enRango(x, hace90, R.hoy));
+  const sum = (xs, f) => xs.reduce((a, x) => a + (f(x) || 0), 0);
+  const tot = sum(P, x => x.total), totA = sum(A, x => x.total), gas = sum(P, x => x.gastos), porCobrar = sum(P.filter(x => !x.pagado), x => x.total);
+  // Comisión de Flota-K según el vehículo de cada servicio (solo vehículos de prestador con comisión definida)
+  const resv = {}; (rs || []).forEach(r => resv[r.id] = r);
+  const pctDe = x => { const v = vehiculos[(resv[x.id] || {}).vehiculo_id]; return v && !v.propio && v.comision_pct != null ? Number(v.comision_pct) : null; };
+  const hayCom = P.some(x => pctDe(x) != null), com = Math.round(sum(P, x => pctDe(x) != null ? x.total * pctDe(x) / 100 : 0)), neto = tot - com;
+  const pcts = [...new Set(P.map(pctDe).filter(x => x != null))];
+  // Horas en servicio (desde "en camino" hasta "finalizado") y puntualidad (llegada al punto vs hora del servicio)
+  const ev = {}; (evs || []).forEach(e => { const o = ev[e.reserva_id] = ev[e.reserva_id] || {}; const t = new Date(e.creado_en).getTime(); if (!o[e.estado] || t < o[e.estado]) o[e.estado] = t; });
+  let ms = 0, conHora = 0; const llegadas = [];
+  P.forEach(x => { const o = ev[x.id]; if (!o) return;
+    if (o.en_camino && o.finalizada && o.finalizada > o.en_camino) { ms += Math.min(o.finalizada - o.en_camino, 8 * 3600e3); conHora++; }
+    if (o.en_lugar) llegadas.push((o.en_lugar - new Date(x.fecha_hora).getTime()) / 60000); });
+  const horas = ms / 3600e3, base = hayCom ? neto : tot;
+  const aTiempo = llegadas.filter(m => m <= 5).length, promLleg = llegadas.length ? Math.round(llegadas.reduce((a, b) => a + b, 0) / llegadas.length) : null;
+  // Km: del cierre diario (vehículos de Flota-K) o del taxímetro
+  const cierres = cie || [], kmCierre = sum(cierres, c => c.km_recorridos), kmTaxi = sum(P, x => x.taxi_metros) / 1000, km = cierres.length ? kmCierre : kmTaxi;
+  const califs = cs || [], prom = califs.length ? califs.reduce((a, c) => a + c.estrellas, 0) / califs.length : null;
+  // Gráfico por día
+  const nDias = entreDias(R.d0, R.d1) + 1, porDia = [];
+  if (nDias > 1 && nDias <= 62) for (let i = 0; i < nDias; i++) { const k = masDias(R.d0, i); const xs = P.filter(x => diaKey(x.fecha_hora) === k); porDia.push({ k, t: sum(xs, x => x.total), n: xs.length }); }
+  const maxDia = Math.max(1, ...porDia.map(x => x.t));
+  // Tendencias de los últimos 90 días: días de la semana y franjas horarias
+  const DS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"], dsDe = k => (new Date(k + "T12:00:00Z").getUTCDay() + 6) % 7;
+  const cuantos = Array(7).fill(0); for (let i = 0; i < 90; i++) cuantos[dsDe(masDias(R.hoy, -i))]++;
+  const porDs = DS.map((n, i) => { const xs = H.filter(x => dsDe(diaKey(x.fecha_hora)) === i); return { n, s: xs.length, t: sum(xs, x => x.total), prom: sum(xs, x => x.total) / cuantos[i] }; });
+  const FR = [["Madrugada (0–6 h)", 0, 6], ["Mañana (6–12 h)", 6, 12], ["Tarde (12–18 h)", 12, 18], ["Noche (18–24 h)", 18, 24]];
+  const hDe = iso => Number(new Date(iso).toLocaleString("en-US", { timeZone: TZ, hour: "numeric", hourCycle: "h23" }));
+  const porFr = FR.map(([n, a, b]) => { const xs = H.filter(x => { const h = hDe(x.fecha_hora); return h >= a && h < b; }); return { n, s: xs.length, t: sum(xs, x => x.total) }; });
+  const maxDs = Math.max(1, ...porDs.map(x => x.prom)), maxFr = Math.max(1, ...porFr.map(x => x.t));
+  const mejorDs = porDs.slice().sort((a, b) => b.prom - a.prom)[0], mejorFr = porFr.slice().sort((a, b) => b.t - a.t)[0];
+  // Tipos de servicio y destinos frecuentes del período
+  const tipos = {}; P.forEach(x => { const t = (resv[x.id] || {}).tipo_servicio || "otro"; const o = tipos[t] = tipos[t] || { n: 0, t: 0 }; o.n++; o.t += x.total || 0; });
+  const corto = s => (s || "").split(",")[0].trim().slice(0, 40);
+  const rutas = {}; P.forEach(x => { const k = corto(x.origen) + " → " + corto(x.destino); const o = rutas[k] = rutas[k] || { n: 0, t: 0 }; o.n++; o.t += x.total || 0; });
+  const topRutas = Object.entries(rutas).sort((a, b) => b[1].n - a[1].n || b[1].t - a[1].t).slice(0, 5);
+  // Utilidad con el cierre diario (todas las apps y gastos del auto)
+  const cab = sum(cierres, c => c.cabify_ingreso), otras = sum(cierres, c => c.otras_ingreso), peajesCab = sum(cierres, c => c.cabify_peajes), comb = sum(cierres, c => c.combustible), otrosG = sum(cierres, c => c.otros_gastos);
+  const ingTot = tot + cab + otras, costos = gas + peajesCab + comb + otrosG, util = ingTot - costos;
+  // Proyección del mes
+  const diaMes = Number(R.hoy.slice(8, 10)), diasMes = new Date(Date.UTC(Number(R.hoy.slice(0, 4)), Number(R.hoy.slice(5, 7)), 0)).getUTCDate();
+  const totMes = sum(rows.filter(x => diaKey(x.fecha_hora) >= R.mes01), x => x.total), proy = diaMes ? Math.round(totMes / diaMes * diasMes) : 0;
+  const hBar = (txt, v, max, detalle, dest) => `<div class="hbar ${dest ? "dest" : ""}"><span>${esc(txt)}</span><i style="width:${Math.max(2, Math.round(v / max * 100))}%"></i><b>${detalle}</b></div>`;
+  const kpi = (t, v, sub) => `<div class="kpi"><small>${t}</small><b>${v}</b><span>${sub}</span></div>`;
+  const perTxt = R.d0 === R.d1 ? diaCorto(R.d0) : `${diaCorto(R.d0)} al ${diaCorto(R.d1)}`;
   $("list").innerHTML = `
     <div id="cierre-box"></div>
-    <div style="display:grid;gap:10px">${prom != null ? `<div class="pay"><small class="muted" style="text-transform:uppercase;letter-spacing:.06em">Su calificación (últimos 90 días)</small><br><span class="time" style="font-size:1.7rem">${prom.toFixed(1).replace(".", ",")}</span> ${FKChat.fijas(Math.round(prom))} <span class="small muted">· ${cs.length} calificación(es)</span></div>` : ""}${caja("Hoy", suma(hoy))}${caja("Esta semana (desde el lunes)", suma(lunes))}${caja("Este mes", suma(mes))}</div>
-    <h3 style="margin:14px 0 4px">Servicios finalizados del mes</h3>
-    ${delMes.length ? delMes.map(x => `<div class="card" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
-      <div><b>${esc(new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "numeric", month: "short" }))} · ${esc(hora(x.fecha_hora))}</b> <span class="muted small">${esc(x.codigo)}</span><br>
-      <span class="small">${esc(x.nombre_pasajero)} · ${esc(x.origen)} → ${esc(x.destino)}</span><br>
-      <span class="small muted">${x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija"}${x.gastos ? ` · gastos ${clp(x.gastos)}` : ""}</span></div>
-      <div style="text-align:right"><b>${clp(x.total)}</b><br><span class="small ${x.pagado ? "muted" : ""}">${x.pagado ? "Pagado" : "Por cobrar"}</span></div></div>`).join("") : '<p class="muted">Aún no hay servicios finalizados este mes.</p>'}
+    <div class="svc rep">
+      <b>📊 Mis reportes</b>
+      <div class="chips" id="rep-per">${Object.entries(PER_TXT).map(([k, t]) => `<button type="button" class="chip ${repPer === k ? "on" : ""}" data-per="${k}">${t}</button>`).join("")}</div>
+      <div class="row2" id="rep-rango" ${repPer === "rango" ? "" : "hidden"}><div class="f"><label for="rep-d0">Desde</label><input id="rep-d0" type="date" value="${esc(repDesde)}"></div><div class="f"><label for="rep-d1">Hasta</label><input id="rep-d1" type="date" value="${esc(repHasta)}"></div></div>
+      <span class="small muted">${esc(perTxt)} · comparado con ${esc(R.txt)}</span>
+      <div class="kpis">
+        ${kpi("Ganado (cobrado)", clp(tot), `${variacion(tot, totA)} <span class="muted">antes ${clp(totA)}</span>`)}
+        ${kpi("Servicios", P.length, `${variacion(P.length, A.length)} · promedio ${P.length ? clp(Math.round(tot / P.length)) : "—"}`)}
+        ${hayCom ? kpi("Le corresponde", clp(neto), `comisión Flota-K ${pcts.map(p => String(p).replace(".", ",") + "%").join(" / ")}: ${clp(com)}`) : ""}
+        ${kpi("Por hora en servicio", horas ? clp(Math.round(base / horas)) : "—", horas ? `${horas.toFixed(1).replace(".", ",")} h en ${conHora} servicio(s)` : "sin registro de horas")}
+        ${km ? kpi("Ingreso por km", clp(Math.round((cierres.length ? ingTot : sum(P.filter(x => x.taxi_metros), x => x.total)) / km)), `${Math.round(km).toLocaleString("es-CL")} km ${cierres.length ? "del cierre diario (todas las apps)" : "en servicios con taxímetro"}`) : ""}
+        ${kpi("TAG y peajes", clp(gas), "incluidos en lo cobrado")}
+        ${kpi("Clientes por pagar", clp(porCobrar), porCobrar ? "aún no pagan a Flota-K" : "todo pagado")}
+        ${kpi("Calificación", prom != null ? prom.toFixed(1).replace(".", ",") + " ★" : "—", prom != null ? `${califs.length} pasajero(s)` : "sin calificaciones")}
+        ${llegadas.length ? kpi("Puntualidad", Math.round(aTiempo / llegadas.length * 100) + "%", `a tiempo en ${aTiempo} de ${llegadas.length} · ${promLleg <= 0 ? "llega " + -promLleg + " min antes" : "promedio " + promLleg + " min tarde"}`) : ""}
+        ${repPer === "mes" ? kpi("Proyección del mes", clp(proy), `si sigue a este ritmo (${clp(Math.round(totMes / Math.max(1, diaMes)))} al día)`) : ""}
+      </div>
+      ${cierres.length ? `<div class="pay util"><b>💼 Utilidad con todas sus apps (${cierres.length} cierre(s) del día)</b>
+        <div class="u-fila"><span>Flota-K</span><b>${clp(tot)}</b></div><div class="u-fila"><span>Cabify</span><b>${clp(cab)}</b></div><div class="u-fila"><span>Otras apps</span><b>${clp(otras)}</b></div>
+        <div class="u-fila tot"><span>Ingresos</span><b>${clp(ingTot)}</b></div>
+        <div class="u-fila"><span>− TAG y peajes</span><b>${clp(gas + peajesCab)}</b></div><div class="u-fila"><span>− Combustible</span><b>${clp(comb)}</b></div><div class="u-fila"><span>− Otros gastos</span><b>${clp(otrosG)}</b></div>
+        <div class="u-fila tot"><span>Utilidad</span><b class="${util < 0 ? "warn" : ""}">${clp(util)}</b></div>
+        ${kmCierre ? `<span class="small muted">${Math.round(kmCierre).toLocaleString("es-CL")} km · ingreso ${clp(Math.round(ingTot / kmCierre))}/km · utilidad ${clp(Math.round(util / kmCierre))}/km · con el costo de referencia de $410/km (incluye mantención y desgaste): ${clp(ingTot - Math.round(kmCierre * 410) - gas - peajesCab)}</span>` : ""}
+      </div>` : ""}
+      ${porDia.length ? `<div><b class="small">Ganado por día</b><div class="barras" role="img" aria-label="Gráfico de lo ganado por día">${porDia.map(x => `<i style="height:${Math.max(2, Math.round(x.t / maxDia * 100))}%" title="${esc(diaCorto(x.k) + ": " + clp(x.t) + " · " + x.n + " servicio(s)")}" class="${x.k === R.hoy ? "hoy" : ""}"></i>`).join("")}</div>
+        <div class="barras-ley"><span>${esc(diaCorto(R.d0))}</span><span>mejor día: ${esc(diaCorto(porDia.slice().sort((a, b) => b.t - a.t)[0].k))} · ${clp(maxDia)}</span><span>${esc(diaCorto(R.d1))}</span></div></div>` : ""}
+      ${Object.keys(tipos).length ? `<div><b class="small">Por tipo de servicio</b>${Object.entries(tipos).sort((a, b) => b[1].t - a[1].t).map(([k, o]) => hBar(SERVICIOS[k] || k, o.t, tot || 1, `${clp(o.t)} · ${o.n}`)).join("")}</div>` : ""}
+      ${topRutas.length ? `<div><b class="small">Trayectos más frecuentes</b>${topRutas.map(([k, o]) => `<div class="u-fila"><span class="small">${esc(k)}</span><b class="small">${o.n} · ${clp(o.t)}</b></div>`).join("")}</div>` : ""}
+      ${califs.some(c => c.comentario) ? `<div><b class="small">Lo que dicen sus pasajeros</b>${califs.filter(c => c.comentario).slice(0, 4).map(c => `<p class="small coment">${FKChat.fijas(c.estrellas)} “${esc(c.comentario)}”</p>`).join("")}</div>` : ""}
+    </div>
+    ${H.length ? `<div class="svc rep">
+      <b>💡 ¿Cuándo le conviene trabajar?</b><span class="small muted">Según sus servicios de los últimos 90 días (${H.length}).</span>
+      <div><b class="small">Promedio ganado por día de la semana</b>${porDs.map(x => hBar(x.n, x.prom, maxDs, clp(Math.round(x.prom)), x === mejorDs && x.prom > 0)).join("")}</div>
+      <div><b class="small">Por horario</b>${porFr.map(x => hBar(x.n, x.t, maxFr, `${clp(x.t)} · ${x.s}`, x === mejorFr && x.t > 0)).join("")}</div>
+      ${mejorDs.prom > 0 ? `<p class="small" style="margin:0">Su mejor día es el <b>${esc(mejorDs.n.toLowerCase())}</b> y su mejor horario, la <b>${esc(mejorFr.n.split(" (")[0].toLowerCase())}</b>. Conectarse en esos momentos le da más servicios.</p>` : ""}
+    </div>` : ""}
     <div class="pay meta"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Meta del mes</b>
       <label class="small">Meta: $ <input id="meta-in" type="number" min="0" step="50000" inputmode="numeric" style="width:120px;padding:4px 6px" value="${meta || ""}" placeholder="Ej.: 2000000"></label></div>
-      ${meta ? `<div class="barra"><span style="width:${Math.min(100, Math.round(suma(mes).t / meta * 100))}%"></span></div><span class="small">${clp(suma(mes).t)} de ${clp(meta)} · ${Math.min(100, Math.round(suma(mes).t / meta * 100))}%${suma(mes).t < meta ? ` · faltan ${clp(meta - suma(mes).t)}` : " · ¡Meta cumplida!"}</span>` : '<span class="small muted">Escriba una meta para ver su avance.</span>'}</div>
-    <div class="actions"><button class="btn ghost" type="button" id="liq">Liquidación del mes</button><button class="btn ghost" type="button" id="liq-mail">Enviarme la liquidación por correo</button></div>
-    <p class="small muted">Montos de lo cobrado al cliente (valor del servicio más gastos como TAG, peajes o estacionamiento). Servicios cancelados no se cuentan.</p>`;
+      ${meta ? `<div class="barra"><span style="width:${Math.min(100, Math.round(totMes / meta * 100))}%"></span></div><span class="small">${clp(totMes)} de ${clp(meta)} · ${Math.min(100, Math.round(totMes / meta * 100))}%${totMes < meta ? ` · faltan ${clp(meta - totMes)}${diasMes - diaMes > 0 ? ` (${clp(Math.ceil((meta - totMes) / (diasMes - diaMes + 1)))} al día)` : ""}` : " · ¡Meta cumplida!"}</span>` : '<span class="small muted">Escriba una meta para ver su avance.</span>'}</div>
+    <details class="svc"><summary><b>Servicios del período (${P.length})</b></summary>
+    ${P.length ? P.map(x => `<div class="card" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <div><b>${esc(new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "numeric", month: "short" }))} · ${esc(hora(x.fecha_hora))}</b> <span class="muted small">${esc(x.codigo)}</span><br>
+      <span class="small">${esc(x.nombre_pasajero)} · ${esc(x.origen)} → ${esc(x.destino)}</span><br>
+      <span class="small muted">${x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija"}${x.gastos ? ` · gastos ${clp(x.gastos)}` : ""}${pctDe(x) != null ? ` · le corresponde ${clp(Math.round(x.total * (1 - pctDe(x) / 100)))}` : ""}</span></div>
+      <div style="text-align:right"><b>${clp(x.total)}</b><br><span class="small ${x.pagado ? "muted" : ""}">${x.pagado ? "Pagado" : "Por cobrar"}</span></div></div>`).join("") : '<p class="muted">No hay servicios finalizados en este período.</p>'}</details>
+    <div class="actions"><button class="btn ghost" type="button" id="liq">🧾 Liquidación del período</button><button class="btn ghost" type="button" id="liq-csv">⬇ Planilla (Excel)</button><button class="btn ghost" type="button" id="liq-mail">✉ Enviármela por correo</button></div>
+    <p class="small muted">Montos de lo cobrado al cliente (valor del servicio más gastos como TAG, peajes o estacionamiento). Servicios cancelados no se cuentan.${hayCom ? " «Le corresponde» descuenta la comisión de Flota-K de su vehículo." : ""}</p>`;
   pintarCierre(rows);
+  document.querySelectorAll("#rep-per [data-per]").forEach(b => b.addEventListener("click", () => {
+    repPer = b.dataset.per; try { localStorage.setItem("fk_rep_per", repPer); } catch (_) {}
+    if (repPer === "rango" && !(repDesde && repHasta)) { repDesde = R.mes01; repHasta = R.hoy; }
+    pintarGanancias();
+  }));
+  ["rep-d0", "rep-d1"].forEach(id => $(id).addEventListener("change", () => { repDesde = $("rep-d0").value; repHasta = $("rep-d1").value; if (repDesde && repHasta) pintarGanancias(); }));
   $("meta-in").addEventListener("change", ev => { try { localStorage.setItem("fk_meta", String(Number(ev.target.value) || "")); } catch (_) {} pintarGanancias(); });
-  // Liquidación del mes: detalle para imprimir o guardar como PDF (en el navegador) o enviarse por correo (en la app)
-  const mesTxt = new Date().toLocaleDateString("es-CL", { timeZone: TZ, month: "long", year: "numeric" });
-  const tot = delMes.reduce((a, x) => a + (x.total || 0), 0), gas = delMes.reduce((a, x) => a + (x.gastos || 0), 0);
+  // Liquidación del período: para imprimir o guardar como PDF, planilla para Excel, o por correo
+  const quien = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre;
+  const filasLiq = P.slice().reverse();
   $("liq").onclick = () => {
     const w = window.open("", "_blank");
-    if (!w) return alert("Abra fk-servicios.com/conductor en el navegador para imprimir o guardar como PDF, o use 'Enviarme la liquidación por correo'.");
-    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Liquidación ${esc(mesTxt)} · Flota-K</title>
+    if (!w) return alert("Abra fk-servicios.com/conductor en el navegador para imprimir o guardar como PDF, o use 'Enviármela por correo'.");
+    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Liquidación ${esc(perTxt)} · Flota-K</title>
       <style>body{font:14px sans-serif;margin:24px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border-bottom:1px solid #ccc;padding:6px;text-align:left}td.n,th.n{text-align:right}.t{font-weight:700}</style></head><body>
-      <h1>Flota-K · Liquidación de ${esc(mesTxt)}</h1><p>Conductor: <b>${esc((yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre)}</b> · Emitida: ${esc(new Date().toLocaleDateString("es-CL", { timeZone: TZ }))}</p>
-      <table><thead><tr><th>Fecha</th><th>Código</th><th>Pasajero</th><th>Trayecto</th><th class="n">Gastos</th><th class="n">Total</th><th>Pago cliente</th></tr></thead><tbody>
-      ${delMes.map(x => `<tr><td>${esc(new Date(x.fecha_hora).toLocaleString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td><td>${esc(x.codigo)}</td><td>${esc(x.nombre_pasajero)}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td class="n">${clp(x.gastos || 0)}</td><td class="n">${clp(x.total)}</td><td>${x.pagado ? "Pagado" : "Por cobrar"}</td></tr>`).join("")}
-      <tr class="t"><td colspan="4">TOTAL (${delMes.length} servicios)</td><td class="n">${clp(gas)}</td><td class="n">${clp(tot)}</td><td></td></tr></tbody></table>
+      <h1>Flota-K · Liquidación ${esc(perTxt)}</h1><p>Conductor: <b>${esc(quien)}</b> · Emitida: ${esc(new Date().toLocaleDateString("es-CL", { timeZone: TZ }))}</p>
+      <table><thead><tr><th>Fecha</th><th>Código</th><th>Pasajero</th><th>Trayecto</th><th class="n">Gastos</th><th class="n">Total</th>${hayCom ? '<th class="n">Comisión</th><th class="n">Le corresponde</th>' : ""}<th>Pago cliente</th></tr></thead><tbody>
+      ${filasLiq.map(x => `<tr><td>${esc(new Date(x.fecha_hora).toLocaleString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td><td>${esc(x.codigo)}</td><td>${esc(x.nombre_pasajero)}</td><td>${esc(x.origen)} → ${esc(x.destino)}</td><td class="n">${clp(x.gastos || 0)}</td><td class="n">${clp(x.total)}</td>${hayCom ? `<td class="n">${clp(pctDe(x) != null ? Math.round(x.total * pctDe(x) / 100) : 0)}</td><td class="n">${clp(pctDe(x) != null ? Math.round(x.total * (1 - pctDe(x) / 100)) : x.total)}</td>` : ""}<td>${x.pagado ? "Pagado" : "Por cobrar"}</td></tr>`).join("")}
+      <tr class="t"><td colspan="4">TOTAL (${P.length} servicios)</td><td class="n">${clp(gas)}</td><td class="n">${clp(tot)}</td>${hayCom ? `<td class="n">${clp(com)}</td><td class="n">${clp(neto)}</td>` : ""}<td></td></tr></tbody></table>
       <p style="margin-top:16px;font-size:12px;color:#555">Gastos = TAG, peajes, estacionamiento y otros ingresados al finalizar. Total = lo cobrado al cliente.</p>
       <script>setTimeout(() => print(), 300)<\/script></body></html>`);
     w.document.close();
   };
+  $("liq-csv").onclick = () => {
+    const cel = v => { const s = String(v ?? ""); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const enc = ["Fecha", "Hora", "Código", "Pasajero", "Origen", "Destino", "Tipo de servicio", "Cobro", "Gastos", "Total"].concat(hayCom ? ["Comisión %", "Comisión", "Le corresponde"] : []).concat(["Pago cliente"]);
+    const filas = filasLiq.map(x => [diaKey(x.fecha_hora), hora(x.fecha_hora), x.codigo, x.nombre_pasajero, x.origen, x.destino, SERVICIOS[(resv[x.id] || {}).tipo_servicio] || "", x.tipo_cobro === "taximetro" ? "Taxímetro" : "Tarifa fija", x.gastos || 0, x.total || 0]
+      .concat(hayCom ? [pctDe(x) ?? "", pctDe(x) != null ? Math.round(x.total * pctDe(x) / 100) : 0, pctDe(x) != null ? Math.round(x.total * (1 - pctDe(x) / 100)) : x.total] : []).concat([x.pagado ? "Pagado" : "Por cobrar"]));
+    const csv = "﻿" + [enc, ...filas].map(f => f.map(cel).join(";")).join("\r\n");
+    const nombre = `Flota-K_${R.d0}_a_${R.d1}.csv`, blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      return alert("Para descargar la planilla, abra fk-servicios.com/conductor en el navegador del teléfono (Chrome) o use 'Enviármela por correo'.");
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  };
   $("liq-mail").onclick = () => {
-    const t = `Liquidación ${mesTxt} · ${(yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre}\n\n` +
-      delMes.map(x => `${new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit" })} ${x.codigo} · ${x.nombre_pasajero} · ${clp(x.total)}${x.pagado ? "" : " (por cobrar)"}`).join("\n") +
-      `\n\nTotal: ${clp(tot)} (${delMes.length} servicios) · Gastos incluidos: ${clp(gas)}`;
-    location.href = "mailto:?subject=" + encodeURIComponent("Liquidación " + mesTxt + " · Flota-K") + "&body=" + encodeURIComponent(t);
+    const t = `Liquidación ${perTxt} · ${quien}\n\n` +
+      filasLiq.map(x => `${new Date(x.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, day: "2-digit", month: "2-digit" })} ${x.codigo} · ${x.nombre_pasajero} · ${clp(x.total)}${x.pagado ? "" : " (por cobrar)"}`).join("\n") +
+      `\n\nTotal: ${clp(tot)} (${P.length} servicios) · Gastos incluidos: ${clp(gas)}` + (hayCom ? `\nComisión Flota-K: ${clp(com)} · Le corresponde: ${clp(neto)}` : "");
+    location.href = "mailto:?subject=" + encodeURIComponent("Liquidación " + perTxt + " · Flota-K") + "&body=" + encodeURIComponent(t);
   };
 }
 
@@ -832,8 +969,8 @@ async function pintarPerfil() {
 }
 
 function pintar() {
-  if (vista === "gan") return pintarGanancias();
   $("inicio-mapa").hidden = vista !== "inicio";
+  if (vista === "gan") return pintarGanancias();
   if (vista === "perfil") return pintarPerfil();
   const hoy = diaKey(new Date().toISOString());
   // "Hoy" = lo de hoy más todo lo de las próximas 12 horas (vuelos de madrugada).

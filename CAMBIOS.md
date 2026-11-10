@@ -1,5 +1,13 @@
 # Cambios
 
+## 10 nov 2026 · Reportes del conductor en la Billetera (pendiente de publicar)
+- **Mis reportes** con período a elección (hoy, semana, mes, mes anterior, 30 días o fechas): ganado y comparación con el período anterior, servicios y promedio, **le corresponde** (descontando la comisión de Flota-K de su vehículo, si tiene), **ganancia por hora en servicio**, ingreso por km, TAG y peajes, clientes por pagar, calificación, **puntualidad** y proyección del mes.
+- **Utilidad con todas sus apps** (vehículos de Flota-K con cierre diario): Flota-K + Cabify + otras − TAG/peajes − combustible − otros gastos, por km y con el costo de referencia de $410/km.
+- Gráfico de lo ganado por día, por tipo de servicio, trayectos más frecuentes y comentarios de pasajeros.
+- **¿Cuándo le conviene trabajar?**: promedio por día de la semana y por horario (últimos 90 días).
+- Liquidación del período (imprimir/PDF), **planilla para Excel** y envío por correo. La meta del mes muestra cuánto falta por día.
+- Arreglo: el mapa del Inicio ya no aparece en la Billetera.
+
 ## 10 nov 2026 · App del conductor: avisos de cambios y actualizar a mano (pendiente de publicar)
 - **Avisos con sonido, vibración y notificación** cuando: le asignan un servicio, se lo quitan (reasignado o eliminado), lo cancelan, o le cambian la hora, el retiro o el destino. Quedan en pantalla hasta tocar "Entendido". También avisa al abrir la app si algo cambió mientras estaba cerrada.
 - **Botón "⟳ Actualizar"** y **deslizar hacia abajo** (desde arriba de la pantalla) para actualizar al instante. La lista se sigue actualizando sola cada 30 segundos y al volver a la app.
