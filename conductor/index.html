@@ -306,7 +306,7 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, bono_bolsa, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, bono_bolsa, retiro_detalle, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -328,7 +328,7 @@ let bolsa = [], bolsaCargada = false;
 const PIDE_TXT = { auto: "auto", suv: "SUV", van: "van" };
 async function revisarBolsa(avisar = true) {
   if (!yo) return;
-  const { data, error } = await sb.rpc("bolsa_servicios_v2");
+  const { data, error } = await sb.rpc("bolsa_servicios_v3");
   if (error) return;
   const antes = new Set(bolsa.map(x => x.o_id));
   bolsa = data || [];
@@ -354,6 +354,7 @@ async function pintarBolsa(recargar = true) {
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><span><span class="time" style="font-size:1.6rem">${esc(hora(x.o_fecha_hora))}</span> <b>${esc(dia(x.o_fecha_hora))}</b></span><span class="pill">${esc(SERVICIOS[x.o_tipo_servicio] || "Servicio")}</span></div>
       <div style="font-size:1.05rem"><b>${esc(x.o_zona_origen)}</b> → <b>${esc(x.o_zona_destino)}</b></div>
       <div class="small muted">${esc(x.o_pasajeros || 1)} pasajero(s)${x.o_maletas != null ? " · " + esc(x.o_maletas) + " maleta(s)" : ""} · pide ${esc(PIDE_TXT[x.o_vehiculo] || x.o_vehiculo)}${x.o_vuelo ? " · vuelo " + esc(x.o_vuelo) : ""}${x.o_km ? " · " + String(x.o_km).replace(".", ",") + " km" : ""} · aprox. ${esc(x.o_duracion)} min</div>
+      ${x.o_exclusiva ? '<div class="small" style="color:var(--gold);font-weight:700">⭐ Exclusivo por unos minutos para conductores destacados como usted</div>' : ""}
       ${x.o_bono ? `<div class="bono">🎁 Bono ${clp(x.o_bono)} para quien lo tome</div>` : ""}
       <div><b style="font-size:1.2rem">${x.o_valor ? clp(x.o_valor) : "Taxímetro"}</b>${pct != null && x.o_valor ? ` <span class="small muted">· le corresponde ${clp(Math.round(x.o_valor * (1 - pct / 100)))}</span>` : ""}</div>
       ${!x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
@@ -463,7 +464,7 @@ function mostrarAviso(tipo, titulo, texto) {
   if (LN) LN.schedule({ notifications: [{ id: 1600000000 + Math.floor(Math.random() * 99999999), title: titulo, body: texto }] }).catch(() => {});
 }
 async function avisarCambios() {
-  const resumen = r => ({ c: r.codigo, f: r.fecha_hora, o: r.origen, d: r.destino, n: r.nombre_pasajero });
+  const resumen = r => ({ c: r.codigo, f: r.fecha_hora, o: r.origen, d: r.destino, n: r.nombre_pasajero, p: r.origen_lat != null ? r.origen_lat.toFixed(5) + "," + r.origen_lng.toFixed(5) : "", det: r.retiro_detalle || "" });
   const activos = items.filter(r => r.estado !== "finalizada");
   let antes = null; try { antes = JSON.parse(localStorage.getItem("fk_snap_" + yo.id) || "null"); } catch (_) {}
   const ahora = {}; activos.forEach(r => ahora[r.id] = resumen(r));
@@ -489,6 +490,7 @@ async function avisarCambios() {
     if (x.f !== r.fecha_hora) cambios.push(`hora: antes ${FK.fecha(x.f)}, ahora ${FK.fecha(r.fecha_hora)}`);
     if (x.o !== r.origen) cambios.push(`retiro: ahora ${r.origen}`);
     if (x.d !== r.destino) cambios.push(`destino: ahora ${r.destino}`);
+    if (x.p !== undefined && x.o === r.origen && (x.p !== resumen(r).p || (x.det || "") !== (r.retiro_detalle || ""))) cambios.push(`📍 punto de retiro ajustado${r.retiro_detalle ? ": " + r.retiro_detalle : ""}`);
     if (cambios.length) { mostrarAviso("cambio", "✏️ Cambió un servicio · " + r.codigo, `${r.nombre_pasajero} · ${cambios.join(" · ")}`); hubo = true; }
   });
   if (hubo) { sonarAlerta(); if (navigator.vibrate) navigator.vibrate([300, 120, 300, 120, 300]); }
@@ -1096,7 +1098,7 @@ function pintar() {
       <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
       ${r.estado === "en_lugar" ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="https://www.google.com/search?q=${encodeURIComponent(r.vuelo + " estado del vuelo")}" target="_blank" rel="noopener" style="color:var(--gold)"><b>${esc(r.vuelo)}</b></a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
-      <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>
+      <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>${r.retiro_detalle ? `<span class="small" style="color:var(--gold)">📍 ${esc(r.retiro_detalle)}</span>` : ""}
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>

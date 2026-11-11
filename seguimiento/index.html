@@ -82,6 +82,7 @@ async function cargar() {
       ${r.o_vuelo ? `<dt>Vuelo</dt><dd>${esc(r.o_vuelo)}</dd>` : ""}
       ${r.o_conductor ? "" : '<dt>Conductor</dt><dd>Por asignar</dd>'}
     </dl>
+    <div id="retiro-box" class="retiro" hidden></div>
     ${pasos}
     ${!["finalizada", "cancelada"].includes(r.o_estado) ? '<div class="actions"><button class="btn ghost sm" type="button" id="ics">📅 Agregar a mi calendario</button><button class="btn ghost sm" type="button" id="compartir">🔗 Compartir mi viaje</button></div>' : ""}
     ${r.o_estado === "finalizada" || r.o_tipo_servicio === "ida" ? `<div class="actions"><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/56922275399?text=${encodeURIComponent(`Hola Flota-K, quiero reservar mi regreso (reserva ${r.o_codigo}): desde ${r.o_destino} a ${r.o_origen}. Fecha y hora: `)}">↩ Reservar mi regreso</a></div>` : ""}
@@ -95,8 +96,39 @@ async function cargar() {
   });
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
-  mensajes();
+  mensajes(); pintarRetiro();
   if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
+}
+
+// ---- Punto exacto de retiro: el pasajero mueve el pin hasta donde esperará (hasta 20 min antes, a menos de 2 km)
+async function pintarRetiro() {
+  const cont = $("retiro-box"); if (!cont) return;
+  const { data } = await sb.rpc("ver_retiro_publico", { p_token: token });
+  const x = data && data[0];
+  if (!x || !x.o_editable) { cont.hidden = true; return; }
+  cont.hidden = false;
+  cont.innerHTML = `<h3 style="margin:0">📍 Confirme su punto exacto de retiro</h3>
+    <p class="small muted" style="margin:0">Mueva el pin (o toque el mapa) hasta donde esperará al conductor, por ejemplo la entrada de su edificio. El conductor navegará justo a ese punto.</p>
+    <div id="ret-mapa" class="mapa" style="height:260px"></div>
+    <div class="f"><label for="ret-det">Indicaciones para el conductor (opcional)</label><input id="ret-det" maxlength="200" placeholder="Ej.: Torre B, portón negro, por la calle lateral" value="${esc(x.o_detalle || "")}"></div>
+    <div class="actions"><button class="btn sm" type="button" id="ret-ok">Guardar mi punto</button></div>
+    <p class="msg" id="ret-msg" hidden></p>`;
+  const avisar = (t, k) => { const m = $("ret-msg"); m.hidden = false; m.className = "msg " + k; m.textContent = t; };
+  if (!window.L || !window.FKMapa) { $("ret-mapa").innerHTML = '<p class="small muted" style="padding:10px">No se pudo cargar el mapa.</p>'; return; }
+  const centro = x.o_lat != null ? [x.o_lat, x.o_lng] : [-33.45, -70.66];
+  const m = FKMapa.crear($("ret-mapa"), centro, x.o_lat != null ? 17 : 11);
+  const icono = L.divIcon({ className: "lugar-pin", html: "<span>📍</span>", iconSize: [34, 34], iconAnchor: [17, 32] });
+  let punto = x.o_lat != null ? L.latLng(centro) : null, mk = null;
+  const poner = ll => { punto = ll; if (!mk) { mk = L.marker(ll, { draggable: true, icon: icono }).addTo(m); mk.on("dragend", () => { punto = mk.getLatLng(); }); } else mk.setLatLng(ll); };
+  if (punto) poner(punto);
+  m.on("click", e => poner(e.latlng));
+  $("ret-ok").onclick = async () => {
+    if (!punto) return avisar("Toque el mapa en el lugar donde lo esperará el conductor.", "err");
+    $("ret-ok").disabled = true;
+    const { error } = await sb.rpc("pasajero_ajustar_retiro", { p_token: token, p_lat: punto.lat, p_lng: punto.lng, p_detalle: $("ret-det").value });
+    $("ret-ok").disabled = false;
+    avisar(error ? FK.errText(error) : "✅ Listo: su conductor llegará a ese punto.", error ? "err" : "ok");
+  };
 }
 
 // ---- Mensajes: con el conductor (solo con el servicio en curso) y con la central (objeto perdido, ayuda, otro)

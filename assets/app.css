@@ -294,3 +294,6 @@ header.top .userbar .btn.ghost { color: #eceae4; border-color: #4a4f57; }
 
 /* Conductores sugeridos (encadenar servicios) */
 .sug-cond { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+/* Puntos de retiro en los mapas del panel */
+.ret-pin span { display: inline-block; color: #fff; font-weight: 700; font-size: .75rem; padding: 2px 6px; border-radius: 6px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); white-space: nowrap; }
+.retiro { display: grid; gap: 8px; margin: 10px 0; padding: 12px; border: 1px solid var(--gold); border-radius: 8px; }

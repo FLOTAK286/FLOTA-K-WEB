@@ -24,6 +24,8 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 - **Base de datos:** Supabase, proyecto "FLOTAK Project" (`iejhmplstveockkjjbks`, región us-east-2). Migraciones en `supabase/migrations/` con el mismo número de versión que aparece en Supabase. Nunca editar una migración ya aplicada: crear una nueva.
 - **Ingreso:** equipo y conductores con correo + contraseña. El admin crea la cuenta con contraseña provisoria desde Equipo y roles (Edge Function `crear-miembro`), porque el correo gratuito de Supabase solo llega a miembros del equipo de Supabase. Clientes con enlace al correo, registro desactivado por ahora. Google desactivado (`google: false`).
 - **Despacho:** `asignar_reserva` (usa el vehículo habitual del conductor si no se elige otro), `conductor_avanzar` (solo sus servicios, solo hacia adelante). Límite de correos de Supabase sin SMTP propio: 2 por hora.
+- **Tareas programadas (pg_cron, Supabase):** `flotak-bolsa-automatica` cada 5 min ejecuta `bolsa_automatica()`.
+- **Rutas y direcciones (gratis):** autocompletar con Photon (photon.komoot.io) y rutas con OSRM (router.project-osrm.org), +25% por tráfico; margen mínimo para encadenar servicios: 15 min.
 - **Roles:** `admin`, `despachador`, `telefonista`, `conductor`, `propietario` (solo ve sus vehículos en /propietario). El admin invita por correo (`invitar_miembro`); al entrar a `/equipo` la persona acepta su invitación (`aceptar_invitacion`).
 
 ## Reglas de seguridad

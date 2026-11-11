@@ -121,8 +121,10 @@
 
     <div data-pane="mapa" class="panel" style="margin-top:14px" hidden>
       <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Mapa en vivo</h2><span class="muted small" id="mp-act"></span></div>
+      <label class="chk small"><input type="checkbox" id="mp-ver-ret" checked> Ver los puntos de retiro de los servicios (próximas 24 horas)</label>
       <div class="mp-ley"><span><i style="background:#3ecf7f"></i>Disponible</span><span><i style="background:#d4a64a"></i>Disponible, con servicio en menos de 1 hora</span><span><i style="background:#e5533d"></i>Ocupado (en servicio)</span><span><i style="background:#8a8d93"></i>Desconectado o sin señal</span></div>
       <div id="mp-mapa" class="mapa alto"></div>
+      <div class="mp-ley"><span><i style="background:#e5533d"></i>Retiro sin conductor</span><span><i style="background:#d4a64a"></i>Retiro en la bolsa</span><span><i style="background:#3b6fd8"></i>Retiro con conductor</span><span><i style="background:#2e9e5f"></i>Servicio en curso</span></div>
       <div id="mp-lista" class="list"></div>
       <p class="muted small">Se actualiza solo cada 15 segundos. Con la app Android, cada conductor envía su ubicación aunque use otras apps (cada 15 s en servicio, cada minuto sin servicio). Gris: sin señal hace más de 3 minutos (app cerrada, sin internet o teléfono apagado).</p>
     </div>
@@ -285,6 +287,10 @@
       <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Conduce</th><th>Estado</th><th></th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
       <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
       <div id="pend" class="muted">—</div>
+      <h3 style="margin:8px 0 0">Bolsa de servicios automática</h3>
+      <div class="actions"><label for="cfg-bolsa">Si una reserva confirmada sigue sin conductor, liberarla sola a la bolsa</label>
+        <select id="cfg-bolsa"><option value="">No (desactivada)</option><option value="2">2 horas antes</option><option value="3">3 horas antes</option><option value="4">4 horas antes</option><option value="6">6 horas antes</option><option value="8">8 horas antes</option><option value="12">12 horas antes</option><option value="24">24 horas antes</option></select>
+        <span class="small muted" id="cfg-bolsa-msg">Se revisa cada 5 minutos, aunque nadie tenga el panel abierto. Las reservas recién creadas esperan 15 minutos.</span></div>
       <h3 style="margin:8px 0 0">Tarifas del taxímetro</h3>
       <form id="tf" class="row3" novalidate>
         <div class="f"><label for="t-bajada">Bajada de bandera</label><input id="t-bajada" type="number" min="0" step="10"></div>
@@ -591,7 +597,7 @@ function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
   const t = `Hola ${nombre}, ${alSolicitante ? `el traslado de ${r.nombre_pasajero} está confirmado` : "su traslado con Flota-K está confirmado"}.\n\n` +
     `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
     (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
-    `\n\nSiga su traslado aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nComprometidos con su traslado. Flota-K`;
+    `\n\nSiga su traslado y confirme su punto exacto de retiro aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nComprometidos con su traslado. Flota-K`;
   window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(t), "_blank", "noopener");
 }
 // ---- Copiar reserva: abre "Nueva reserva" con los mismos datos (falta poner la fecha)
@@ -730,6 +736,24 @@ async function pintarMensajes(r) {
 // ---- Mapa en vivo: dónde está cada conductor y si está disponible, ocupado o con un servicio próximo
 let mapaEq = null, pinesEq = {}, timerMapa = null, centradoEq = false, califCondCache = null;
 const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
+// ---- Mapa de los servicios del día: cada punto de retiro con su hora, por color según la situación
+const RET_COLOR = { sinasignar: "#e5533d", bolsa: "#d4a64a", asignada: "#3b6fd8", curso: "#2e9e5f" };
+function pintarRetiros(mapa, capa, servicios) {
+  if (!mapa || !window.L) return capa;
+  if (!capa) capa = L.layerGroup().addTo(mapa); else capa.clearLayers();
+  servicios.filter(r => r.origen_lat != null && !["finalizada", "cancelada"].includes(r.estado)).forEach(r => {
+    const tipo = EN_CURSO.includes(r.estado) ? "curso" : r.en_bolsa ? "bolsa" : (!r.conductor_id && !r.derivado_a) ? "sinasignar" : "asignada";
+    const lat = r.estado === "a_bordo" && r.destino_lat != null ? r.destino_lat : r.origen_lat, lng = r.estado === "a_bordo" && r.destino_lat != null ? r.destino_lng : r.origen_lng;
+    const ic = L.divIcon({ className: "ret-pin", html: `<span style="background:${RET_COLOR[tipo]}">${esc(hora(r.fecha_hora))}</span>`, iconSize: [52, 22], iconAnchor: [26, 22] });
+    L.marker([lat, lng], { icon: ic, zIndexOffset: -100 }).addTo(capa)
+      .bindPopup(`<b>${esc(r.codigo)} · ${esc(hora(r.fecha_hora))}</b><br>${esc(r.nombre_pasajero || "")}<br>${esc(r.origen)} → ${esc(r.destino)}<br><i>${tipo === "sinasignar" ? "Sin conductor" : tipo === "bolsa" ? "En la bolsa" : esc(etiquetaConductor(r.conductor_id) || r.derivado_a || "")}</i><br><a href="#" data-abrir="${esc(r.id)}">Abrir ficha</a>`)
+      .on("popupopen", ev => { const a = ev.popup.getElement().querySelector("[data-abrir]"); if (a) a.onclick = e => { e.preventDefault(); const i = cache.findIndex(x => x.id === r.id); if (i < 0) cache.push(r); abrir(r.id); }; });
+  });
+  return capa;
+}
+let capaRetEq = null, capaRetTb = null;
+
+document.addEventListener("change", e => { if (e.target && e.target.id === "mp-ver-ret") cargarMapa(); });
 async function cargarMapa() {
   if (!window.L || !window.FKMapa) { $("mp-lista").innerHTML = '<p class="msg err">No se pudo cargar el mapa. Revise su conexión.</p>'; return; }
   if (!mapaEq) mapaEq = FKMapa.crear($("mp-mapa"));
@@ -738,8 +762,8 @@ async function cargarMapa() {
   const desde = new Date(Date.now() - 12 * 3600e3).toISOString(), hasta = new Date(Date.now() + 36 * 3600e3).toISOString();
   const [{ data: us, error }, { data: rs }, { data: ks }] = await Promise.all([
     sb.from("ubicaciones").select("conductor_id, reserva_id, lat, lng, precision_m, velocidad_kmh, actualizado_en"),
-    sb.from("reservas").select("id, codigo, estado, fecha_hora, nombre_pasajero, origen, destino, conductor_id")
-      .not("conductor_id", "is", null).in("estado", ["confirmada", "asignada", "en_camino", "en_lugar", "a_bordo"])
+    sb.from("reservas").select("id, codigo, estado, fecha_hora, nombre_pasajero, origen, destino, conductor_id, derivado_a, en_bolsa, origen_lat, origen_lng, destino_lat, destino_lng, token_seguimiento")
+      .in("estado", ["recibida", "confirmada", "asignada", "en_camino", "en_lugar", "a_bordo"])
       .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora"),
     califCondCache && Date.now() - califCondCache.t < 600000 ? Promise.resolve({ data: califCondCache.d }) :
       FK.todo(() => sb.from("calificaciones").select("conductor_id, estrellas").eq("autor", "pasajero").gte("creado_en", new Date(Date.now() - 90 * 864e5).toISOString()).order("id"))
@@ -747,6 +771,7 @@ async function cargarMapa() {
   if (ks && !(califCondCache && califCondCache.d === ks)) califCondCache = { t: Date.now(), d: ks };
   const califCond = {}; (ks || []).forEach(k => { const x = califCond[k.conductor_id] = califCond[k.conductor_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   if (error) { $("mp-lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  if ($("mp-ver-ret").checked) capaRetEq = pintarRetiros(mapaEq, capaRetEq, (rs || []).filter(r => new Date(r.fecha_hora) < Date.now() + 24 * 3600e3)); else if (capaRetEq) capaRetEq.clearLayers();
   const ids = new Set([...conductores.map(c => c.id), ...(us || []).map(u => u.conductor_id)]);
   const filas = [...ids].map(id => {
     const u = (us || []).find(x => x.conductor_id === id);
@@ -772,10 +797,12 @@ async function cargarMapa() {
     else pinesEq[f.id].setLatLng([f.u.lat, f.u.lng]).setIcon(ic).setPopupContent(pop);
   });
   Object.keys(pinesEq).forEach(k => { if (!vivos.has(k)) { pinesEq[k].remove(); delete pinesEq[k]; } });
-  const conPos = filas.filter(f => f.u);
-  if (!centradoEq && conPos.length) {
+  // Primer encuadre: conductores y (si se muestran) los puntos de retiro de las próximas 24 horas
+  const pts = filas.filter(f => f.u).map(f => [f.u.lat, f.u.lng])
+    .concat($("mp-ver-ret").checked ? (rs || []).filter(r => r.origen_lat != null && new Date(r.fecha_hora) < Date.now() + 24 * 3600e3).map(r => [r.origen_lat, r.origen_lng]) : []);
+  if (!centradoEq && pts.length) {
     centradoEq = true;
-    if (conPos.length === 1) mapaEq.setView([conPos[0].u.lat, conPos[0].u.lng], 14); else mapaEq.fitBounds(conPos.map(f => [f.u.lat, f.u.lng]), { padding: [40, 40], maxZoom: 15 });
+    if (pts.length === 1) mapaEq.setView(pts[0], 14); else mapaEq.fitBounds(pts, { padding: [40, 40], maxZoom: 15 });
   }
   const cuenta = k => filas.filter(f => f.est === k).length;
   $("mp-lista").innerHTML = (filas.length ? `<p class="small" style="margin:0"><b>${cuenta("libre") + cuenta("pronto")}</b> disponible(s) · <b>${cuenta("ocupado")}</b> ocupado(s) · <b>${cuenta("viejo")}</b> desconectado(s) o sin señal</p>` : "") +
@@ -918,6 +945,7 @@ async function abrir(id) {
       <dt>Correo</dt><dd>${esc(r.correo || "—")}</dd>
       <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · pide <b>${esc(PIDE[r.vehiculo] || r.vehiculo || "Auto")}</b></dd>
       <dt>Origen</dt><dd>${esc(r.origen)}${r.origen_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.origen_lat},${r.origen_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
+      ${r.retiro_detalle ? `<dt>Indicaciones</dt><dd>📍 ${esc(r.retiro_detalle)} <span class="small muted">(las dejó el pasajero)</span></dd>` : ""}
       <dt>Destino</dt><dd>${esc(r.destino)}${r.destino_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.destino_lat},${r.destino_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
       <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
       ${r.cuenta_corporativa_id || r.centro_costo ? `<dt>Empresa</dt><dd>${esc((cuentas.find(x => x.id === r.cuenta_corporativa_id) || {}).razon_social || "—")}${r.centro_costo ? " · centro de costo: " + esc(r.centro_costo) : ""}</dd>` : ""}
@@ -1526,6 +1554,7 @@ async function mapaTablero() {
     if (!pinesTb[u.conductor_id]) pinesTb[u.conductor_id] = L.marker([u.lat, u.lng], { icon: ic }).addTo(mapaTb).bindPopup(pop); else pinesTb[u.conductor_id].setLatLng([u.lat, u.lng]).setIcon(ic).setPopupContent(pop);
   });
   Object.keys(pinesTb).forEach(k => { if (!vivos.has(k)) { pinesTb[k].remove(); delete pinesTb[k]; } });
+  capaRetTb = pintarRetiros(mapaTb, capaRetTb, tablero);
   const pts = (us || []).map(u => [u.lat, u.lng]);
   if (pts.length && !mapaTb._fk) { mapaTb._fk = 1; pts.length === 1 ? mapaTb.setView(pts[0], 13) : mapaTb.fitBounds(pts, { padding: [30, 30], maxZoom: 14 }); }
 }
@@ -1920,9 +1949,16 @@ async function planilla(c, rows, desde, hasta) {
 
 // ---- Tarifas (admin)
 async function cargarTarifas() {
+  const { data: e } = await sb.from("empresas").select("bolsa_auto_horas").eq("id", yo.empresa_id).maybeSingle();
+  if (e) $("cfg-bolsa").value = e.bolsa_auto_horas || "";
   const t = await tarifas();
   $("t-bajada").value = t.taxi_bajada; $("t-200").value = t.taxi_cada_200m; $("t-60").value = t.taxi_cada_60s; $("t-tag").value = t.valor_tag;
 }
+$("cfg-bolsa").addEventListener("change", async ev => {
+  const h = ev.target.value ? Number(ev.target.value) : null;
+  const { error } = await sb.from("empresas").update({ bolsa_auto_horas: h }).eq("id", yo.empresa_id);
+  $("cfg-bolsa-msg").textContent = error ? errText(error) : h ? `Activada: las reservas sin conductor se liberan solas ${h} horas antes.` : "Desactivada: solo se liberan a mano.";
+});
 $("tf").addEventListener("submit", async e => {
   e.preventDefault();
   const v = { taxi_bajada: Number($("t-bajada").value), taxi_cada_200m: Number($("t-200").value), taxi_cada_60s: Number($("t-60").value), valor_tag: Number($("t-tag").value) };

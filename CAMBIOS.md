@@ -1,5 +1,11 @@
 # Cambios
 
+## 11 nov 2026 · Bolsa automática, prioridad, punto del pasajero y mapa del día (pendiente de publicar)
+- **Bolsa automática** (`etapa23_bolsa_auto_prioridad_retiro_pasajero`, tarea programada `flotak-bolsa-automatica` cada 5 min con pg_cron): las reservas confirmadas sin conductor se liberan solas a la bolsa X horas antes (por defecto 6; se cambia o desactiva en Equipo y roles). Las recién creadas esperan 15 min. Se hace una sola vez por reserva y queda en el historial.
+- **Prioridad para conductores destacados:** los primeros 10 minutos en la bolsa, el servicio solo lo ven y toman conductores con promedio 4,5★ o más (mínimo 3 calificaciones en 90 días), si faltan más de 2 horas. Luego queda para todos.
+- **El pasajero confirma su punto de retiro** en su enlace de seguimiento: mueve el pin y deja indicaciones (ej.: "Torre B, portón negro"), hasta 20 min antes y a menos de 2 km de la dirección reservada. El conductor recibe aviso y ve las indicaciones; queda en el historial y en la ficha. El WhatsApp de confirmación invita a hacerlo.
+- **Mapa de los servicios del día:** en "Mapa en vivo" y en el mapa al lado del despacho, los puntos de retiro con su hora y color (rojo sin conductor, dorado en la bolsa, azul con conductor, verde en curso), junto a los conductores. Tocar un punto abre la ficha.
+
 ## 11 nov 2026 · Encadenar servicios, distancia real, bono y devolver a la bolsa (pendiente de publicar)
 - **Distancia y tiempo reales** (OSRM con datos de OpenStreetMap, gratis; +25% por tráfico): en Nueva reserva se muestran km y minutos del viaje y se guardan en la reserva. La duración del servicio queda como viaje + 10 min (o + 30 min en regresos del aeropuerto, por la espera). Mejora los choques de horario, la agenda y la bolsa.
 - **Conductor sugerido encadenando servicios:** en la ficha, hasta 3 conductores sugeridos que llegan con **al menos 15 minutos de margen**, considerando el servicio que terminan antes (y el que tienen después). Primero el que termina cerca ("🔗 termina FK-X en Las Condes a las 8:20, llega en ~5 min y le quedan 35 min de margen"). Avisa si alguien "llegaría justo". Muestra también quién está conectado y cuántos servicios devolvió a la bolsa.
