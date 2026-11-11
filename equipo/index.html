@@ -998,7 +998,10 @@ async function abrir(id) {
     </div>
     <p id="a-margen" class="small muted"></p>
     <div id="a-choque" class="msg err" hidden></div>
-    <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button></div>
+    <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button>
+      ${!r.en_bolsa && ["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost" id="a-bolsa" type="button">📢 Enviar a la bolsa</button>' : ""}
+      ${r.en_bolsa ? '<button class="btn ghost" id="a-bolsa-x" type="button">↩ Retirar de la bolsa</button>' : ""}
+      ${r.estado === "recibida" ? '<span class="small muted" style="align-self:center">Para enviarla a la bolsa, primero confirme la reserva (Estado → Confirmada → Guardar cambios).</span>' : ""}</div>
     <h3 style="margin:6px 0 0">Estado y cobro</h3>
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
@@ -1030,6 +1033,8 @@ async function abrir(id) {
     if (error) return msg("d-msg", errText(error), "err");
     $("det").close(); refrescar();
   };
+  if ($("a-bolsa")) $("a-bolsa").onclick = () => $("d-bolsa").click();
+  if ($("a-bolsa-x")) $("a-bolsa-x").onclick = () => $("d-bolsa-x").click();
   if ($("d-bolsa-x")) $("d-bolsa-x").onclick = async () => {
     const { error } = await sb.rpc("liberar_a_bolsa", { p_reserva: r.id, p_liberar: false });
     if (error) return msg("d-msg", errText(error), "err");

@@ -1,5 +1,8 @@
 # Cambios
 
+## 11 nov 2026 · Botón de la bolsa en Asignación (pendiente de publicar)
+- En la ficha, el botón **"📢 Enviar a la bolsa"** ahora aparece también en la sección **Asignación** (antes solo estaba al final de la ficha). Si la reserva está "por confirmar", se explica que primero hay que confirmarla.
+
 ## 11 nov 2026 · Nota 4,96 y ubicación también desconectado (pendiente de publicar)
 - **Vista anticipada de la bolsa con 4,96 o más** (`etapa26_nota_496_y_aceptacion_ubicacion`): minutos 0–10 móviles de Flota-K con 4,96+ (o sin ninguna calificación aún: si su primera nota no es 5, pierden la prioridad); minutos 10–20 conductores con 4,96+ y al menos 3 calificaciones; luego todos. En la Bolsa, cada conductor ve su nota y cuándo ve las reservas.
 - **Ubicación también desconectado:** con la sesión iniciada, la app envía la ubicación cada 5 minutos aunque el conductor esté desconectado (cada 1 min conectado, cada 15 s en servicio). Aviso al conductor y **aceptación registrada** (`ubicacion_aceptada_en`), con guía para elegir "Permitir todo el tiempo" y batería "Sin restricciones" en los ajustes. En el mapa del panel, un desconectado se marca "sin señal" solo si pasan más de 7 minutos.
