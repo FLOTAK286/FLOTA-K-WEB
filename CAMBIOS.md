@@ -5,6 +5,7 @@
 - **App del conductor → pestaña "✋ Bolsa"** (con contador): ve fecha, hora, tipo, zona de origen y destino, pasajeros, maletas, vehículo que pide, vuelo, valor y lo que le corresponde. **No ve** el nombre ni el teléfono del pasajero ni la dirección exacta hasta tomarlo. Se toma **deslizando**. Aviso con sonido y notificación cuando la central libera un servicio que le sirve.
 - **Solo uno puede tomarlo**: la base de datos lo asigna al primero; el segundo recibe "Otro conductor ya tomó este servicio". No puede tomarlo si su vehículo no corresponde (van solo con van; SUV con SUV o van) o si se le cruza con otro servicio suyo. Queda en el historial: "Tomado desde la bolsa por Móvil X".
 - **Tarifario:** la van cobra lo mismo de ida o de regreso: el botón ahora dice "Van".
+- **Alerta de bolsa:** si falta 1 hora o menos y nadie tomó el servicio, el despacho lo marca en rojo "⚠ Nadie la tomó de la bolsa: asigne a mano", con sonido y notificación. Antes de eso aparece en gris "📢 En la bolsa" (sin la alerta roja de "Sin asignar").
 
 ## 11 nov 2026 · Punto obligatorio en el mapa al agendar (pendiente de publicar)
 - **Nueva reserva (panel):** origen y destino con **autocompletar** mientras se escribe (OpenStreetMap vía Photon, gratis) y **mapa con pin arrastrable**. Botón "✈ Aeropuerto SCL". **No se puede guardar sin marcar los dos puntos.** Al tocar o arrastrar el pin, muestra la dirección de ese punto y ofrece usarla. Mensaje de WhatsApp, cliente registrado ("mismo trayecto" / "de vuelta"), Duplicar y Crear regreso traen también los puntos.

@@ -1389,10 +1389,11 @@ function alertasDe(r, extra) {
   const sinAsig = !r.conductor_id && !r.derivado_a, a = [];
   const antesDeSalir = ["recibida", "confirmada", "asignada"].includes(r.estado);
   if (r.estado === "recibida") a.push({ n: 3, c: "roja", t: "Por confirmar" });
-  if (r.en_bolsa) a.push({ n: 1, c: "gris", t: "📢 En la bolsa" });
+  // Bolsa: mientras falte más de 1 hora es normal que esté sin conductor; a 1 hora o menos, hay que asignarla a mano
+  if (r.en_bolsa) a.push(min <= 60 ? { n: 3, c: "roja", t: "⚠ Nadie la tomó de la bolsa: asigne a mano" } : { n: 1, c: "gris", t: "📢 En la bolsa" });
   if (r.conductor_respuesta === "rechazado" && !r.conductor_id) a.push({ n: 3, c: "roja", t: "Conductor rechazó" });
   if (r.conductor_id && !r.conductor_respuesta && antesDeSalirR(r) && min < 180) a.push({ n: min < 60 ? 3 : 2, c: min < 60 ? "roja" : "amarilla", t: "Conductor no ha aceptado" });
-  if (sinAsig && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
+  if (sinAsig && !r.en_bolsa && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
   if (antesDeSalir && !sinAsig && !r.derivado_a && min <= 45 && min > 0) a.push({ n: 3, c: "roja", t: `Debía salir · faltan ${min} min` });
   if (antesDeSalir && min <= 0) a.push({ n: 3, c: "roja", t: `Atrasado ${-min} min` });
   if (r.estado === "en_camino" && min < -5) a.push({ n: 2, c: "amarilla", t: `Llegada tarde ${-min} min` });
