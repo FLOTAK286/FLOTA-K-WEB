@@ -189,6 +189,7 @@ body.drv { overscroll-behavior-y: contain; }
       <div class="actions"><a class="btn sm" href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">Descargar app</a><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
     </div>
     <div class="gps" id="gps" style="margin-top:12px"><span class="dot"></span><span id="gps-txt">Ubicación: iniciando…</span><button class="btn ghost sm" id="gps-btn" type="button" hidden>Activar ubicación</button></div>
+    <div class="panel install" id="ubic-aviso" hidden style="margin-top:10px"></div>
     <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
       <p style="margin:6px 0 0">Desde el navegador, la ubicación se envía solo mientras esta pantalla está abierta. Para que se siga enviando con Waze, Cabify u otra app abierta, instale la <b>app Android de Flota-K</b>: <a href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">descargar app Android</a>.</p></details>
     <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze, Cabify u otra app. Mientras esté en segundo plano verá una notificación de Flota-K.</p>
@@ -250,7 +251,7 @@ $("reload").addEventListener("click", () => cargar());
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
-  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil").eq("id", session.user.id).maybeSingle();
+  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil, ubicacion_aceptada_en").eq("id", session.user.id).maybeSingle();
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; window.__fkListo = true; return; }
   yo = data; window.__fkListo = true;
   const { data: vs } = await sb.from("vehiculos").select("*");
@@ -269,7 +270,7 @@ async function iniciar(session) {
   revisarBolsa(); setInterval(() => { if (!document.hidden) revisarBolsa(); }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) revisarBolsa(); });
   setInterval(() => { if (!enVivo || Date.now() - ultCentral > 90000) revisarCentral(); }, 20000);
-  iniciarGPS();
+  iniciarGPS(); avisoUbicacion();
   revisarVersionApp(); setInterval(revisarVersionApp, 6 * 3600e3);
   setInterval(() => { if (!enVivo || Date.now() - ultCarga > 60000) cargar(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
@@ -324,7 +325,7 @@ async function cargar() {
 // Deslizar para confirmar: evita toques accidentales mientras maneja (también funciona con Enter)
 let detallesRuta = false;
 // ---- Bolsa de servicios: servicios programados que la central liberó; el primero que lo toma se lo queda
-let bolsa = [], bolsaCargada = false;
+let bolsa = [], bolsaCargada = false, miNivel = null;
 const PIDE_TXT = { auto: "auto", suv: "SUV", van: "van" };
 async function revisarBolsa(avisar = true) {
   if (!yo) return;
@@ -346,9 +347,15 @@ async function revisarBolsa(avisar = true) {
 async function pintarBolsa(recargar = true) {
   if (recargar) { $("list").innerHTML = '<p class="muted">Buscando servicios disponibles…</p>'; await revisarBolsa(false); if (vista !== "bolsa") return; }
   const veh = miVehiculo(), pct = veh && !veh.propio && veh.comision_pct != null ? Number(veh.comision_pct) : null;
+  if (!miNivel || Date.now() - miNivel.t > 10 * 60000) { const { data: nv } = await sb.rpc("mi_nivel_bolsa"); if (nv && nv[0]) miNivel = { ...nv[0], t: Date.now() }; }
+  const notaTxt = miNivel && miNivel.o_prom != null ? `${String(Number(miNivel.o_prom).toFixed(2)).replace(".", ",")} ★ (${miNivel.o_n})` : "sin calificaciones aún";
+  const nivelTxt = !miNivel ? "" : miNivel.o_nivel === 1 ? `⭐ <b>Usted ve las reservas primero</b> (móvil Flota-K · ${notaTxt}).`
+    : miNivel.o_nivel === 2 ? `⭐ <b>Usted ve las reservas a los 10 minutos</b>, antes que el resto (${notaTxt}).`
+    : `Usted ve las reservas a los 20 minutos de publicadas (${notaTxt}). Con <b>4,96 o más</b> las vería antes. Los servicios de momento los ven todos al mismo tiempo.`;
   const dia = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
   $("list").innerHTML = `<div class="inicio-tit"><b>Bolsa de servicios</b></div>
     <p class="small muted" style="margin:0">Servicios programados que la central dejó disponibles. <b>El primero que lo toma se lo queda.</b> Verá los datos del pasajero y la dirección exacta al tomarlo.</p>
+    ${nivelTxt ? `<p class="small" style="margin:0">${nivelTxt}</p>` : ""}
     ${!veh ? '<div class="msg" style="margin:0;border-color:var(--gold)">🚗 Para tomar servicios, primero registre su vehículo. <button type="button" class="linkbtn" id="ir-veh">Registrarlo ahora →</button></div>' : ""}
     ${bolsa.length ? bolsa.map(x => `<div class="svc bolsa-item ${!x.o_sirve || x.o_choque ? "no-apto" : ""}">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><span><span class="time" style="font-size:1.6rem">${esc(hora(x.o_fecha_hora))}</span> <b>${esc(dia(x.o_fecha_hora))}</b></span><span class="pill">${esc(SERVICIOS[x.o_tipo_servicio] || "Servicio")}</span></div>
@@ -872,7 +879,7 @@ $("con").addEventListener("click", async () => {
   if (error) return alert(errText(error));
   yo.disponible = nuevo; pintarConexion();
   if (navigator.vibrate) navigator.vibrate(40);
-  if (nuevo) { gpsBloqueado = false; iniciarGPS(); enviarUbicacion(true); } else if (!enServicio()) gpsEstado("", "Desconectado: no está compartiendo su ubicación.");
+  if (nuevo) { gpsBloqueado = false; iniciarGPS(); enviarUbicacion(true); } else if (!enServicio()) gpsEstado("", "Desconectado: no recibe servicios. La central sigue viendo su ubicación cada 5 minutos.");
 });
 
 // ---- Perfil: datos, vehículo, documentos, central y contraseña
@@ -1238,6 +1245,23 @@ async function avanzar(card, id, estado, nota) {
   pintar(); cargar(); enviarUbicacion(true);
 }
 
+// ---- Aviso de ubicación: Flota-K ve su ubicación mientras tenga la sesión iniciada, también desconectado
+function avisoUbicacion() {
+  const box = $("ubic-aviso"); if (!yo) return;
+  if (yo.ubicacion_aceptada_en) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<b>📍 Su ubicación y Flota-K</b>
+    <p class="small" style="margin:4px 0">Mientras tenga la sesión iniciada en esta app, <b>Flota-K verá su ubicación también cuando esté desconectado</b> (cada 5 minutos; en servicio, cada 15 segundos). Así la central puede asignar el servicio más cercano y cuidar su seguridad. Si cierra sesión, deja de compartirse.</p>
+    ${NATIVO ? `<p class="small" style="margin:4px 0">Para que funcione aunque use otras apps: en los ajustes de Flota-K → <b>Ubicación</b> → elija <b>"Permitir todo el tiempo"</b> (si aparece) o "Permitir mientras se usa la app", y en <b>Batería</b> elija <b>"Sin restricciones"</b>.</p>` : ""}
+    <div class="actions">${NATIVO ? '<button class="btn ghost sm" type="button" id="ubic-ajustes">Abrir ajustes de la app</button>' : ""}<button class="btn sm" type="button" id="ubic-ok">Entiendo y acepto</button></div>`;
+  $("ubic-ajustes")?.addEventListener("click", () => { try { BG.openSettings(); } catch (_) {} });
+  $("ubic-ok").addEventListener("click", async () => {
+    const { error } = await sb.rpc("conductor_aceptar_ubicacion");
+    if (error) return alert(errText(error));
+    yo.ubicacion_aceptada_en = new Date().toISOString(); box.hidden = true;
+  });
+}
+
 // ---- Ubicación en vivo (se envía mientras la app está abierta)
 const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
 let geoId = null, gpsBloqueado = false, ultimaPos = null, ultimoEnvio = 0, enviando = false, wakeLock = null;
@@ -1288,8 +1312,10 @@ function iniciarGPS() {
 }
 async function enviarUbicacion(forzar) {
   if (!ultimaPos || enviando) return;
-  if (yo && !yo.disponible && !enServicio()) { gpsEstado("", "Desconectado: no está compartiendo su ubicación. Conéctese para recibir servicios."); return; }
-  const cada = enServicio() ? 15000 : 60000;
+  const desconectado = yo && !yo.disponible && !enServicio();
+  // Desconectado: no recibe servicios, pero la central sigue viendo su ubicación (cada 5 minutos)
+  const cada = enServicio() ? 15000 : desconectado ? 300000 : 60000;
+  if (desconectado) gpsEstado("", "Desconectado: no recibe servicios. La central sigue viendo su ubicación cada 5 minutos.");
   if (!forzar && Date.now() - ultimoEnvio < cada) return;
   enviando = true;
   const c = ultimaPos.coords, num = v => (v === null || v === undefined || isNaN(v)) ? null : Math.round(v);
@@ -1312,7 +1338,7 @@ async function enviarUbicacion(forzar) {
   if (error) return gpsEstado("err", "No se pudo enviar la ubicación: " + errText(error));
   ultimoEnvio = Date.now();
   if (vista === "inicio" && mapaIni && ultimaPos) { const p = [ultimaPos.coords.latitude, ultimaPos.coords.longitude]; if (pinYo) pinYo.setLatLng(p); else mapaInicio(items.find(r => EN_CURSO.includes(r.estado))); }
-  gpsEstado("ok", (enServicio() ? "Compartiendo ubicación con el pasajero y el despacho" : "Ubicación visible para el despacho") + " · enviada " + hora(new Date().toISOString()));
+  gpsEstado("ok", (enServicio() ? "Compartiendo ubicación con el pasajero y el despacho" : yo && !yo.disponible ? "Desconectado (no recibe servicios) · la central ve su ubicación cada 5 min" : "Ubicación visible para el despacho") + " · enviada " + hora(new Date().toISOString()));
   pantallaEncendida();
 }
 async function pantallaEncendida() {

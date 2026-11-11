@@ -792,9 +792,10 @@ async function cargarMapa() {
     const mias = (rs || []).filter(r => r.conductor_id === id);
     const actual = mias.find(r => EN_CURSO.includes(r.estado));
     const proximo = mias.find(r => !EN_CURSO.includes(r.estado) && new Date(r.fecha_hora) > Date.now() - 30 * 60e3);
-    const sinSenal = !u || Date.now() - new Date(u.actualizado_en) > 3 * 60e3;
-    const pronto = proximo && new Date(proximo.fecha_hora) - Date.now() < 60 * 60e3;
     const desconectado = !(conductores.find(c => c.id === id) || {}).disponible;
+    // Desconectado, la app envía su ubicación cada 5 minutos: "sin señal" solo si pasan más de 7 minutos
+    const sinSenal = !u || Date.now() - new Date(u.actualizado_en) > (desconectado && !actual ? 7 : 3) * 60e3;
+    const pronto = proximo && new Date(proximo.fecha_hora) - Date.now() < 60 * 60e3;
     const est = actual ? "ocupado" : desconectado || sinSenal ? "viejo" : pronto ? "pronto" : "libre";
     const txt = actual ? `Ocupado · ${ESTADOS[actual.estado].t}` : desconectado ? "Desconectado" : sinSenal ? "Sin señal" : pronto ? "Disponible · sale pronto" : "Disponible";
     return { id, u, actual, proximo, sinSenal, est, txt, nom: nombreConductor(id) || "Conductor" };

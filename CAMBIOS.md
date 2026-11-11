@@ -1,5 +1,10 @@
 # Cambios
 
+## 11 nov 2026 · Nota 4,96 y ubicación también desconectado (pendiente de publicar)
+- **Vista anticipada de la bolsa con 4,96 o más** (`etapa26_nota_496_y_aceptacion_ubicacion`): minutos 0–10 móviles de Flota-K con 4,96+ (o sin ninguna calificación aún: si su primera nota no es 5, pierden la prioridad); minutos 10–20 conductores con 4,96+ y al menos 3 calificaciones; luego todos. En la Bolsa, cada conductor ve su nota y cuándo ve las reservas.
+- **Ubicación también desconectado:** con la sesión iniciada, la app envía la ubicación cada 5 minutos aunque el conductor esté desconectado (cada 1 min conectado, cada 15 s en servicio). Aviso al conductor y **aceptación registrada** (`ubicacion_aceptada_en`), con guía para elegir "Permitir todo el tiempo" y batería "Sin restricciones" en los ajustes. En el mapa del panel, un desconectado se marca "sin señal" solo si pasan más de 7 minutos.
+- Pendiente (requiere app Android nueva, conviene hacerlo con la llave de firma guardada): pedir el permiso de ubicación "todo el tiempo" desde la propia app.
+
 ## 11 nov 2026 · Orden de la bolsa y calificación 4,8 (pendiente de publicar)
 - **"Buena calificación" = 4,8 o más** (antes 4,5). Las calificaciones se muestran con **dos decimales** (5,00 · 4,98…) en el panel y en la app del conductor.
 - **Orden de la bolsa** (`etapa25_orden_bolsa_y_calificacion_48`), servicios programados: minutos 0–10 solo **móviles de Flota-K con buena calificación** (o nuevos, con menos de 3 calificaciones); minutos 10–20 se suman los **conductores destacados** de toda la red (4,8+); desde el minuto 20, **toda la flota**.
