@@ -288,9 +288,9 @@
       <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
       <div id="pend" class="muted">—</div>
       <h3 style="margin:8px 0 0">Bolsa de servicios automática</h3>
-      <div class="actions"><label for="cfg-bolsa">Si una reserva confirmada sigue sin conductor, liberarla sola a la bolsa</label>
-        <select id="cfg-bolsa"><option value="">No (desactivada)</option><option value="2">2 horas antes</option><option value="3">3 horas antes</option><option value="4">4 horas antes</option><option value="6">6 horas antes</option><option value="8">8 horas antes</option><option value="12">12 horas antes</option><option value="24">24 horas antes</option></select>
-        <span class="small muted" id="cfg-bolsa-msg">Se revisa cada 5 minutos, aunque nadie tenga el panel abierto. Las reservas recién creadas esperan 15 minutos.</span></div>
+      <div class="actions"><label for="cfg-bolsa">Liberar sola a la bolsa una reserva confirmada que siga sin conductor (normalmente: No; la libera el despachador)</label>
+        <select id="cfg-bolsa"><option value="">No: la libera el despachador (recomendado)</option><option value="2">2 horas antes</option><option value="3">3 horas antes</option><option value="4">4 horas antes</option><option value="6">6 horas antes</option><option value="8">8 horas antes</option><option value="12">12 horas antes</option><option value="24">24 horas antes</option></select>
+        <span class="small muted" id="cfg-bolsa-msg">Solo para casos especiales. Si la activa, se revisa cada 5 minutos aunque nadie tenga el panel abierto; las reservas recién creadas esperan 15 minutos.</span></div>
       <h3 style="margin:8px 0 0">Tarifas del taxímetro</h3>
       <form id="tf" class="row3" novalidate>
         <div class="f"><label for="t-bajada">Bajada de bandera</label><input id="t-bajada" type="number" min="0" step="10"></div>
@@ -1949,15 +1949,15 @@ async function planilla(c, rows, desde, hasta) {
 
 // ---- Tarifas (admin)
 async function cargarTarifas() {
-  const { data: e } = await sb.from("empresas").select("bolsa_auto_horas").eq("id", yo.empresa_id).maybeSingle();
-  if (e) $("cfg-bolsa").value = e.bolsa_auto_horas || "";
+  const { data: e } = await sb.from("empresas").select("bolsa_auto_activa, bolsa_auto_horas").eq("id", yo.empresa_id).maybeSingle();
+  if (e) $("cfg-bolsa").value = e.bolsa_auto_activa ? (e.bolsa_auto_horas || 6) : "";
   const t = await tarifas();
   $("t-bajada").value = t.taxi_bajada; $("t-200").value = t.taxi_cada_200m; $("t-60").value = t.taxi_cada_60s; $("t-tag").value = t.valor_tag;
 }
 $("cfg-bolsa").addEventListener("change", async ev => {
   const h = ev.target.value ? Number(ev.target.value) : null;
-  const { error } = await sb.from("empresas").update({ bolsa_auto_horas: h }).eq("id", yo.empresa_id);
-  $("cfg-bolsa-msg").textContent = error ? errText(error) : h ? `Activada: las reservas sin conductor se liberan solas ${h} horas antes.` : "Desactivada: solo se liberan a mano.";
+  const { error } = await sb.from("empresas").update({ bolsa_auto_activa: !!h, bolsa_auto_horas: h || 6 }).eq("id", yo.empresa_id);
+  $("cfg-bolsa-msg").textContent = error ? errText(error) : h ? `Activada: las reservas sin conductor se liberan solas ${h} horas antes.` : "Desactivada: solo el despachador libera servicios a la bolsa.";
 });
 $("tf").addEventListener("submit", async e => {
   e.preventDefault();

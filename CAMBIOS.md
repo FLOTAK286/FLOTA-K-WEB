@@ -1,5 +1,9 @@
 # Cambios
 
+## 11 nov 2026 · Ajustes a la bolsa a pedido del dueño (pendiente de publicar)
+- **La bolsa la libera el despachador** (`etapa24_bolsa_manual_prioridad_moviles_flotak`): la bolsa automática queda **apagada** por defecto (nueva marca `bolsa_auto_activa`); se puede activar en Equipo y roles solo para casos especiales.
+- **Prioridad en la bolsa** para los **móviles de Flota-K** (conductores con vehículo propio de Flota-K) además de los conductores destacados. Ventana de 10 minutos, o **5 minutos si el servicio es de momento** (dentro de las próximas 2 horas); antes, los servicios próximos no tenían prioridad.
+
 ## 11 nov 2026 · Bolsa automática, prioridad, punto del pasajero y mapa del día (pendiente de publicar)
 - **Bolsa automática** (`etapa23_bolsa_auto_prioridad_retiro_pasajero`, tarea programada `flotak-bolsa-automatica` cada 5 min con pg_cron): las reservas confirmadas sin conductor se liberan solas a la bolsa X horas antes (por defecto 6; se cambia o desactiva en Equipo y roles). Las recién creadas esperan 15 min. Se hace una sola vez por reserva y queda en el historial.
 - **Prioridad para conductores destacados:** los primeros 10 minutos en la bolsa, el servicio solo lo ven y toman conductores con promedio 4,5★ o más (mínimo 3 calificaciones en 90 días), si faltan más de 2 horas. Luego queda para todos.
