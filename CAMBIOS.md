@@ -1,5 +1,11 @@
 # Cambios
 
+## 11 nov 2026 · Bolsa de servicios y van con precio único (pendiente de publicar)
+- **Bolsa de servicios** (`etapa21_bolsa_de_servicios`): el despachador libera una reserva confirmada y futura a la bolsa (ficha → "📢 Liberar a la bolsa", o varias a la vez en Reservas → Seleccionar varias). Si tenía conductor, se le quita. En el despacho aparece "📢 En la bolsa" y hay filtro "En la bolsa de servicios" en Reservas. "↩ Retirar de la bolsa" la saca.
+- **App del conductor → pestaña "✋ Bolsa"** (con contador): ve fecha, hora, tipo, zona de origen y destino, pasajeros, maletas, vehículo que pide, vuelo, valor y lo que le corresponde. **No ve** el nombre ni el teléfono del pasajero ni la dirección exacta hasta tomarlo. Se toma **deslizando**. Aviso con sonido y notificación cuando la central libera un servicio que le sirve.
+- **Solo uno puede tomarlo**: la base de datos lo asigna al primero; el segundo recibe "Otro conductor ya tomó este servicio". No puede tomarlo si su vehículo no corresponde (van solo con van; SUV con SUV o van) o si se le cruza con otro servicio suyo. Queda en el historial: "Tomado desde la bolsa por Móvil X".
+- **Tarifario:** la van cobra lo mismo de ida o de regreso: el botón ahora dice "Van".
+
 ## 11 nov 2026 · Punto obligatorio en el mapa al agendar (pendiente de publicar)
 - **Nueva reserva (panel):** origen y destino con **autocompletar** mientras se escribe (OpenStreetMap vía Photon, gratis) y **mapa con pin arrastrable**. Botón "✈ Aeropuerto SCL". **No se puede guardar sin marcar los dos puntos.** Al tocar o arrastrar el pin, muestra la dirección de ese punto y ofrece usarla. Mensaje de WhatsApp, cliente registrado ("mismo trayecto" / "de vuelta"), Duplicar y Crear regreso traen también los puntos.
 - Base de datos (`etapa20_coordenadas_origen_destino`): coordenadas de origen y destino en cada reserva.

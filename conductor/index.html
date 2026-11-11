@@ -98,7 +98,7 @@ try { const t = localStorage.getItem("fk_tema") || "dark"; document.documentElem
   .drv-id span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header.top .userbar { display: none !important; }
   .drv-head .conexion { margin-top: 0; padding: 6px 12px 6px 6px; font-size: .85rem; }
-  .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -4px 18px rgba(0,0,0,.25); }
+  .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -4px 18px rgba(0,0,0,.25); }
   .bottom-nav button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 700; padding: 8px 4px 10px; display: grid; justify-items: center; gap: 2px; cursor: pointer; position: relative; }
   .bottom-nav .ic { font-size: 1.3rem; line-height: 1; }
   .bottom-nav button[aria-selected="true"] { color: var(--gold); }
@@ -137,6 +137,9 @@ body.drv { overscroll-behavior-y: contain; }
 .u-fila { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--line); padding: 2px 0; }
 .u-fila.tot { border-bottom: 1px solid var(--line); font-weight: 700; }
 .coment { margin: 4px 0 0; font-style: italic; }
+.bolsa-item { gap: 6px; border-left: 4px solid var(--gold); }
+.bolsa-item.no-apto { opacity: .6; border-left-color: var(--line); }
+.bottom-nav button { font-size: .74rem; }
 </style>
 </head>
 <body>
@@ -170,6 +173,7 @@ body.drv { overscroll-behavior-y: contain; }
     <nav class="bottom-nav" role="tablist" aria-label="Secciones">
       <button role="tab" data-v="inicio" aria-selected="true"><span class="ic">◉</span>Inicio</button>
       <button role="tab" data-v="hoy" aria-selected="false"><span class="ic">☰</span>Servicios</button>
+      <button role="tab" data-v="bolsa" aria-selected="false"><span class="ic">✋</span>Bolsa <span class="badge" id="b-bolsa" hidden></span></button>
       <button role="tab" data-v="gan" aria-selected="false"><span class="ic">$</span>Billetera</button>
       <button role="tab" data-v="perfil" aria-selected="false"><span class="ic">☺</span>Perfil <span class="badge" id="b-central" hidden></span></button>
     </nav>
@@ -261,6 +265,8 @@ async function iniciar(session) {
   $("userbar").hidden = false; $("app").hidden = false;
   pintarConexion();
   cargar(); revisarCentral(); conectarEnVivo();
+  revisarBolsa(); setInterval(() => { if (!document.hidden) revisarBolsa(); }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) revisarBolsa(); });
   setInterval(() => { if (!enVivo || Date.now() - ultCentral > 90000) revisarCentral(); }, 20000);
   iniciarGPS();
   revisarVersionApp(); setInterval(revisarVersionApp, 6 * 3600e3);
@@ -309,13 +315,60 @@ async function cargar() {
   avisarNuevos(); await avisarCambios(); programarRecordatorios(); avisoSalida();
   if (enServicio()) enviarUbicacion(); // con un servicio en curso se comparte aunque esté desconectado
   await cargarCalificaciones(); revisarMensajes();
-  if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
+  if (pendiente || obsAbierta || chatAbiertoId || califAbierto || vista === "gan" || vista === "perfil" || vista === "bolsa") return; // no borrar lo que el conductor está escribiendo ni recargar Ganancias
   $("updated").textContent = "Actualizado: " + new Date().toLocaleTimeString("es-CL", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) + " · " + (enVivo ? "● en vivo" : "se actualiza solo cada 30 segundos");
   pintar();
 }
 
 // Deslizar para confirmar: evita toques accidentales mientras maneja (también funciona con Enter)
 let detallesRuta = false;
+// ---- Bolsa de servicios: servicios programados que la central liberó; el primero que lo toma se lo queda
+let bolsa = [], bolsaCargada = false;
+const PIDE_TXT = { auto: "auto", suv: "SUV", van: "van" };
+async function revisarBolsa(avisar = true) {
+  if (!yo) return;
+  const { data, error } = await sb.rpc("bolsa_servicios");
+  if (error) return;
+  const antes = new Set(bolsa.map(x => x.o_id));
+  bolsa = data || [];
+  const aptos = bolsa.filter(x => x.o_sirve && !x.o_choque);
+  $("b-bolsa").hidden = !aptos.length; $("b-bolsa").textContent = aptos.length;
+  const nuevos = aptos.filter(x => !antes.has(x.o_id));
+  if (avisar && bolsaCargada && nuevos.length && yo.disponible) {
+    sonar(); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    const x = nuevos[0];
+    if (LN) LN.schedule({ notifications: [{ id: 1500000000 + Math.floor(Math.random() * 99999999), title: "Nuevo servicio en la bolsa · " + FK.fecha(x.o_fecha_hora), body: `${x.o_zona_origen} → ${x.o_zona_destino}${x.o_valor ? " · " + clp(x.o_valor) : ""}. ¡Tómelo antes que otro!` }] }).catch(() => {});
+  }
+  bolsaCargada = true;
+  if (vista === "bolsa" && !document.querySelector(".bolsa-item .swipe.arrastrando")) pintarBolsa(false);
+}
+async function pintarBolsa(recargar = true) {
+  if (recargar) { $("list").innerHTML = '<p class="muted">Buscando servicios disponibles…</p>'; await revisarBolsa(false); if (vista !== "bolsa") return; }
+  const veh = miVehiculo(), pct = veh && !veh.propio && veh.comision_pct != null ? Number(veh.comision_pct) : null;
+  const dia = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
+  $("list").innerHTML = `<div class="inicio-tit"><b>Bolsa de servicios</b></div>
+    <p class="small muted" style="margin:0">Servicios programados que la central dejó disponibles. <b>El primero que lo toma se lo queda.</b> Verá los datos del pasajero y la dirección exacta al tomarlo.</p>
+    ${!veh ? '<div class="msg" style="margin:0;border-color:var(--gold)">🚗 Para tomar servicios, primero registre su vehículo. <button type="button" class="linkbtn" id="ir-veh">Registrarlo ahora →</button></div>' : ""}
+    ${bolsa.length ? bolsa.map(x => `<div class="svc bolsa-item ${!x.o_sirve || x.o_choque ? "no-apto" : ""}">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><span><span class="time" style="font-size:1.6rem">${esc(hora(x.o_fecha_hora))}</span> <b>${esc(dia(x.o_fecha_hora))}</b></span><span class="pill">${esc(SERVICIOS[x.o_tipo_servicio] || "Servicio")}</span></div>
+      <div style="font-size:1.05rem"><b>${esc(x.o_zona_origen)}</b> → <b>${esc(x.o_zona_destino)}</b></div>
+      <div class="small muted">${esc(x.o_pasajeros || 1)} pasajero(s)${x.o_maletas != null ? " · " + esc(x.o_maletas) + " maleta(s)" : ""} · pide ${esc(PIDE_TXT[x.o_vehiculo] || x.o_vehiculo)}${x.o_vuelo ? " · vuelo " + esc(x.o_vuelo) : ""} · aprox. ${esc(x.o_duracion)} min</div>
+      <div><b style="font-size:1.2rem">${x.o_valor ? clp(x.o_valor) : "Taxímetro"}</b>${pct != null && x.o_valor ? ` <span class="small muted">· le corresponde ${clp(Math.round(x.o_valor * (1 - pct / 100)))}</span>` : ""}</div>
+      ${!x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
+        : x.o_choque ? '<p class="small warn" style="margin:0">Se le cruza con otro servicio suyo a esa hora.</p>'
+        : `<div class="swipe" role="button" tabindex="0" data-tomar="${esc(x.o_id)}" aria-label="Tomar este servicio (deslice o presione Enter)"><span class="swipe-txt">Deslice → Tomar</span><span class="swipe-thumb">➜</span></div>`}
+    </div>`).join("") : '<p class="muted">No hay servicios en la bolsa ahora. Cuando la central libere uno, le avisaremos con sonido.</p>'}
+    <div class="msg" id="bolsa-msg" hidden></div>`;
+  document.querySelectorAll("[data-tomar]").forEach(el => activarSwipe(el, () => tomarDeBolsa(el.dataset.tomar)));
+}
+async function tomarDeBolsa(id) {
+  const { data: codigo, error } = await sb.rpc("conductor_tomar_reserva", { p_reserva: id });
+  if (error) { await pintarBolsa(); msg("bolsa-msg", errText(error), "err"); return; }
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+  await cargar(); await revisarBolsa(false);
+  if (vista === "bolsa") { pintarBolsa(false); msg("bolsa-msg", `✅ ¡El servicio ${codigo} es suyo! Lo encuentra en Servicios, con los datos del pasajero.`, "ok"); }
+}
+
 function activarSwipe(el, alConfirmar) {
   const th = el.querySelector(".swipe-thumb"); let x0 = null, dx = 0, hecho = false;
   const max = () => el.clientWidth - th.offsetWidth - 8;
@@ -995,6 +1048,7 @@ async function pintarPerfil() {
 
 function pintar() {
   $("inicio-mapa").hidden = vista !== "inicio";
+  if (vista === "bolsa") return pintarBolsa();
   if (vista === "gan") return pintarGanancias();
   if (vista === "perfil") return pintarPerfil();
   const hoy = diaKey(new Date().toISOString());

@@ -85,6 +85,7 @@
             <option value="proximas" selected>Próximas</option>
             <option value="historial">Historial</option>
             <option value="pendientes">Pendientes de confirmar</option>
+            <option value="bolsa">📢 En la bolsa de servicios</option>
             <option value="observ">Con observación por revisar</option>
             <option value="porcobrar">Por cobrar (no pagados)</option>
             <option value="califbaja">Calificación baja por revisar (3★ o menos)</option>
@@ -98,6 +99,7 @@
         <span id="bulk" class="actions" hidden><b id="bulk-n">0</b> seleccionada(s)
           <button class="btn ghost sm" type="button" id="bulk-todas">Todas</button>
           <button class="btn ghost sm" type="button" id="bulk-conf">✔ Confirmar</button>
+          <button class="btn ghost sm" type="button" id="bulk-bolsa">📢 Liberar a la bolsa</button>
           <span class="actions" id="bulk-pagwrap"><select id="bulk-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost sm" type="button" id="bulk-pag">$ Marcar pagadas</button></span>
           <button class="btn ghost sm" type="button" id="bulk-limpiar">Limpiar</button></span>
         <span id="bulk-msg" class="small"></span>
@@ -768,6 +770,7 @@ async function cargarReservas() {
   if (f === "hoy") q = q.gte("fecha_hora", ini.toISOString()).lt("fecha_hora", fin.toISOString()).order("fecha_hora");
   else if (f === "proximas") q = q.gte("fecha_hora", ahora.toISOString()).neq("estado", "cancelada").order("fecha_hora").limit(200);
   else if (f === "pendientes") q = q.eq("estado", "recibida").order("fecha_hora").limit(200);
+  else if (f === "bolsa") q = q.eq("en_bolsa", true).order("fecha_hora").limit(200);
   else if (f === "observ") q = q.not("observacion_conductor", "is", null).eq("observacion_revisada", false).order("fecha_hora", { ascending: false }).limit(200);
   else if (f === "porcobrar") q = q.neq("estado", "cancelada").eq("pagado", false).order("fecha_hora", { ascending: false }).limit(200);
   else if (f === "califbaja" || f === "mensajes") {
@@ -818,6 +821,15 @@ $("bulk-conf").addEventListener("click", async () => {
   for (const r of pend) { const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: "confirmada", p_nota: "Confirmada en grupo" }); if (error) malas++; }
   $("bulk-msg").textContent = `${pend.length - malas} confirmada(s)` + (malas ? `, ${malas} con error` : "") + "."; selRes.clear(); cargarReservas();
 });
+$("bulk-bolsa").addEventListener("click", async () => {
+  const xs = cache.filter(r => selRes.has(r.id) && ["confirmada", "asignada"].includes(r.estado) && !r.en_bolsa && new Date(r.fecha_hora) > Date.now());
+  if (!xs.length) return ($("bulk-msg").textContent = "Seleccione reservas confirmadas y futuras (las por confirmar, en curso o pasadas no se liberan).");
+  const conCond = xs.filter(r => r.conductor_id).length;
+  if (!confirm(`¿Liberar ${xs.length} reserva(s) a la bolsa de servicios?` + (conCond ? `\n${conCond} tienen conductor asignado: se les quitará.` : ""))) return;
+  $("bulk-msg").textContent = "Liberando…"; let malas = 0;
+  for (const r of xs) { const { error } = await sb.rpc("liberar_a_bolsa", { p_reserva: r.id, p_liberar: true }); if (error) malas++; }
+  $("bulk-msg").textContent = `${xs.length - malas} reserva(s) en la bolsa` + (malas ? `, ${malas} con error` : "") + "."; selRes.clear(); cargarReservas();
+});
 $("bulk-pag").addEventListener("click", async () => {
   const xs = cache.filter(r => selRes.has(r.id) && r.estado !== "cancelada" && !r.pagado);
   if (!xs.length) return ($("bulk-msg").textContent = "No hay reservas seleccionadas pendientes de pago.");
@@ -861,6 +873,7 @@ async function abrir(id) {
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2>${esc(r.codigo)}</h2>${pill(r.estado)}</div>
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.fecha_hora))}</dd>
+      ${r.en_bolsa ? `<dt>Bolsa</dt><dd><b>📢 En la bolsa de servicios</b>${r.bolsa_desde ? " desde " + esc(fecha(r.bolsa_desde)) : ""}: el primer conductor que la tome se la queda.</dd>` : ""}
       <dt>Pasajero</dt><dd>${esc(r.nombre_pasajero)}</dd>
       ${r.solicitante_nombre ? `<dt>Reservado y pagado por</dt><dd><b>${esc(r.solicitante_nombre)}</b> · ${esc(r.solicitante_telefono || "")}${r.solicitante_correo ? " · " + esc(r.solicitante_correo) : ""}</dd>` : ""}
       <dt>Teléfono</dt><dd>${esc(r.telefono)}</dd>
@@ -909,6 +922,8 @@ async function abrir(id) {
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
     <div class="actions" style="border-top:1px solid var(--line, #ddd);padding-top:10px">
+      ${!r.en_bolsa && ["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost sm" type="button" id="d-bolsa">📢 Liberar a la bolsa</button>' : ""}
+      ${r.en_bolsa ? '<button class="btn ghost sm" type="button" id="d-bolsa-x">↩ Retirar de la bolsa</button>' : ""}
       ${r.estado !== "cancelada" && r.estado !== "finalizada" ? '<button class="btn ghost sm" type="button" id="d-cancelar">✕ Cancelar reserva</button>' : ""}
       ${yo && yo.rol === "admin" ? '<button class="btn ghost sm" type="button" id="d-eliminar" style="color:#b42318">🗑 Eliminar</button>' : ""}
     </div>
@@ -926,6 +941,17 @@ async function abrir(id) {
   $("det").showModal();
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
+  if ($("d-bolsa")) $("d-bolsa").onclick = async () => {
+    if (!confirm(`¿Liberar ${r.codigo} a la bolsa de servicios?\n\nLos conductores lo verán en su app (sin datos del pasajero) y el primero que lo tome se lo queda.` + (r.conductor_id ? `\n\nOjo: se le quita a ${nombreConductor(r.conductor_id) || "el conductor asignado"}.` : ""))) return;
+    const { error } = await sb.rpc("liberar_a_bolsa", { p_reserva: r.id, p_liberar: true });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar();
+  };
+  if ($("d-bolsa-x")) $("d-bolsa-x").onclick = async () => {
+    const { error } = await sb.rpc("liberar_a_bolsa", { p_reserva: r.id, p_liberar: false });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar();
+  };
   if ($("d-cancelar")) $("d-cancelar").onclick = async () => {
     const motivo = prompt(`¿Cancelar la reserva ${r.codigo} de ${r.nombre_pasajero}?\nEscriba el motivo (queda en el historial):`, "");
     if (motivo === null) return;
@@ -1363,6 +1389,7 @@ function alertasDe(r, extra) {
   const sinAsig = !r.conductor_id && !r.derivado_a, a = [];
   const antesDeSalir = ["recibida", "confirmada", "asignada"].includes(r.estado);
   if (r.estado === "recibida") a.push({ n: 3, c: "roja", t: "Por confirmar" });
+  if (r.en_bolsa) a.push({ n: 1, c: "gris", t: "📢 En la bolsa" });
   if (r.conductor_respuesta === "rechazado" && !r.conductor_id) a.push({ n: 3, c: "roja", t: "Conductor rechazó" });
   if (r.conductor_id && !r.conductor_respuesta && antesDeSalirR(r) && min < 180) a.push({ n: min < 60 ? 3 : 2, c: min < 60 ? "roja" : "amarilla", t: "Conductor no ha aceptado" });
   if (sinAsig && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
@@ -2150,8 +2177,8 @@ function sugerirPrecio() {
   box.hidden = false;
   box.innerHTML = `<b>✈ ${regreso ? "Regreso desde el" : "Ida al"} aeropuerto${comunaTxt ? " · " + esc(comunaTxt) : ""}</b>${tipoSel.value === "ida_vuelta" ? ' <span class="muted">(ida y vuelta: sume ida + regreso)</span>' : ""}
     ${filas.length ? `<div class="tf-lista">${filas.map(z => `<div class="tf-fila"><span>${esc(z[0])}</span>
-      ${[[1, "Ida"], [2, "Regreso"], [3, "Van (ida)"]].map(([c, n]) => `<button type="button" class="chip ${c === col ? "tf-rec" : ""} ${String($("n-precio").value) === String(z[c]) ? "on" : ""}" data-p="${z[c]}" title="${esc(z[0] + " · " + n)}">${n} ${clp(z[c])}</button>`).join("")}</div>`).join("")}</div>
-      <span class="small muted">Marcada con borde: la que corresponde a este viaje${van ? " en van" : ""}. Toque una para ponerla como precio.</span>`
+      ${[[1, "Ida"], [2, "Regreso"], [3, "Van"]].map(([c, n]) => `<button type="button" class="chip ${c === col ? "tf-rec" : ""} ${String($("n-precio").value) === String(z[c]) ? "on" : ""}" data-p="${z[c]}" title="${esc(z[0] + " · " + n)}">${n} ${clp(z[c])}</button>`).join("")}</div>`).join("")}</div>
+      <span class="small muted">Marcada con borde: la que corresponde a este viaje${van ? " en van (la van cobra lo mismo de ida o de regreso)" : ""}. Toque una para ponerla como precio.</span>`
     : `<div class="small">No encontré la comuna de ${regreso ? "destino" : "origen"} en el tarifario.</div>`}
     <div class="tf-buscar"><input id="tf-buscar" list="tf-zonas" placeholder="Buscar otra comuna o sector del tarifario" value="${esc(buscado || "")}"><datalist id="tf-zonas">${T.map(z => `<option value="${esc(z[0])}">`).join("")}</datalist></div>`;
   // Un solo sector y sin precio: se pone solo el que corresponde
