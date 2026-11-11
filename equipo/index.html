@@ -2126,20 +2126,38 @@ function detectarCliente() {
 }
 $("n-tel").addEventListener("change", detectarCliente);
 // Precio sugerido según el tarifario (misma tabla que el cotizador de la página principal)
+// Tarifario de aeropuerto: detecta si el viaje va o viene del aeropuerto (por el pin o el texto),
+// saca la comuna del otro punto y muestra TODAS las tarifas de esa comuna (ida, regreso y van) para elegir con un toque.
 function sugerirPrecio() {
-  const T = window.FK_TARIFAS || [], tipo = $("n-tipo").value, van = $("n-veh").value === "van";
-  const box = $("n-sugerida");
-  if (!["ida", "regreso", "ida_vuelta"].includes(tipo)) { box.hidden = true; return; }
-  const dir = norm(tipo === "regreso" ? $("n-destino").value : $("n-origen").value);
-  if (dir.length < 3) { box.hidden = true; return; }
-  const base = z => norm(z.split(/ hasta | por | desde | - |,/)[0]).trim();
-  const cand = T.filter(z => dir.includes(base(z[0])) || norm(z[0]).includes(dir)).slice(0, 6);
-  if (!cand.length) { box.hidden = false; box.innerHTML = '<span class="muted">No encontré la comuna en el tarifario: escriba la comuna en la dirección (ej.: "…, Las Condes") o defina el precio a mano.</span>'; return; }
-  const col = van ? 3 : tipo === "regreso" ? 2 : 1;
+  const T = window.FK_TARIFAS || [], box = $("n-sugerida"), tipoSel = $("n-tipo");
+  if (!["ida", "regreso", "ida_vuelta", "punto_a_punto"].includes(tipoSel.value)) { box.hidden = true; return; }
+  const po = lugO.get(), pd = lugD.get(), to = $("n-origen").value, td = $("n-destino").value;
+  const oA = FKLugar.enAeropuerto(po, to), dA = FKLugar.enAeropuerto(pd, td);
+  if (oA === dA) {
+    if (to.trim() && td.trim() && !oA && tipoSel.value !== "punto_a_punto") { box.hidden = false; box.innerHTML = '<span class="muted">El tarifario es para viajes desde o hacia el aeropuerto. Marque el aeropuerto como origen o destino (botón ✈), o defina el precio a mano.</span>'; }
+    else box.hidden = true;
+    return;
+  }
+  const regreso = oA;
+  if (["ida", "regreso", "punto_a_punto"].includes(tipoSel.value)) tipoSel.value = regreso ? "regreso" : "ida";
+  const otro = regreso ? { p: pd, t: td } : { p: po, t: to };
+  const base = z => norm(z.split(/ hasta | por | desde | - |,| \(/)[0]).trim();
+  const claves = [...((otro.p && otro.p.comunas) || []), otro.t].map(norm).filter(c => c && c.length > 2);
+  let filas = T.filter(z => claves.some(c => c.includes(base(z[0])) || (c.length > 4 && base(z[0]).includes(c))));
+  const buscado = ($("tf-buscar") || {}).value; if (buscado) filas = T.filter(z => norm(z[0]).includes(norm(buscado)));
+  const van = $("n-veh").value === "van", col = van ? 3 : regreso ? 2 : 1;
+  const comunaTxt = filas.length ? [...new Set(filas.map(z => z[0].split(/ hasta | por | desde | - |,| \(/)[0]))].join(", ") : "";
   box.hidden = false;
-  box.innerHTML = `<b>Tarifa sugerida${van ? " (van)" : tipo === "regreso" ? " (regreso)" : ""}${tipo === "ida_vuelta" ? " · ida; el regreso va al mismo valor" : ""}:</b> ` +
-    cand.map(z => `<button type="button" class="chip" data-p="${z[col]}">${esc(z[0])} · ${clp(z[col])}</button>`).join(" ");
+  box.innerHTML = `<b>✈ ${regreso ? "Regreso desde el" : "Ida al"} aeropuerto${comunaTxt ? " · " + esc(comunaTxt) : ""}</b>${tipoSel.value === "ida_vuelta" ? ' <span class="muted">(ida y vuelta: sume ida + regreso)</span>' : ""}
+    ${filas.length ? `<div class="tf-lista">${filas.map(z => `<div class="tf-fila"><span>${esc(z[0])}</span>
+      ${[[1, "Ida"], [2, "Regreso"], [3, "Van (ida)"]].map(([c, n]) => `<button type="button" class="chip ${c === col ? "tf-rec" : ""} ${String($("n-precio").value) === String(z[c]) ? "on" : ""}" data-p="${z[c]}" title="${esc(z[0] + " · " + n)}">${n} ${clp(z[c])}</button>`).join("")}</div>`).join("")}</div>
+      <span class="small muted">Marcada con borde: la que corresponde a este viaje${van ? " en van" : ""}. Toque una para ponerla como precio.</span>`
+    : `<div class="small">No encontré la comuna de ${regreso ? "destino" : "origen"} en el tarifario.</div>`}
+    <div class="tf-buscar"><input id="tf-buscar" list="tf-zonas" placeholder="Buscar otra comuna o sector del tarifario" value="${esc(buscado || "")}"><datalist id="tf-zonas">${T.map(z => `<option value="${esc(z[0])}">`).join("")}</datalist></div>`;
+  // Un solo sector y sin precio: se pone solo el que corresponde
+  if (filas.length === 1 && !$("n-precio").value) { $("n-precio").value = filas[0][col]; box.querySelector(`.chip.tf-rec`)?.classList.add("on"); }
   box.querySelectorAll("[data-p]").forEach(b => b.addEventListener("click", () => { $("n-precio").value = b.dataset.p; box.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b)); }));
+  $("tf-buscar").addEventListener("change", () => { const v = $("tf-buscar").value; sugerirPrecio(); const i = $("tf-buscar"); if (i) { i.value = v; } });
 }
 ["n-origen", "n-destino"].forEach(i => $(i).addEventListener("input", sugerirPrecio));
 // Origen y destino con punto obligatorio en el mapa (el conductor navega a ese punto exacto)

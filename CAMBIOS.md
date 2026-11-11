@@ -5,6 +5,7 @@
 - Base de datos (`etapa20_coordenadas_origen_destino`): coordenadas de origen y destino en cada reserva.
 - **App del conductor:** Waze y Google Maps navegan a las **coordenadas exactas** del pin; el mapa del Inicio usa ese punto. Reservas antiguas sin punto siguen con la dirección escrita.
 - Ficha de la reserva: enlace "📍 ver punto" (o aviso "sin punto en el mapa").
+- **Tarifario de aeropuerto automático:** con los pines, el panel detecta si el viaje va o viene del aeropuerto (marca solo "Ida" o "Regreso"), toma la comuna del otro punto y muestra **todas las tarifas de esa comuna** (cada sector con ida, regreso y van), con la que corresponde marcada; un toque pone el precio. Si la comuna tiene un solo sector, el precio se pone solo. Buscador para elegir otra comuna del tarifario.
 
 ## 10 nov 2026 · Más capacidad y avisos en vivo, gratis (pendiente de publicar)
 - **Sin tope de 1.000 filas** (`etapa18_resumenes_en_servidor`): los totales de Clientes y cobros, empresas y "por cobrar" se calculan en la base de datos; la ficha de cada cliente o empresa trae todos sus servicios; reportes, base de clientes, cierres, la app del conductor y el portal del propietario traen todo por partes. La pestaña Central siempre muestra los mensajes más nuevos (antes, pasando los 1.000 mensajes, dejaban de aparecer). Índices nuevos para que las búsquedas sigan rápidas.
