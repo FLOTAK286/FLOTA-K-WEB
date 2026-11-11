@@ -269,3 +269,19 @@ button.kpi:hover { border-color: var(--gold); }
 #app.eq, #app.eq [data-pane], #agenda { min-width: 0; }
 .tl-scroll { max-width: 100%; }
 header.top .userbar .btn.ghost { color: #eceae4; border-color: #4a4f57; }
+
+/* ---- Dirección con punto en el mapa (assets/lugar.js) ---- */
+.lugar-f { position: relative; }
+.lugar { display: grid; gap: 6px; margin-top: 4px; position: relative; }
+.lugar-sug { position: absolute; z-index: 1200; left: 0; right: 0; top: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.2); max-height: 300px; overflow: auto; }
+.lugar-sug button { display: grid; gap: 1px; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 8px 12px; color: inherit; font: inherit; cursor: pointer; }
+.lugar-sug button:first-child { border-top: 0; }
+.lugar-sug button span { font-size: .82rem; color: var(--muted); }
+.lugar-sug button:hover, .lugar-sug button.act { background: var(--bg); }
+.lugar-barra { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: .85rem; }
+.lugar-estado.ok { color: #2e9e5f; font-weight: 600; }
+.lugar-estado.falta { color: #c9772b; font-weight: 600; }
+.lugar-estado.parpadeo { animation: lugarParpadeo .5s 3; }
+@keyframes lugarParpadeo { 50% { opacity: .2; } }
+.lugar-mapa { height: 230px; border-radius: 8px; border: 1px solid var(--line); }
+.lugar-pin span { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }

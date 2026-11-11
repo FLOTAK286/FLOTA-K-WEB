@@ -226,8 +226,9 @@ const SIG = {
 function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = text; }
 const tel = t => (t || "").replace(/[^\d+]/g, "");
 const wa = t => { let d = (t || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d; return d; };
-const waze = q => "https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes";
-const gmaps = q => "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(q);
+// Navegar: al punto exacto marcado en el mapa (pin); si la reserva no tiene punto, a la dirección escrita
+const waze = (q, lat, lng) => lat != null ? `https://waze.com/ul?ll=${lat},${lng}&navigate=yes` : "https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes";
+const gmaps = (q, lat, lng) => "https://www.google.com/maps/dir/?api=1&destination=" + (lat != null ? `${lat},${lng}` : encodeURIComponent(q));
 
 // ---- Ingreso
 $("login-form").addEventListener("submit", async e => {
@@ -298,7 +299,7 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -346,9 +347,11 @@ async function mapaInicio(r) {
   const yoPos = ultimaPos ? [ultimaPos.coords.latitude, ultimaPos.coords.longitude] : null;
   if (yoPos) { const ic = FKMapa.icono(esc(yo.movil || "K"), yo.disponible ? "libre" : "viejo"); if (!pinYo) pinYo = L.marker(yoPos, { icon: ic, title: "Usted" }).addTo(mapaIni); else pinYo.setLatLng(yoPos).setIcon(ic); }
   const dir = r ? (r.estado === "a_bordo" ? r.destino : r.origen) : null;
-  if (dir !== destClave) {
-    destClave = dir; if (pinDest) { pinDest.remove(); pinDest = null; }
-    if (dir) { const c = await geocodificar(dir); if (c && destClave === dir) pinDest = L.marker(c, { icon: L.divIcon({ className: "fk-dest", html: "<span>📍</span>", iconSize: [30, 30], iconAnchor: [15, 28] }), title: dir }).addTo(mapaIni).bindPopup(esc(dir)); }
+  const coord = !r ? null : r.estado === "a_bordo" ? (r.destino_lat != null ? [r.destino_lat, r.destino_lng] : null) : (r.origen_lat != null ? [r.origen_lat, r.origen_lng] : null);
+  const clave = dir ? dir + (coord ? "@" + coord.join(",") : "") : null;
+  if (clave !== destClave) {
+    destClave = clave; if (pinDest) { pinDest.remove(); pinDest = null; }
+    if (dir) { const c = coord || await geocodificar(dir); if (c && destClave === clave) pinDest = L.marker(c, { icon: L.divIcon({ className: "fk-dest", html: "<span>📍</span>", iconSize: [30, 30], iconAnchor: [15, 28] }), title: dir }).addTo(mapaIni).bindPopup(esc(dir)); }
   }
   const pts = [pinYo && pinYo.getLatLng(), pinDest && pinDest.getLatLng()].filter(Boolean);
   if (pts.length === 2) mapaIni.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); else if (pts.length === 1) mapaIni.setView(pts[0], 14);
@@ -1033,14 +1036,14 @@ function pintar() {
       ${vista === "inicio" && EN_CURSO.includes(r.estado) ? `<button type="button" class="linkbtn det-ruta">${detallesRuta ? "Ver pantalla simple" : "Ver detalles"}</button>` : ""}
       ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
-      ${!fin ? `<a class="btn navegar" href="${waze(r.estado === "a_bordo" ? r.destino : r.origen)}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>` : ""}
+      ${!fin ? `<a class="btn navegar" href="${(r.estado === "a_bordo" ? waze(r.destino, r.destino_lat, r.destino_lng) : waze(r.origen, r.origen_lat, r.origen_lng))}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>` : ""}
       <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
       ${r.estado === "en_lugar" ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="https://www.google.com/search?q=${encodeURIComponent(r.vuelo + " estado del vuelo")}" target="_blank" rel="noopener" style="color:var(--gold)"><b>${esc(r.vuelo)}</b></a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>
-        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
+        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
-        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
+        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       ${r.comentarios ? `<p class="small"><b>Nota:</b> ${esc(r.comentarios)}</p>` : ""}
       <div class="pay">${r.tipo_cobro === "taximetro"
         ? `<b>Taxímetro</b> · se calcula al finalizar (bajada ${clp(tar.taxi_bajada)}, ${clp(tar.taxi_cada_200m)} cada 200 m, ${clp(tar.taxi_cada_60s)} cada 60 s)`

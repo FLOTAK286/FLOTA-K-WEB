@@ -1,5 +1,11 @@
 # Cambios
 
+## 11 nov 2026 · Punto obligatorio en el mapa al agendar (pendiente de publicar)
+- **Nueva reserva (panel):** origen y destino con **autocompletar** mientras se escribe (OpenStreetMap vía Photon, gratis) y **mapa con pin arrastrable**. Botón "✈ Aeropuerto SCL". **No se puede guardar sin marcar los dos puntos.** Al tocar o arrastrar el pin, muestra la dirección de ese punto y ofrece usarla. Mensaje de WhatsApp, cliente registrado ("mismo trayecto" / "de vuelta"), Duplicar y Crear regreso traen también los puntos.
+- Base de datos (`etapa20_coordenadas_origen_destino`): coordenadas de origen y destino en cada reserva.
+- **App del conductor:** Waze y Google Maps navegan a las **coordenadas exactas** del pin; el mapa del Inicio usa ese punto. Reservas antiguas sin punto siguen con la dirección escrita.
+- Ficha de la reserva: enlace "📍 ver punto" (o aviso "sin punto en el mapa").
+
 ## 10 nov 2026 · Más capacidad y avisos en vivo, gratis (pendiente de publicar)
 - **Sin tope de 1.000 filas** (`etapa18_resumenes_en_servidor`): los totales de Clientes y cobros, empresas y "por cobrar" se calculan en la base de datos; la ficha de cada cliente o empresa trae todos sus servicios; reportes, base de clientes, cierres, la app del conductor y el portal del propietario traen todo por partes. La pestaña Central siempre muestra los mensajes más nuevos (antes, pasando los 1.000 mensajes, dejaban de aparecer). Índices nuevos para que las búsquedas sigan rápidas.
 - **Avisos en vivo** (`etapa19_avisos_en_vivo`, Supabase Realtime): el panel y la app del conductor se actualizan al instante cuando cambia una reserva o llega un mensaje. Con la conexión en vivo, la revisión completa pasa de cada 30 segundos a cada 1–2 minutos (las alertas por hora y GPS se recalculan cada 30 s sin volver a traer todo). Si la conexión en vivo falla, todo vuelve solo a revisar cada 30 segundos. Las ubicaciones GPS no van por esta vía (superarían el límite gratis).

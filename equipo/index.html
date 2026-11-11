@@ -155,8 +155,8 @@
           <div class="f"><label for="n-canal">Llegó por</label><select id="n-canal"><option value="whatsapp">WhatsApp</option><option value="telefono">Teléfono</option><option value="correo">Correo</option><option value="convenio">Convenio empresa</option><option value="otro">Otro</option></select></div>
         </div>
         <div class="row2">
-          <div class="f"><label for="n-origen">Origen</label><input id="n-origen" required></div>
-          <div class="f"><label for="n-destino">Destino</label><input id="n-destino" required></div>
+          <div class="f lugar-f"><label for="n-origen">Origen (dirección exacta de retiro)</label><input id="n-origen" required placeholder="Escriba calle y número, o el nombre del lugar"></div>
+          <div class="f lugar-f"><label for="n-destino">Destino</label><input id="n-destino" required placeholder="Escriba calle y número, o el nombre del lugar"></div>
         </div>
         <div class="row3">
           <div class="f"><label for="n-vuelo">Vuelo</label><input id="n-vuelo"></div>
@@ -325,6 +325,7 @@
 <script src="/assets/chat.js"></script>
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/autos.js"></script>
+<script src="/assets/lugar.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -600,11 +601,11 @@ function copiarReserva(r, regreso) {
   $("n-otra").checked = otra; $("n-otra").dispatchEvent(new Event("change"));
   set("n-nombre", otra ? r.solicitante_nombre : r.nombre_pasajero); set("n-tel", otra ? r.solicitante_telefono : r.telefono); set("n-mail", otra ? r.solicitante_correo : r.correo);
   if (otra) { set("n-pnombre", r.nombre_pasajero); set("n-ptel", r.telefono); }
-  set("n-origen", r.origen); set("n-destino", r.destino); set("n-tipo", r.tipo_servicio); set("n-veh", r.vehiculo || "auto"); set("n-pax", r.pasajeros); set("n-maletas", r.maletas);
+  lugO.set(r.origen, r.origen_lat, r.origen_lng); lugD.set(r.destino, r.destino_lat, r.destino_lng); set("n-tipo", r.tipo_servicio); set("n-veh", r.vehiculo || "auto"); set("n-pax", r.pasajeros); set("n-maletas", r.maletas);
   set("n-precio", r.precio); set("n-pago", r.forma_pago || ""); set("n-cobro", r.tipo_cobro || "fija"); set("n-cc", r.centro_costo); set("n-com", r.comentarios);
   clienteSel = r.cliente_id || null;
   if (regreso) {
-    set("n-origen", r.destino); set("n-destino", r.origen); $("n-vuelo").value = "";
+    lugO.set(r.destino, r.destino_lat, r.destino_lng); lugD.set(r.origen, r.origen_lat, r.origen_lng); $("n-vuelo").value = "";
     set("n-tipo", r.tipo_servicio === "ida" ? "regreso" : r.tipo_servicio === "regreso" ? "ida" : r.tipo_servicio);
     msg("n-msg", `Regreso de ${r.codigo}: origen y destino invertidos. Ponga la fecha, hora y vuelo del regreso y revise antes de guardar.`, "ok");
   } else
@@ -865,8 +866,8 @@ async function abrir(id) {
       <dt>Teléfono</dt><dd>${esc(r.telefono)}</dd>
       <dt>Correo</dt><dd>${esc(r.correo || "—")}</dd>
       <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · pide <b>${esc(PIDE[r.vehiculo] || r.vehiculo || "Auto")}</b></dd>
-      <dt>Origen</dt><dd>${esc(r.origen)}</dd>
-      <dt>Destino</dt><dd>${esc(r.destino)}</dd>
+      <dt>Origen</dt><dd>${esc(r.origen)}${r.origen_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.origen_lat},${r.origen_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
+      <dt>Destino</dt><dd>${esc(r.destino)}${r.destino_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.destino_lat},${r.destino_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
       <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
       ${r.cuenta_corporativa_id || r.centro_costo ? `<dt>Empresa</dt><dd>${esc((cuentas.find(x => x.id === r.cuenta_corporativa_id) || {}).razon_social || "—")}${r.centro_costo ? " · centro de costo: " + esc(r.centro_costo) : ""}</dd>` : ""}
       <dt>Pasajeros / maletas</dt><dd>${esc(r.pasajeros)} / ${esc(r.maletas ?? "—")}</dd>
@@ -2045,7 +2046,8 @@ function leerMensaje(txt) {
 $("n-leer").addEventListener("click", () => {
   const o = leerMensaje($("n-pegar").value || ""), set = (id, v) => { if (v != null && v !== "") $(id).value = v; };
   set("n-nombre", o.nombre); set("n-tel", o.tel); set("n-mail", o.mail); set("n-vuelo", o.vuelo); set("n-pax", o.pax); set("n-maletas", o.maletas);
-  set("n-origen", o.origen); set("n-destino", o.destino); if (o.tipo) $("n-tipo").value = o.tipo; if (o.veh) $("n-veh").value = o.veh;
+  if (o.origen) lugO.set(o.origen); if (o.destino) lugD.set(o.destino); if (o.tipo) $("n-tipo").value = o.tipo; if (o.veh) $("n-veh").value = o.veh;
+  if (o.origen && !lugO.get()) setTimeout(() => lugO.buscarAhora(), 400); else if (o.destino && !lugD.get()) setTimeout(() => lugD.buscarAhora(), 400);
   if (o.fecha || o.hora) set("n-fecha", `${o.fecha || hoyChile()}T${o.hora || "00:00"}`);
   $("n-canal").value = "whatsapp";
   if (!$("n-com").value) $("n-com").value = $("n-pegar").value.trim().slice(0, 500);
@@ -2082,7 +2084,7 @@ async function elegirCliente(id) {
   $("n-nombre").value = c.nombre || ""; $("n-tel").value = c.telefono || ""; $("n-mail").value = c.correo || "";
   $("n-buscar").value = ""; pintarSugerencias([]);
   // Último servicio del cliente: preferencias y trayecto para repetir
-  const { data: u } = await sb.from("reservas").select("origen, destino, tipo_servicio, vehiculo, forma_pago, tipo_cobro, precio, pasajeros, maletas, fecha_hora")
+  const { data: u } = await sb.from("reservas").select("origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, tipo_servicio, vehiculo, forma_pago, tipo_cobro, precio, pasajeros, maletas, fecha_hora")
     .eq("cliente_id", c.id).neq("estado", "cancelada").order("fecha_hora", { ascending: false }).limit(1);
   const r = u && u[0];
   if (r) {
@@ -2099,7 +2101,8 @@ async function elegirCliente(id) {
     <div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-mismo">Mismo trayecto</button><button class="btn ghost sm" type="button" id="n-inv">Trayecto de vuelta</button><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`
     : `<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="n-quitar">No es este cliente</button></div>`}`;
   const usar = (o, d, inv) => {
-    $("n-origen").value = o; $("n-destino").value = d;
+    if (inv) { lugO.set(o, r.destino_lat, r.destino_lng); lugD.set(d, r.origen_lat, r.origen_lng); }
+    else { lugO.set(o, r.origen_lat, r.origen_lng); lugD.set(d, r.destino_lat, r.destino_lng); }
     if (r.precio != null) $("n-precio").value = r.precio;
     const tipo = inv ? ({ ida: "regreso", regreso: "ida" }[r.tipo_servicio] || r.tipo_servicio) : r.tipo_servicio;
     if (tipo) $("n-tipo").value = tipo;
@@ -2139,6 +2142,8 @@ function sugerirPrecio() {
   box.querySelectorAll("[data-p]").forEach(b => b.addEventListener("click", () => { $("n-precio").value = b.dataset.p; box.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b)); }));
 }
 ["n-origen", "n-destino"].forEach(i => $(i).addEventListener("input", sugerirPrecio));
+// Origen y destino con punto obligatorio en el mapa (el conductor navega a ese punto exacto)
+const lugO = FKLugar.montar($("n-origen"), { alCambiar: sugerirPrecio }), lugD = FKLugar.montar($("n-destino"), { alCambiar: sugerirPrecio });
 ["n-tipo", "n-veh"].forEach(i => $(i).addEventListener("change", sugerirPrecio));
 $("n-mail").addEventListener("change", detectarCliente);
 
@@ -2148,6 +2153,9 @@ $("nf").addEventListener("submit", async e => {
   const req = ["n-nombre", "n-tel", "n-fecha", "n-origen", "n-destino"].concat(otra ? ["n-pnombre", "n-ptel"] : []);
   const falta = req.find(id => !$(id).value.trim());
   if (falta) return msg("n-msg", "Complete: " + $(falta).labels[0].textContent, "err");
+  const po = lugO.get(), pd = lugD.get();
+  if (!po) { lugO.exigir(); return msg("n-msg", "Marque en el mapa el punto exacto de ORIGEN (elija una sugerencia o toque el mapa).", "err"); }
+  if (!pd) { lugD.exigir(); return msg("n-msg", "Marque en el mapa el punto exacto de DESTINO (elija una sugerencia o toque el mapa).", "err"); }
   const fh = FK.chileLocalToISO($("n-fecha").value);
   const fila = {
     empresa_id: yo.empresa_id, nombre_pasajero: $("n-nombre").value.trim(), telefono: $("n-tel").value.trim(),
@@ -2155,7 +2163,8 @@ $("nf").addEventListener("submit", async e => {
     vuelo: $("n-vuelo").value.trim() || null, pasajeros: Number($("n-pax").value) || 1, maletas: $("n-maletas").value === "" ? null : Number($("n-maletas").value),
     tipo_servicio: $("n-tipo").value, vehiculo: $("n-veh").value, canal: $("n-canal").value, tipo_cobro: $("n-cobro").value,
     precio: $("n-precio").value === "" ? null : Number($("n-precio").value), forma_pago: $("n-pago").value || null,
-    comentarios: $("n-com").value.trim() || null, estado: "confirmada"
+    comentarios: $("n-com").value.trim() || null, estado: "confirmada",
+    origen_lat: po.lat, origen_lng: po.lng, destino_lat: pd.lat, destino_lng: pd.lng
   };
   if (clienteSel) fila.cliente_id = clienteSel;
   if (otra) Object.assign(fila, { solicitante_nombre: fila.nombre_pasajero, solicitante_telefono: fila.telefono, solicitante_correo: fila.correo,
@@ -2179,7 +2188,7 @@ $("nf").addEventListener("submit", async e => {
   const { data, error } = await sb.from("reservas").insert(filas).select("codigo");
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", data.length > 1 ? `${data.length} reservas guardadas como confirmadas (${data[0].codigo} … ${data[data.length - 1].codigo}).` : `Reserva ${data[0].codigo} guardada como confirmada.`, "ok");
-  $("nf").reset(); $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
+  $("nf").reset(); lugO.limpiar(); lugD.limpiar(); $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
 });
 
 // ---- Equipo y roles (solo admin)
