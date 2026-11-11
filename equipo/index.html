@@ -635,6 +635,9 @@ async function sugerirConductor(r) {
     .gte("fecha_hora", new Date(t0 - 14 * 3600e3).toISOString()).lte("fecha_hora", new Date(t0 + 14 * 3600e3).toISOString()).order("fecha_hora");
   const fin = x => new Date(x.fecha_hora).getTime() + (x.duracion_min || 90) * 60000;
   const corto = t => esc((t || "").split(",").slice(0, 2).join(",").slice(0, 40));
+  // Servicio de momento (dentro de 2 horas): manda la cercanía real del conductor (GPS en vivo) al punto de retiro
+  const deMomento = t0 - Date.now() <= 2 * 3600e3, ubi = {};
+  if (deMomento) { const { data: us } = await sb.from("ubicaciones").select("conductor_id, lat, lng, actualizado_en"); (us || []).forEach(u => ubi[u.conductor_id] = { lat: u.lat, lng: u.lng, t: new Date(u.actualizado_en).getTime() }); }
   const cand = [];
   for (const c of conductores) {
     const v = vehiculos.find(x => x.conductor_habitual === c.id);
@@ -650,11 +653,22 @@ async function sugerirConductor(r) {
       const ir = pd && next.origen_lat != null ? await FKLugar.ruta(pd, { lat: next.origen_lat, lng: next.origen_lng }) : null;
       margenSig = Math.round((new Date(next.fecha_hora).getTime() - (t0 + dur * 60000) - (ir ? ir.min : 45) * 60000) / 60000);
     }
-    const libre = !solapa && (margen == null || margen >= MARGEN_MIN) && (margenSig == null || margenSig >= MARGEN_MIN);
-    const encadena = libre && prev && vacio && t0 - fin(prev) <= 3 * 3600e3; // viene de un servicio que termina hasta 3 h antes
+    let libre = !solapa && (margen == null || margen >= MARGEN_MIN) && (margenSig == null || margenSig >= MARGEN_MIN);
+    // De momento: si está libre ahora y tiene GPS reciente, se calcula cuánto tarda en llegar desde donde está
+    let cerca = null, margenAhora = null;
+    const ocupadoAhora = prev && fin(prev) > Date.now();
+    if (deMomento && po && ubi[c.id] && Date.now() - ubi[c.id].t < 10 * 60e3 && !ocupadoAhora) {
+      cerca = await FKLugar.ruta(ubi[c.id], po);
+      margenAhora = Math.round((t0 - Date.now() - cerca.min * 60000) / 60000);
+      libre = margenAhora >= 0 && (margenSig == null || margenSig >= MARGEN_MIN);
+    }
+    const encadena = !cerca && libre && prev && vacio && t0 - fin(prev) <= 3 * 3600e3; // viene de un servicio que termina hasta 3 h antes
     const ok = { con: !!c.disponible, cat: !v || sirve(v.categoria, r.vehiculo || "auto"), libre, veh: !!v, encadena };
-    const pts = (libre ? 20 : 0) + (ok.cat ? 10 : 0) + (encadena ? 6 + Math.max(0, 60 - vacio.min) / 10 : 0) + (ok.con ? 2 : 0) + (ok.veh ? 1 : 0) - Math.min(3, c.devoluciones_bolsa || 0) * 0.5;
+    const pts = (libre ? 20 : 0) + (ok.cat ? 10 : 0) + (cerca ? 40 - Math.min(40, cerca.min) + (margenAhora >= MARGEN_MIN ? 5 : 0) : 0)
+      + (encadena ? 6 + Math.max(0, 60 - vacio.min) / 10 : 0) + (ok.con ? 2 : 0) + (ok.veh ? 1 : 0) - Math.min(3, c.devoluciones_bolsa || 0) * 0.5;
     const motivo = [];
+    if (cerca) motivo.push(`📍 está a <b>~${cerca.min} min</b> del retiro (${String(cerca.km).replace(".", ",")} km)` + (margenAhora < MARGEN_MIN ? ` · ⚠ llegaría con solo ${Math.max(0, margenAhora)} min de margen` : ` · llega con ${margenAhora} min de margen`));
+    else if (deMomento && !ocupadoAhora) motivo.push("sin GPS reciente (no se sabe dónde está)");
     if (encadena) motivo.push(`🔗 termina ${esc(prev.codigo)} en ${corto(prev.destino)} a las ${hora(new Date(fin(prev)).toISOString())}, llega en ~${vacio.min} min (${String(vacio.km).replace(".", ",")} km) y le quedan <b>${margen} min de margen</b>`);
     else if (libre) motivo.push(prev && margen != null ? `libre, ${margen} min de margen desde su servicio anterior` : "libre a esa hora");
     else if (solapa) motivo.push("ocupado a esa hora");
@@ -668,7 +682,7 @@ async function sugerirConductor(r) {
   cand.sort((a, b) => b.pts - a.pts);
   const aptos = cand.filter(x => x.ok.libre && x.ok.cat);
   if (!aptos.length) { box.innerHTML = '<span class="muted">No hay un conductor libre (con 15 min de margen) y con el vehículo adecuado para este horario. Considere la bolsa de servicios o derivar a la red.</span>'; return; }
-  box.innerHTML = `<b>Conductores sugeridos</b> <span class="muted">(llegan con al menos ${MARGEN_MIN} min de margen; tiempos con 25% extra por tráfico)</span>` +
+  box.innerHTML = (deMomento ? `<b>Servicio de momento: conductores más cercanos</b> <span class="muted">(según su GPS en vivo; tiempos con 25% extra por tráfico)</span>` : `<b>Conductores sugeridos</b> <span class="muted">(llegan con al menos ${MARGEN_MIN} min de margen; tiempos con 25% extra por tráfico)</span>`) +
     aptos.slice(0, 3).map((x, i) => `<div class="sug-cond">${i === 0 ? "⭐" : "·"} <b>${esc(etiquetaConductor(x.c.id))}</b> <span class="muted">— ${x.motivo.join(" · ")}</span> <button class="btn ghost sm" type="button" data-usar="${esc(x.c.id)}">Usar</button></div>`).join("") +
     (po ? "" : '<div class="small muted">Esta reserva no tiene punto en el mapa: los tiempos de traslado son aproximados.</div>');
   box.querySelectorAll("[data-usar]").forEach(b => b.addEventListener("click", () => { $("a-cond").value = b.dataset.usar; $("a-cond").dispatchEvent(new Event("change")); }));
@@ -1807,7 +1821,7 @@ async function cargarClientes() {
   if (abrirClienteTras) { const id = abrirClienteTras; abrirClienteTras = null; fichaCliente(id); }
 }
 let califCli = {};
-const califTxt = x => x ? `${(x.s / x.n).toFixed(1).replace(".", ",")} ★ <span class="muted small">(${x.n})</span>` : '<span class="muted small">—</span>';
+const califTxt = x => x ? `${(x.s / x.n).toFixed(2).replace(".", ",")} ★ <span class="muted small">(${x.n})</span>` : '<span class="muted small">—</span>';
 // Todo servicio no cancelado queda pendiente de pago hasta que un administrador lo marque como pagado.
 function resumenCliente(id) {
   const x = resCobro["cliente:" + id] || {};

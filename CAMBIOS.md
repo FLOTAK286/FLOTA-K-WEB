@@ -1,5 +1,10 @@
 # Cambios
 
+## 11 nov 2026 · Orden de la bolsa y calificación 4,8 (pendiente de publicar)
+- **"Buena calificación" = 4,8 o más** (antes 4,5). Las calificaciones se muestran con **dos decimales** (5,00 · 4,98…) en el panel y en la app del conductor.
+- **Orden de la bolsa** (`etapa25_orden_bolsa_y_calificacion_48`), servicios programados: minutos 0–10 solo **móviles de Flota-K con buena calificación** (o nuevos, con menos de 3 calificaciones); minutos 10–20 se suman los **conductores destacados** de toda la red (4,8+); desde el minuto 20, **toda la flota**.
+- **Servicios de momento** (dentro de 2 horas): **sin prioridad** en la bolsa. En la ficha, los conductores sugeridos se ordenan por **cercanía real según su GPS en vivo** ("📍 está a ~6 min del retiro · llega con 34 min de margen"), con aviso si llegaría con menos de 15 min de margen.
+
 ## 11 nov 2026 · Ajustes a la bolsa a pedido del dueño (pendiente de publicar)
 - **La bolsa la libera el despachador** (`etapa24_bolsa_manual_prioridad_moviles_flotak`): la bolsa automática queda **apagada** por defecto (nueva marca `bolsa_auto_activa`); se puede activar en Equipo y roles solo para casos especiales.
 - **Prioridad en la bolsa** para los **móviles de Flota-K** (conductores con vehículo propio de Flota-K) además de los conductores destacados. Ventana de 10 minutos, o **5 minutos si el servicio es de momento** (dentro de las próximas 2 horas); antes, los servicios próximos no tenían prioridad.

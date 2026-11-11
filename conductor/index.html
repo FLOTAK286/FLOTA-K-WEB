@@ -354,7 +354,7 @@ async function pintarBolsa(recargar = true) {
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><span><span class="time" style="font-size:1.6rem">${esc(hora(x.o_fecha_hora))}</span> <b>${esc(dia(x.o_fecha_hora))}</b></span><span class="pill">${esc(SERVICIOS[x.o_tipo_servicio] || "Servicio")}</span></div>
       <div style="font-size:1.05rem"><b>${esc(x.o_zona_origen)}</b> → <b>${esc(x.o_zona_destino)}</b></div>
       <div class="small muted">${esc(x.o_pasajeros || 1)} pasajero(s)${x.o_maletas != null ? " · " + esc(x.o_maletas) + " maleta(s)" : ""} · pide ${esc(PIDE_TXT[x.o_vehiculo] || x.o_vehiculo)}${x.o_vuelo ? " · vuelo " + esc(x.o_vuelo) : ""}${x.o_km ? " · " + String(x.o_km).replace(".", ",") + " km" : ""} · aprox. ${esc(x.o_duracion)} min</div>
-      ${x.o_exclusiva ? '<div class="small" style="color:var(--gold);font-weight:700">⭐ Exclusivo por unos minutos para móviles Flota-K y conductores destacados</div>' : ""}
+      ${x.o_exclusiva ? '<div class="small" style="color:var(--gold);font-weight:700">⭐ Prioridad: usted lo ve antes que el resto de la flota</div>' : ""}
       ${x.o_bono ? `<div class="bono">🎁 Bono ${clp(x.o_bono)} para quien lo tome</div>` : ""}
       <div><b style="font-size:1.2rem">${x.o_valor ? clp(x.o_valor) : "Taxímetro"}</b>${pct != null && x.o_valor ? ` <span class="small muted">· le corresponde ${clp(Math.round(x.o_valor * (1 - pct / 100)))}</span>` : ""}</div>
       ${!x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
@@ -778,7 +778,7 @@ async function pintarGanancias() {
         ${km ? kpi("Ingreso por km", clp(Math.round((cierres.length ? ingTot : sum(P.filter(x => x.taxi_metros), x => x.total)) / km)), `${Math.round(km).toLocaleString("es-CL")} km ${cierres.length ? "del cierre diario (todas las apps)" : "en servicios con taxímetro"}`) : ""}
         ${kpi("TAG y peajes", clp(gas), "incluidos en lo cobrado")}
         ${kpi("Clientes por pagar", clp(porCobrar), porCobrar ? "aún no pagan a Flota-K" : "todo pagado")}
-        ${kpi("Calificación", prom != null ? prom.toFixed(1).replace(".", ",") + " ★" : "—", prom != null ? `${califs.length} pasajero(s)` : "sin calificaciones")}
+        ${kpi("Calificación", prom != null ? prom.toFixed(2).replace(".", ",") + " ★" : "—", prom != null ? `${califs.length} pasajero(s)` : "sin calificaciones")}
         ${llegadas.length ? kpi("Puntualidad", Math.round(aTiempo / llegadas.length * 100) + "%", `a tiempo en ${aTiempo} de ${llegadas.length} · ${promLleg <= 0 ? "llega " + -promLleg + " min antes" : "promedio " + promLleg + " min tarde"}`) : ""}
         ${repPer === "mes" ? kpi("Proyección del mes", clp(proy), `si sigue a este ritmo (${clp(Math.round(totMes / Math.max(1, diaMes)))} al día)`) : ""}
       </div>
@@ -924,7 +924,7 @@ async function pintarPerfil() {
       <div style="display:flex;gap:14px;align-items:center">
         <div class="fl-foto" style="width:92px;height:92px">${yo.foto_path ? `<img src="${esc(fotoUrl(yo.foto_path))}" alt="Su foto">` : `<span>${esc(yo.nombre[0])}</span>`}</div>
         <div><div class="who">${esc(yo.nombre)}</div>${yo.movil ? `<span class="movil">Móvil ${esc(yo.movil)}</span> ` : ""}<span class="small ${yo.disponible ? "ok-txt" : "muted"}">● ${yo.disponible ? "Conectado" : "Desconectado"}</span><div class="small muted">${esc(yo.telefono || "")}</div>
-          ${prom != null ? `<div>${FKChat.fijas(Math.round(prom))} <b>${prom.toFixed(1).replace(".", ",")}</b> <span class="small muted">(${cs.length} calificación(es))</span></div>` : '<div class="small muted">Aún sin calificaciones</div>'}</div>
+          ${prom != null ? `<div>${FKChat.fijas(Math.round(prom))} <b>${prom.toFixed(2).replace(".", ",")}</b> <span class="small muted">(${cs.length} calificación(es))</span></div>` : '<div class="small muted">Aún sin calificaciones</div>'}</div>
       </div>
       <p class="small muted" style="margin:0">La foto y el teléfono los actualiza la central.</p>
     </div>
