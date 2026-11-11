@@ -139,6 +139,7 @@ body.drv { overscroll-behavior-y: contain; }
 .coment { margin: 4px 0 0; font-style: italic; }
 .bolsa-item { gap: 6px; border-left: 4px solid var(--gold); }
 .bolsa-item.no-apto { opacity: .6; border-left-color: var(--line); }
+.bolsa-item .bono { font-weight: 700; color: #17130a; background: var(--gold); border-radius: 6px; padding: 4px 8px; justify-self: start; }
 .bottom-nav button { font-size: .74rem; }
 </style>
 </head>
@@ -305,7 +306,7 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, bono_bolsa, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -327,7 +328,7 @@ let bolsa = [], bolsaCargada = false;
 const PIDE_TXT = { auto: "auto", suv: "SUV", van: "van" };
 async function revisarBolsa(avisar = true) {
   if (!yo) return;
-  const { data, error } = await sb.rpc("bolsa_servicios");
+  const { data, error } = await sb.rpc("bolsa_servicios_v2");
   if (error) return;
   const antes = new Set(bolsa.map(x => x.o_id));
   bolsa = data || [];
@@ -352,7 +353,8 @@ async function pintarBolsa(recargar = true) {
     ${bolsa.length ? bolsa.map(x => `<div class="svc bolsa-item ${!x.o_sirve || x.o_choque ? "no-apto" : ""}">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><span><span class="time" style="font-size:1.6rem">${esc(hora(x.o_fecha_hora))}</span> <b>${esc(dia(x.o_fecha_hora))}</b></span><span class="pill">${esc(SERVICIOS[x.o_tipo_servicio] || "Servicio")}</span></div>
       <div style="font-size:1.05rem"><b>${esc(x.o_zona_origen)}</b> → <b>${esc(x.o_zona_destino)}</b></div>
-      <div class="small muted">${esc(x.o_pasajeros || 1)} pasajero(s)${x.o_maletas != null ? " · " + esc(x.o_maletas) + " maleta(s)" : ""} · pide ${esc(PIDE_TXT[x.o_vehiculo] || x.o_vehiculo)}${x.o_vuelo ? " · vuelo " + esc(x.o_vuelo) : ""} · aprox. ${esc(x.o_duracion)} min</div>
+      <div class="small muted">${esc(x.o_pasajeros || 1)} pasajero(s)${x.o_maletas != null ? " · " + esc(x.o_maletas) + " maleta(s)" : ""} · pide ${esc(PIDE_TXT[x.o_vehiculo] || x.o_vehiculo)}${x.o_vuelo ? " · vuelo " + esc(x.o_vuelo) : ""}${x.o_km ? " · " + String(x.o_km).replace(".", ",") + " km" : ""} · aprox. ${esc(x.o_duracion)} min</div>
+      ${x.o_bono ? `<div class="bono">🎁 Bono ${clp(x.o_bono)} para quien lo tome</div>` : ""}
       <div><b style="font-size:1.2rem">${x.o_valor ? clp(x.o_valor) : "Taxímetro"}</b>${pct != null && x.o_valor ? ` <span class="small muted">· le corresponde ${clp(Math.round(x.o_valor * (1 - pct / 100)))}</span>` : ""}</div>
       ${!x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
         : x.o_choque ? '<p class="small warn" style="margin:0">Se le cruza con otro servicio suyo a esa hora.</p>'
@@ -1101,7 +1103,7 @@ function pintar() {
       ${r.comentarios ? `<p class="small"><b>Nota:</b> ${esc(r.comentarios)}</p>` : ""}
       <div class="pay">${r.tipo_cobro === "taximetro"
         ? `<b>Taxímetro</b> · se calcula al finalizar (bajada ${clp(tar.taxi_bajada)}, ${clp(tar.taxi_cada_200m)} cada 200 m, ${clp(tar.taxi_cada_60s)} cada 60 s)`
-        : (cobro != null ? `<b>Tarifa fija: ${clp(cobro)}</b> · no se modifica` : "Tarifa fija por confirmar")}${r.forma_pago ? ` · ${esc(r.forma_pago)}` : ""}${r.pagado ? " · <b>Pagado</b>" : ""}</div>
+        : (cobro != null ? `<b>Tarifa fija: ${clp(cobro)}</b> · no se modifica` : "Tarifa fija por confirmar")}${r.forma_pago ? ` · ${esc(r.forma_pago)}` : ""}${r.pagado ? " · <b>Pagado</b>" : ""}${r.bono_bolsa ? ` · 🎁 <b>Bono ${clp(r.bono_bolsa)}</b>` : ""}</div>
       ${r.observacion_conductor ? `<p class="small"><b>Sus observaciones:</b> ${esc(r.observacion_conductor).replace(/\n/g, "<br>")}</p>` : ""}
       ${obsAbierta === r.id
         ? `<div class="confirm"><b>Observación</b><textarea class="obs-txt" rows="3" maxlength="1000" placeholder="Ej: el pasajero pidió una parada adicional"></textarea><div class="actions"><button class="btn obs-ok" type="button">Guardar observación</button><button class="btn ghost obs-no" type="button">Cancelar</button></div></div>`
@@ -1113,6 +1115,7 @@ function pintar() {
         <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>`}
       </div>
       ${veh ? `<p class="small muted">Vehículo: ${esc(veh.descripcion || "")} · ${esc(veh.patente)}</p>` : ""}
+      ${["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) - Date.now() > 3 * 3600e3 ? '<button class="btn ghost sm devolver" type="button">↩ No podré hacerlo: devolver a la bolsa</button>' : ""}
       ${s && !fin ? (pendiente === r.id
         ? (r.tipo_cobro === "taximetro" ? `<div class="confirm taxi">
             <b>Finalizar con taxímetro</b>
@@ -1177,6 +1180,13 @@ function pintar() {
       $("list").prepend(done); setTimeout(() => done.remove(), 6000);
     });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
+    card.querySelector(".devolver")?.addEventListener("click", async () => {
+      if (!confirm(`¿Devolver el servicio ${r.codigo} (${FK.fecha(r.fecha_hora)}) a la bolsa?\n\nOtro conductor podrá tomarlo. La central recibe un aviso y queda registrado. Úselo solo si de verdad no puede hacerlo.`)) return;
+      const { error } = await sb.rpc("conductor_devolver_reserva", { p_reserva: id });
+      if (error) return alert(errText(error));
+      try { const k = "fk_snap_" + yo.id, s0 = JSON.parse(localStorage.getItem(k) || "{}"); delete s0[id]; localStorage.setItem(k, JSON.stringify(s0)); } catch (_) {} // no avisarse a sí mismo
+      await cargar(); revisarBolsa(false); revisarCentral();
+    });
     card.querySelector(".acepta")?.addEventListener("click", async () => {
       const { error } = await sb.rpc("conductor_responder", { p_reserva: id, p_acepta: true });
       if (error) return alert(errText(error)); r.conductor_respuesta = "aceptado"; programarRecordatorios(); pintar();

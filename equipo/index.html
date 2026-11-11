@@ -171,6 +171,7 @@
           <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
           <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
         </div>
+        <div id="n-ruta" class="small" hidden></div>
         <div id="n-sugerida" class="small" hidden></div>
         <div class="row2"><div class="f"><label for="n-cc">Centro de costo (empresas, opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div><div id="n-emp" class="small" style="align-self:end"></div></div>
         <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
@@ -339,7 +340,7 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, ho
 const hoyChile = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 async function cargarRecursos() {
   const [{ data: c }, { data: v }] = await Promise.all([
-    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono, movil").eq("conduce", true).eq("activo", true).order("nombre"),
+    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono, movil, devoluciones_bolsa").eq("conduce", true).eq("activo", true).order("nombre"),
     sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual, marca, modelo, anio, color, foto_path, categoria").eq("activo", true).order("patente")
   ]);
   conductores = (c || []).sort((a, b) => (Number(a.movil) || 1e9) - (Number(b.movil) || 1e9) || a.nombre.localeCompare(b.nombre)); vehiculos = v || [];
@@ -616,20 +617,55 @@ function copiarReserva(r, regreso) {
 }
 
 // ---- Conductor sugerido: conectado, con vehículo adecuado y libre a esa hora (ordenado por número de móvil)
+// Conductor sugerido: debe llegar con al menos 15 minutos de margen (tráfico, imprevistos), considerando el servicio
+// que termina antes y el que tiene después. Si viene de dejar a otro pasajero cerca, "encadena" y queda primero.
+const MARGEN_MIN = 15;
 async function sugerirConductor(r) {
   const box = $("a-sug"); box.textContent = "Buscando conductor sugerido…";
+  const t0 = new Date(r.fecha_hora).getTime(), dur = r.duracion_min || 90;
+  const po = r.origen_lat != null ? { lat: r.origen_lat, lng: r.origen_lng } : null, pd = r.destino_lat != null ? { lat: r.destino_lat, lng: r.destino_lng } : null;
+  const { data: sv } = await sb.from("reservas").select("id, codigo, conductor_id, fecha_hora, duracion_min, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng")
+    .not("conductor_id", "is", null).not("estado", "in", "(cancelada,finalizada)")
+    .gte("fecha_hora", new Date(t0 - 14 * 3600e3).toISOString()).lte("fecha_hora", new Date(t0 + 14 * 3600e3).toISOString()).order("fecha_hora");
+  const fin = x => new Date(x.fecha_hora).getTime() + (x.duracion_min || 90) * 60000;
+  const corto = t => esc((t || "").split(",").slice(0, 2).join(",").slice(0, 40));
   const cand = [];
   for (const c of conductores) {
     const v = vehiculos.find(x => x.conductor_habitual === c.id);
-    const ch = await choques(c.id, r.fecha_hora, r.duracion_min || 90, r.id);
-    const ok = { con: !!c.disponible, cat: !v || sirve(v.categoria, r.vehiculo || "auto"), libre: !ch.length, veh: !!v };
-    cand.push({ c, ok, pts: (ok.libre ? 4 : 0) + (ok.cat ? 3 : 0) + (ok.con ? 2 : 0) + (ok.veh ? 1 : 0) });
+    const mios = (sv || []).filter(x => x.conductor_id === c.id && x.id !== r.id);
+    const prev = mios.filter(x => new Date(x.fecha_hora).getTime() < t0).pop(), next = mios.find(x => new Date(x.fecha_hora).getTime() >= t0);
+    let margen = null, vacio = null, margenSig = null, solapa = false;
+    if (prev) {
+      vacio = prev.destino_lat != null && po ? await FKLugar.ruta({ lat: prev.destino_lat, lng: prev.destino_lng }, po) : null;
+      margen = Math.round((t0 - fin(prev) - (vacio ? vacio.min : 45) * 60000) / 60000); // sin puntos en el mapa se suponen 45 min de traslado
+      if (fin(prev) > t0) solapa = true;
+    }
+    if (next) {
+      const ir = pd && next.origen_lat != null ? await FKLugar.ruta(pd, { lat: next.origen_lat, lng: next.origen_lng }) : null;
+      margenSig = Math.round((new Date(next.fecha_hora).getTime() - (t0 + dur * 60000) - (ir ? ir.min : 45) * 60000) / 60000);
+    }
+    const libre = !solapa && (margen == null || margen >= MARGEN_MIN) && (margenSig == null || margenSig >= MARGEN_MIN);
+    const encadena = libre && prev && vacio && t0 - fin(prev) <= 3 * 3600e3; // viene de un servicio que termina hasta 3 h antes
+    const ok = { con: !!c.disponible, cat: !v || sirve(v.categoria, r.vehiculo || "auto"), libre, veh: !!v, encadena };
+    const pts = (libre ? 20 : 0) + (ok.cat ? 10 : 0) + (encadena ? 6 + Math.max(0, 60 - vacio.min) / 10 : 0) + (ok.con ? 2 : 0) + (ok.veh ? 1 : 0) - Math.min(3, c.devoluciones_bolsa || 0) * 0.5;
+    const motivo = [];
+    if (encadena) motivo.push(`🔗 termina ${esc(prev.codigo)} en ${corto(prev.destino)} a las ${hora(new Date(fin(prev)).toISOString())}, llega en ~${vacio.min} min (${String(vacio.km).replace(".", ",")} km) y le quedan <b>${margen} min de margen</b>`);
+    else if (libre) motivo.push(prev && margen != null ? `libre, ${margen} min de margen desde su servicio anterior` : "libre a esa hora");
+    else if (solapa) motivo.push("ocupado a esa hora");
+    else if (margen != null && margen < MARGEN_MIN) motivo.push(`⚠ llegaría justo: ${Math.max(margen, 0)} min de margen (se piden ${MARGEN_MIN})`);
+    else if (margenSig != null && margenSig < MARGEN_MIN) motivo.push(`⚠ no alcanza su servicio siguiente ${esc(next.codigo)} con margen`);
+    if (!ok.cat) motivo.push("vehículo no corresponde");
+    motivo.push(ok.con ? "conectado" : "desconectado ahora");
+    if (c.devoluciones_bolsa) motivo.push(`devolvió ${c.devoluciones_bolsa} servicio(s) a la bolsa`);
+    cand.push({ c, ok, pts, motivo });
   }
   cand.sort((a, b) => b.pts - a.pts);
-  const m = cand[0];
-  if (!m || !m.ok.libre || !m.ok.cat) { box.innerHTML = '<span class="muted">No hay un conductor libre y con el vehículo adecuado para este horario. Considere derivar a la red.</span>'; return; }
-  box.innerHTML = `⭐ Sugerido: <b>${esc(etiquetaConductor(m.c.id))}</b> <span class="muted">(${[m.ok.con ? "conectado" : "desconectado ahora", "libre a esa hora", "vehículo adecuado"].join(", ")})</span> <button class="btn ghost sm" type="button" id="a-usar">Usar</button>`;
-  $("a-usar").onclick = () => { $("a-cond").value = m.c.id; $("a-cond").dispatchEvent(new Event("change")); };
+  const aptos = cand.filter(x => x.ok.libre && x.ok.cat);
+  if (!aptos.length) { box.innerHTML = '<span class="muted">No hay un conductor libre (con 15 min de margen) y con el vehículo adecuado para este horario. Considere la bolsa de servicios o derivar a la red.</span>'; return; }
+  box.innerHTML = `<b>Conductores sugeridos</b> <span class="muted">(llegan con al menos ${MARGEN_MIN} min de margen; tiempos con 25% extra por tráfico)</span>` +
+    aptos.slice(0, 3).map((x, i) => `<div class="sug-cond">${i === 0 ? "⭐" : "·"} <b>${esc(etiquetaConductor(x.c.id))}</b> <span class="muted">— ${x.motivo.join(" · ")}</span> <button class="btn ghost sm" type="button" data-usar="${esc(x.c.id)}">Usar</button></div>`).join("") +
+    (po ? "" : '<div class="small muted">Esta reserva no tiene punto en el mapa: los tiempos de traslado son aproximados.</div>');
+  box.querySelectorAll("[data-usar]").forEach(b => b.addEventListener("click", () => { $("a-cond").value = b.dataset.usar; $("a-cond").dispatchEvent(new Event("change")); }));
 }
 // ---- Notas internas del cliente (las ve solo el equipo)
 async function notasCliente(r) {
@@ -873,7 +909,9 @@ async function abrir(id) {
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2>${esc(r.codigo)}</h2>${pill(r.estado)}</div>
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.fecha_hora))}</dd>
-      ${r.en_bolsa ? `<dt>Bolsa</dt><dd><b>📢 En la bolsa de servicios</b>${r.bolsa_desde ? " desde " + esc(fecha(r.bolsa_desde)) : ""}: el primer conductor que la tome se la queda.</dd>` : ""}
+      ${r.en_bolsa ? `<dt>Bolsa</dt><dd><b>📢 En la bolsa de servicios</b>${r.bolsa_desde ? " desde " + esc(fecha(r.bolsa_desde)) : ""}${r.bono_bolsa ? ` · 🎁 bono ${clp(r.bono_bolsa)}` : ""}: el primer conductor que la tome se la queda.</dd>` : ""}
+      ${!r.en_bolsa && r.bono_bolsa ? `<dt>Bono</dt><dd>🎁 ${clp(r.bono_bolsa)} para el conductor (tomado desde la bolsa)</dd>` : ""}
+      ${r.km_ida ? `<dt>Recorrido</dt><dd>${String(r.km_ida).replace(".", ",")} km · duración estimada ${esc(r.duracion_min || "—")} min</dd>` : ""}
       <dt>Pasajero</dt><dd>${esc(r.nombre_pasajero)}</dd>
       ${r.solicitante_nombre ? `<dt>Reservado y pagado por</dt><dd><b>${esc(r.solicitante_nombre)}</b> · ${esc(r.solicitante_telefono || "")}${r.solicitante_correo ? " · " + esc(r.solicitante_correo) : ""}</dd>` : ""}
       <dt>Teléfono</dt><dd>${esc(r.telefono)}</dd>
@@ -943,7 +981,9 @@ async function abrir(id) {
   $("d-close").onclick = () => $("det").close();
   if ($("d-bolsa")) $("d-bolsa").onclick = async () => {
     if (!confirm(`¿Liberar ${r.codigo} a la bolsa de servicios?\n\nLos conductores lo verán en su app (sin datos del pasajero) y el primero que lo tome se lo queda.` + (r.conductor_id ? `\n\nOjo: se le quita a ${nombreConductor(r.conductor_id) || "el conductor asignado"}.` : ""))) return;
-    const { error } = await sb.rpc("liberar_a_bolsa", { p_reserva: r.id, p_liberar: true });
+    const bono = prompt("Bono opcional para el conductor que lo tome (ej.: 5000), por ser de madrugada, lejos, etc.\nDéjelo vacío si no hay bono:", "");
+    if (bono === null) return;
+    const { error } = await sb.rpc("liberar_a_bolsa_bono", { p_reserva: r.id, p_bono: Number(String(bono).replace(/\D/g, "")) || 0 });
     if (error) return msg("d-msg", errText(error), "err");
     $("det").close(); refrescar();
   };
@@ -1390,7 +1430,7 @@ function alertasDe(r, extra) {
   const antesDeSalir = ["recibida", "confirmada", "asignada"].includes(r.estado);
   if (r.estado === "recibida") a.push({ n: 3, c: "roja", t: "Por confirmar" });
   // Bolsa: mientras falte más de 1 hora es normal que esté sin conductor; a 1 hora o menos, hay que asignarla a mano
-  if (r.en_bolsa) a.push(min <= 60 ? { n: 3, c: "roja", t: "⚠ Nadie la tomó de la bolsa: asigne a mano" } : { n: 1, c: "gris", t: "📢 En la bolsa" });
+  if (r.en_bolsa) a.push(min <= 60 ? { n: 3, c: "roja", t: "⚠ Nadie la tomó de la bolsa: asigne a mano" } : { n: 1, c: "gris", t: "📢 En la bolsa" + (r.bono_bolsa ? " · bono " + clp(r.bono_bolsa) : "") });
   if (r.conductor_respuesta === "rechazado" && !r.conductor_id) a.push({ n: 3, c: "roja", t: "Conductor rechazó" });
   if (r.conductor_id && !r.conductor_respuesta && antesDeSalirR(r) && min < 180) a.push({ n: min < 60 ? 3 : 2, c: min < 60 ? "roja" : "amarilla", t: "Conductor no ha aceptado" });
   if (sinAsig && !r.en_bolsa && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
@@ -2189,7 +2229,19 @@ function sugerirPrecio() {
 }
 ["n-origen", "n-destino"].forEach(i => $(i).addEventListener("input", sugerirPrecio));
 // Origen y destino con punto obligatorio en el mapa (el conductor navega a ese punto exacto)
-const lugO = FKLugar.montar($("n-origen"), { alCambiar: sugerirPrecio }), lugD = FKLugar.montar($("n-destino"), { alCambiar: sugerirPrecio });
+const lugO = FKLugar.montar($("n-origen"), { alCambiar: () => { sugerirPrecio(); calcularRuta(); } }), lugD = FKLugar.montar($("n-destino"), { alCambiar: () => { sugerirPrecio(); calcularRuta(); } });
+// Distancia y tiempo reales del viaje (se guardan en la reserva: sirven para choques de horario, bolsa y encadenar servicios)
+let rutaNueva = null;
+async function calcularRuta() {
+  const po = lugO.get(), pd = lugD.get(), box = $("n-ruta");
+  if (!po || !pd) { rutaNueva = null; box.hidden = true; return; }
+  box.hidden = false; box.textContent = "Calculando distancia y tiempo…";
+  const r = await FKLugar.ruta(po, pd);
+  const po2 = lugO.get(), pd2 = lugD.get();
+  if (!po2 || !pd2 || po2.lat !== po.lat || pd2.lat !== pd.lat) return; // cambió mientras calculaba
+  rutaNueva = r;
+  box.innerHTML = r ? `📏 <b>${String(r.km).replace(".", ",")} km</b> · ~<b>${r.min} min</b> de viaje ${r.aprox ? "(estimado aproximado)" : "(incluye 25% extra por tráfico)"}` : "";
+}
 ["n-tipo", "n-veh"].forEach(i => $(i).addEventListener("change", sugerirPrecio));
 $("n-mail").addEventListener("change", detectarCliente);
 
@@ -2212,6 +2264,8 @@ $("nf").addEventListener("submit", async e => {
     comentarios: $("n-com").value.trim() || null, estado: "confirmada",
     origen_lat: po.lat, origen_lng: po.lng, destino_lat: pd.lat, destino_lng: pd.lng
   };
+  // Duración del servicio = viaje + tiempo de llegada y subida (en regresos del aeropuerto, la espera del pasajero)
+  if (rutaNueva) { fila.km_ida = rutaNueva.km; fila.duracion_min = rutaNueva.min + ($("n-tipo").value === "regreso" ? 30 : 10); }
   if (clienteSel) fila.cliente_id = clienteSel;
   if (otra) Object.assign(fila, { solicitante_nombre: fila.nombre_pasajero, solicitante_telefono: fila.telefono, solicitante_correo: fila.correo,
     nombre_pasajero: $("n-pnombre").value.trim(), telefono: $("n-ptel").value.trim(), correo: null });
@@ -2234,7 +2288,7 @@ $("nf").addEventListener("submit", async e => {
   const { data, error } = await sb.from("reservas").insert(filas).select("codigo");
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", data.length > 1 ? `${data.length} reservas guardadas como confirmadas (${data[0].codigo} … ${data[data.length - 1].codigo}).` : `Reserva ${data[0].codigo} guardada como confirmada.`, "ok");
-  $("nf").reset(); lugO.limpiar(); lugD.limpiar(); $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
+  $("nf").reset(); lugO.limpiar(); lugD.limpiar(); rutaNueva = null; $("n-ruta").hidden = true; $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
 });
 
 // ---- Equipo y roles (solo admin)

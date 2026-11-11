@@ -1,5 +1,11 @@
 # Cambios
 
+## 11 nov 2026 · Encadenar servicios, distancia real, bono y devolver a la bolsa (pendiente de publicar)
+- **Distancia y tiempo reales** (OSRM con datos de OpenStreetMap, gratis; +25% por tráfico): en Nueva reserva se muestran km y minutos del viaje y se guardan en la reserva. La duración del servicio queda como viaje + 10 min (o + 30 min en regresos del aeropuerto, por la espera). Mejora los choques de horario, la agenda y la bolsa.
+- **Conductor sugerido encadenando servicios:** en la ficha, hasta 3 conductores sugeridos que llegan con **al menos 15 minutos de margen**, considerando el servicio que terminan antes (y el que tienen después). Primero el que termina cerca ("🔗 termina FK-X en Las Condes a las 8:20, llega en ~5 min y le quedan 35 min de margen"). Avisa si alguien "llegaría justo". Muestra también quién está conectado y cuántos servicios devolvió a la bolsa.
+- **Bono en la bolsa** (`etapa22_bono_y_devolucion_bolsa`): al liberar se puede ofrecer un bono (ej.: $5.000) para quien lo tome; el conductor lo ve destacado y queda en su servicio y en el historial.
+- **Devolver a la bolsa:** el conductor que no podrá hacer un servicio lo devuelve desde su app hasta 3 horas antes; queda contado, en el historial y la central recibe un mensaje. Con menos de 3 horas debe llamar a la central.
+
 ## 11 nov 2026 · Bolsa de servicios y van con precio único (pendiente de publicar)
 - **Bolsa de servicios** (`etapa21_bolsa_de_servicios`): el despachador libera una reserva confirmada y futura a la bolsa (ficha → "📢 Liberar a la bolsa", o varias a la vez en Reservas → Seleccionar varias). Si tenía conductor, se le quita. En el despacho aparece "📢 En la bolsa" y hay filtro "En la bolsa de servicios" en Reservas. "↩ Retirar de la bolsa" la saca.
 - **App del conductor → pestaña "✋ Bolsa"** (con contador): ve fecha, hora, tipo, zona de origen y destino, pasajeros, maletas, vehículo que pide, vuelo, valor y lo que le corresponde. **No ve** el nombre ni el teléfono del pasajero ni la dirección exacta hasta tomarlo. Se toma **deslizando**. Aviso con sonido y notificación cuando la central libera un servicio que le sirve.

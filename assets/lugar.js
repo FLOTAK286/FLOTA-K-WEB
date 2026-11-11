@@ -130,9 +130,28 @@
     };
     return api;
   }
+  // Ruta real en auto (OSRM, datos de OpenStreetMap, gratis). Se suma un 25% por tráfico.
+  // Si el servicio de rutas no responde, se estima con la distancia en línea recta (x1,35 y 25 km/h promedio).
+  const TRAFICO = 1.25, cacheRuta = new Map();
+  async function ruta(a, b) {
+    if (!a || !b || a.lat == null || b.lat == null) return null;
+    const k = [a.lat, a.lng, b.lat, b.lng].map(x => Number(x).toFixed(4)).join(",");
+    if (cacheRuta.has(k)) return cacheRuta.get(k);
+    let res = null;
+    try {
+      const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`, { signal: ctrl.signal });
+      clearTimeout(to);
+      const x = ((await r.json()).routes || [])[0];
+      if (x) res = { km: Math.round(x.distance / 100) / 10, min: Math.max(1, Math.ceil(x.duration * TRAFICO / 60)), aprox: false };
+    } catch (_) {}
+    if (!res) { const km = Math.round(distKm(a, b) * 1.35 * 10) / 10; res = { km, min: Math.max(1, Math.ceil(km / 25 * 60)), aprox: true }; }
+    cacheRuta.set(k, res);
+    return res;
+  }
   const distKm = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
     return 2 * R * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2)); };
   // ¿Este punto (o este texto) es el aeropuerto de Santiago? (a menos de 3 km del terminal)
   const enAeropuerto = (p, texto) => (p ? distKm(p, AERO) < 3 : false) || esAero(texto);
-  window.FKLugar = { montar, AERO, esAero, distKm, enAeropuerto };
+  window.FKLugar = { montar, AERO, esAero, distKm, enAeropuerto, ruta, TRAFICO };
 })();
