@@ -1,5 +1,9 @@
 # Cambios
 
+## 12 nov 2026 · Textos con tono ejecutivo en toda la página (pendiente de publicar)
+- Portada (español e inglés) y las 13 páginas por comuna reescritas con tono de servicio ejecutivo: traslado privado puerta a puerta, seguimiento de vuelo en tiempo real, datos del conductor y del vehículo con seguimiento en vivo, disponibilidad a toda hora, convenio para empresas con detalle por pasajero y centro de costo. Sin cambios de precios ni de reglas (peajes y TAG en la RM, estacionamiento solo durante la espera, mascotas en canil, sin sillas para niños).
+- Viajes a la costa: "Traslados ejecutivos a la costa · Santiago Oriente ↔ Viña del Mar y Valparaíso", auto ejecutivo $170.000 y van para grupos $240.000.
+
 ## 12 nov 2026 · Tarifa Sector Oriente ↔ Viña del Mar / Valparaíso (pendiente de publicar)
 - Nueva tarifa fija por tramo (ida o regreso), sin pasar por el aeropuerto: **auto $170.000**, **van $240.000**. Sector Oriente = Las Condes, Vitacura, Lo Barnechea, Providencia, La Reina y Ñuñoa (`FK_INTERURBANOS` en `assets/tarifas.js`).
 - Portada: sección "Viajes a la costa" con botones de WhatsApp; aparece en el buscador de tarifas al escribir Viña, Valparaíso u Oriente; mencionada en la pregunta frecuente. Página de Viña del Mar y Valparaíso: tabla nueva. Página en inglés: mencionada en la pregunta frecuente.
