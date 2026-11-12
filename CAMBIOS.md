@@ -1,5 +1,10 @@
 # Cambios
 
+## 12 nov 2026 · Tarifa Sector Oriente ↔ Viña del Mar / Valparaíso (pendiente de publicar)
+- Nueva tarifa fija por tramo (ida o regreso), sin pasar por el aeropuerto: **auto $170.000**, **van $240.000**. Sector Oriente = Las Condes, Vitacura, Lo Barnechea, Providencia, La Reina y Ñuñoa (`FK_INTERURBANOS` en `assets/tarifas.js`).
+- Portada: sección "Viajes a la costa" con botones de WhatsApp; aparece en el buscador de tarifas al escribir Viña, Valparaíso u Oriente; mencionada en la pregunta frecuente. Página de Viña del Mar y Valparaíso: tabla nueva. Página en inglés: mencionada en la pregunta frecuente.
+- Panel → Nueva reserva: si el origen y destino son Sector Oriente y Viña/Valparaíso (en cualquier sentido), sugiere y pone la tarifa (auto o van según el vehículo).
+
 ## 11 nov 2026 · Botón de la bolsa en Asignación (pendiente de publicar)
 - En la ficha, el botón **"📢 Enviar a la bolsa"** ahora aparece también en la sección **Asignación** (antes solo estaba al final de la ficha). Si la reserva está "por confirmar", se explica que primero hay que confirmarla.
 

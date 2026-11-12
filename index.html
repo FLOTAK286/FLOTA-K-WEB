@@ -271,6 +271,25 @@ footer .wrap { display: grid; gap: 14px; }
     </div>
   </section>
 
+  <section class="block" id="costa">
+    <div class="wrap">
+      <div class="roundtrip">
+        <div class="section-head" style="margin:0">
+          <p class="eyebrow">Viajes a la costa</p>
+          <h2>Sector Oriente de Santiago ↔ Viña del Mar y Valparaíso</h2>
+          <p class="muted">Viaje directo, sin pasar por el aeropuerto, con tarifa fija por tramo: de ida o de regreso, el mismo valor.</p>
+          <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:10px"><a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20reservar%20un%20viaje%20entre%20el%20Sector%20Oriente%20de%20Santiago%20y%20Vi%C3%B1a%20del%20Mar%20/%20Valpara%C3%ADso%20en%20auto%20%28%24170.000%29.%20Fecha%2C%20hora%20y%20direcci%C3%B3n%3A%20" target="_blank" rel="noopener">Reservar en auto por WhatsApp</a><a class="btn ghost" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20reservar%20un%20viaje%20entre%20el%20Sector%20Oriente%20de%20Santiago%20y%20Vi%C3%B1a%20del%20Mar%20/%20Valpara%C3%ADso%20en%20van%20%28%24240.000%29.%20Fecha%2C%20hora%2C%20direcci%C3%B3n%20y%20n%C3%BAmero%20de%20pasajeros%3A%20" target="_blank" rel="noopener">Reservar en van</a></div>
+        </div>
+        <div class="ticket" aria-label="Tarifas Sector Oriente a Viña del Mar y Valparaíso">
+          <span class="eyebrow">Tarifa fija por tramo</span>
+          <div class="leg"><span>Auto</span><b>$170.000</b></div>
+          <div class="leg"><span>Van</span><b>$240.000</b></div>
+          <span class="muted" style="font-family:var(--font-body);text-transform:none;font-size:.9rem">Las Condes, Vitacura, Lo Barnechea, Providencia, La Reina y Ñuñoa</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="block">
     <div class="wrap">
       <div class="roundtrip">
@@ -334,7 +353,7 @@ footer .wrap { display: grid; gap: 14px; }
         <details><summary>¿Llevan sillas para niños?</summary><p>No contamos con sillas para niños. Como servicio de taxi, la normativa no exige su uso.</p></details>
         <details><summary>¿Puedo viajar con mi mascota?</summary><p>Sí, siempre que viaje en su canil o jaula de transporte. Sin canil no podemos trasladarla.</p></details>
         <details><summary>¿Emiten factura?</summary><p>Sí. Para empresas, factura exenta mensual con convenio.</p></details>
-        <details><summary>¿Atienden fuera de Santiago?</summary><p>Sí, con tarifa fija a destinos como Valparaíso, Viña del Mar, Rancagua, Los Andes, San Felipe, Melipilla y Farellones. Búsquelos en el tarifario de arriba.</p></details>
+        <details><summary>¿Atienden fuera de Santiago?</summary><p>Sí, con tarifa fija a destinos como Valparaíso, Viña del Mar, Rancagua, Los Andes, San Felipe, Melipilla y Farellones. Búsquelos en el tarifario de arriba. Entre el Sector Oriente de Santiago y Viña del Mar o Valparaíso: $170.000 en auto y $240.000 en van, por tramo.</p></details>
       </div>
     </div>
   </section>
@@ -392,7 +411,21 @@ function waLink(name, price) {
 function render() {
   const term = norm(q.value.trim());
   const rows = term ? T.filter(r => norm(r[0]).includes(term)) : FEATURED.map(n => T.find(r => r[0] === n));
+  const costa = term.length >= 3 ? (window.FK_INTERURBANOS || []).filter(x => x.claves.some(k => term.includes(k) || k.includes(term))) : [];
   list.innerHTML = "";
+  for (const x of costa) {
+    const price = mode === "van" ? x.van : x.auto;
+    const li = document.createElement("li");
+    li.className = "row";
+    li.innerHTML = `<span class="place"></span><span class="fare">${fmt(price)}</span><a class="book" target="_blank" rel="noopener">Reservar este viaje por WhatsApp →</a>`;
+    li.querySelector(".place").append(document.createTextNode(x.nombre));
+    const route = document.createElement("span"); route.className = "route";
+    route.textContent = (mode === "van" ? "En van" : "En auto") + " · ida o regreso, sin pasar por el aeropuerto";
+    li.querySelector(".place").append(route);
+    li.querySelector("a.book").href = "https://wa.me/56922275399?text=" + encodeURIComponent(`Hola Flota-K, quiero reservar un viaje ${x.nombre} en ${mode === "van" ? "van" : "auto"} (${fmt(price)}). Fecha, hora y dirección: `);
+    list.appendChild(li);
+  }
+  if (!rows.length && costa.length) return;
   if (!rows.length) {
     const li = document.createElement("li");
     li.className = "empty";

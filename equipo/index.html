@@ -2258,6 +2258,20 @@ function sugerirPrecio() {
   const po = lugO.get(), pd = lugD.get(), to = $("n-origen").value, td = $("n-destino").value;
   const oA = FKLugar.enAeropuerto(po, to), dA = FKLugar.enAeropuerto(pd, td);
   if (oA === dA) {
+    // Viajes a la costa (sin aeropuerto): Sector Oriente ↔ Viña del Mar / Valparaíso
+    const claves = p => [...((p && p.comunas) || [])].map(norm);
+    const ladoO = [...claves(po), norm(to)], ladoD = [...claves(pd), norm(td)];
+    const esDe = (lado, lista) => lado.some(t => lista.some(c => t.includes(c)));
+    const viaje = !oA && (window.FK_INTERURBANOS || []).find(x => (esDe(ladoO, x.oriente) && esDe(ladoD, x.costa)) || (esDe(ladoO, x.costa) && esDe(ladoD, x.oriente)));
+    if (viaje) {
+      const van = $("n-veh").value === "van";
+      box.hidden = false;
+      box.innerHTML = `<b>🏖 ${esc(viaje.nombre)}</b> <span class="muted">(tarifa fija por tramo, ida o regreso)</span>
+        <div class="tf-fila"><span>Tarifa</span><button type="button" class="chip ${!van ? "tf-rec" : ""}" data-p="${viaje.auto}">Auto ${clp(viaje.auto)}</button><button type="button" class="chip ${van ? "tf-rec" : ""}" data-p="${viaje.van}">Van ${clp(viaje.van)}</button></div>`;
+      if (!$("n-precio").value) { $("n-precio").value = van ? viaje.van : viaje.auto; box.querySelector(".chip.tf-rec")?.classList.add("on"); }
+      box.querySelectorAll("[data-p]").forEach(b => b.addEventListener("click", () => { $("n-precio").value = b.dataset.p; box.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b)); }));
+      return;
+    }
     if (to.trim() && td.trim() && !oA && tipoSel.value !== "punto_a_punto") { box.hidden = false; box.innerHTML = '<span class="muted">El tarifario es para viajes desde o hacia el aeropuerto. Marque el aeropuerto como origen o destino (botón ✈), o defina el precio a mano.</span>'; }
     else box.hidden = true;
     return;

@@ -35,3 +35,12 @@ window.FK_TARIFAS = [
 ["Til Til",65000,67000,84000],["Valparaíso - Viña del Mar",130000,130000,168000],["Vitacura hasta Manquehue",34000,36000,46000],
 ["Vitacura hasta Tabancura",37000,39000,48000]
 ];
+
+// Viajes sin pasar por el aeropuerto (tarifa fija por tramo, de ida o de regreso). [nombre, auto, van]
+// "oriente" y "costa": comunas de cada extremo (para el precio sugerido del panel). "claves": búsquedas en la portada.
+window.FK_INTERURBANOS = [
+  { nombre: "Sector Oriente de Santiago ↔ Viña del Mar / Valparaíso", auto: 170000, van: 240000,
+    oriente: ["las condes", "vitacura", "lo barnechea", "providencia", "la reina", "nunoa"],
+    costa: ["vina del mar", "valparaiso"],
+    claves: ["vina", "valpara", "oriente", "costa", "playa"] }
+];
