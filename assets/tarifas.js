@@ -36,7 +36,7 @@ window.FK_TARIFAS = [
 ["Vitacura hasta Tabancura",37000,39000,48000]
 ];
 
-// Viajes sin pasar por el aeropuerto (tarifa fija por tramo, de ida o de regreso). [nombre, auto, van]
+// Traslados directos fuera del aeropuerto (tarifa fija por tramo, de ida o de regreso). [nombre, auto, van]
 // "oriente" y "costa": comunas de cada extremo (para el precio sugerido del panel). "claves": búsquedas en la portada.
 window.FK_INTERURBANOS = [
   { nombre: "Sector Oriente de Santiago ↔ Viña del Mar / Valparaíso", auto: 170000, van: 240000,
