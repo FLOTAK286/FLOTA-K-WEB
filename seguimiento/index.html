@@ -88,7 +88,7 @@ async function cargar() {
     ${pasos}
     ${!["finalizada", "cancelada"].includes(r.o_estado) ? '<div class="actions"><button class="btn ghost sm" type="button" id="ics">📅 Agregar a mi calendario</button><button class="btn ghost sm" type="button" id="compartir">🔗 Compartir mi viaje</button></div>' : ""}
     ${r.o_estado === "finalizada" || r.o_tipo_servicio === "ida" ? `<div class="actions"><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/56922275399?text=${encodeURIComponent(`Hola Flota-K, quiero reservar mi regreso (reserva ${r.o_codigo}): desde ${r.o_destino} a ${r.o_origen}. Fecha y hora: `)}">↩ Reservar mi regreso</a></div>` : ""}
-    <p class="small" style="margin:0"><a href="/app/#viajes" style="color:var(--gold)">🧳 Ver todos mis viajes y reservar en la app Flota-K →</a></p>
+    <p class="small" style="margin:0"><a href="/app/#viajes" style="color:var(--gold)">🧳 Ver todos mis viajes →</a></p>
     <p class="muted small">${enCurso ? "La ubicación se actualiza sola cada 15 segundos." : "Esta página se actualiza sola cada minuto. Cuando su conductor vaya en camino, aquí verá su ubicación en el mapa."}</p>`;
   $("ics")?.addEventListener("click", calendario);
   $("compartir")?.addEventListener("click", async () => {

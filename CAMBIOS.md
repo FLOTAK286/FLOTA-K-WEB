@@ -1,5 +1,10 @@
 # Cambios
 
+## 13 nov 2026 · Reserva en línea pausada y apps Android del pasajero y de operaciones
+- A pedido del dueño: se quitó "Reservar en línea" de la portada; la app del pasajero (/app) queda solo con "Mis viajes" y "Contacto" (constante `RESERVA_EN_LINEA = false`). Las reservas las crea el equipo.
+- Base de datos (etapa 27b): sin permiso para usar `crear_reserva_app` hasta que se active.
+- Apps Android (.apk) "Flota-K Operaciones" (abre /equipo) y "Flota-K" del pasajero (abre /app), armadas con el mismo proyecto de la app del conductor (workflow `app-android-otras.yml`, releases `operaciones-android` y `pasajero-android`).
+
 ## 13 nov 2026 · App del pasajero y app de operaciones (pendiente de publicar)
 - **App del pasajero** en `fk-servicios.com/app` (se instala en el teléfono desde el navegador, Android y iPhone, gratis):
   - Reservar: ida, regreso, ida y vuelta (regreso al valor de la ida) u otro trayecto; sector con tarifa fija; dirección con punto obligatorio en el mapa; auto o van; datos del pasajero recordados en el teléfono.

@@ -1,0 +1,92 @@
+# Arma las apps Android del pasajero y de operaciones (archivos .apk), a partir del mismo proyecto
+# de la app del conductor (carpeta app-android), cambiando nombre, identificador y página que abren.
+# No toca la app del conductor. Con la llave de firma (FK_KEYSTORE_B64 / FK_KEYSTORE_PASS) usa la firma oficial.
+name: Apps Android del pasajero y de operaciones
+on:
+  push:
+    paths: [".github/workflows/app-android-otras.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: operaciones
+            appId: cl.fkservicios.operaciones
+            nombre: "Flota-K Operaciones"
+            url: "https://fk-servicios.com/equipo/"
+            tag: operaciones-android
+            archivo: flota-k-operaciones.apk
+            titulo: "App Flota-K Operaciones (Android)"
+            texto: "App del equipo de Flota-K (despacho, reservas, mapa). Entre con su correo y contraseña."
+          - id: pasajero
+            appId: cl.fkservicios.pasajero
+            nombre: "Flota-K"
+            url: "https://fk-servicios.com/app/"
+            tag: pasajero-android
+            archivo: flota-k-pasajero.apk
+            titulo: "App Flota-K Pasajero (Android)"
+            texto: "App del pasajero de Flota-K: sus viajes, el conductor asignado y el seguimiento en vivo."
+    defaults:
+      run:
+        working-directory: app-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "17" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - name: Cambiar nombre, identificador y página
+        env:
+          APPID: ${{ matrix.appId }}
+          NOMBRE: ${{ matrix.nombre }}
+          URL: ${{ matrix.url }}
+        run: |
+          node -e '
+            const fs = require("fs"), e = process.env;
+            const c = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
+            c.appId = e.APPID; c.appName = e.NOMBRE; c.server.url = e.URL;
+            fs.writeFileSync("capacitor.config.json", JSON.stringify(c, null, 2));
+            for (const f of ["www/index.html", "www/sin-conexion.html"])
+              fs.writeFileSync(f, fs.readFileSync(f, "utf8").split("https://fk-servicios.com/conductor/").join(e.URL).split("Flota-K Conductor").join(e.NOMBRE));
+            const g = "android/app/build.gradle";
+            fs.writeFileSync(g, fs.readFileSync(g, "utf8").replace(/applicationId "[^"]+"/, `applicationId "${e.APPID}"`));
+            const s = "android/app/src/main/res/values/strings.xml";
+            fs.writeFileSync(s, fs.readFileSync(s, "utf8")
+              .replace(/<string name="app_name">[^<]*<\/string>/, `<string name="app_name">${e.NOMBRE}</string>`)
+              .replace(/<string name="title_activity_main">[^<]*<\/string>/, `<string name="title_activity_main">${e.NOMBRE}</string>`));
+          '
+          grep -n "applicationId" android/app/build.gradle
+          grep -n "app_name" android/app/src/main/res/values/strings.xml
+          cat capacitor.config.json
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Compilar
+        env:
+          FK_KEYSTORE_B64: ${{ secrets.FK_KEYSTORE_B64 }}
+          FK_KEYSTORE_PASS: ${{ secrets.FK_KEYSTORE_PASS }}
+        run: |
+          cd android && chmod +x gradlew
+          if [ -n "$FK_KEYSTORE_B64" ]; then
+            echo "$FK_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/flotak.jks"
+            FK_KEYSTORE="$RUNNER_TEMP/flotak.jks" ./gradlew assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk "../${{ matrix.archivo }}"
+          else
+            echo "::warning::Sin llave de firma: firma temporal. Al agregar la llave habrá que reinstalar una vez."
+            ./gradlew assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk "../${{ matrix.archivo }}"
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.tag }}
+          name: ${{ matrix.titulo }}
+          make_latest: false
+          body: |
+            ${{ matrix.texto }}
+            Descargue ${{ matrix.archivo }} desde el teléfono y ábralo para instalar (permita "instalar apps de esta fuente" si el teléfono lo pide).
+            Armado ${{ github.run_number }} · ${{ github.sha }}
+          files: app-android/${{ matrix.archivo }}

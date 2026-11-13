@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Flota-K | Reserve su traslado</title>
-<meta name="description" content="App del pasajero de Flota-K: reserve su traslado al aeropuerto con tarifa fija y siga sus viajes en vivo.">
+<title>Flota-K | Mis viajes</title>
+<meta name="description" content="App del pasajero de Flota-K: siga sus traslados en vivo.">
 <meta name="theme-color" content="#0d0f12">
 <link rel="manifest" href="/app/manifest.webmanifest">
 <link rel="icon" href="/assets/img/icono-192.png">
@@ -49,7 +49,7 @@
   <!-- Aviso para instalar la app en el teléfono -->
   <section class="panel instalar" id="instalar" hidden>
     <b>📲 Instale la app Flota-K en su teléfono</b>
-    <p class="small muted" id="instalar-txt" style="margin:0">Quedará en su pantalla de inicio, como cualquier app, para reservar y seguir sus viajes en segundos.</p>
+    <p class="small muted" id="instalar-txt" style="margin:0">Quedará en su pantalla de inicio, como cualquier app, para seguir sus viajes en segundos.</p>
     <div class="actions"><button class="btn sm" type="button" id="instalar-si" hidden>Instalar</button><button class="btn ghost sm" type="button" id="instalar-no">Ahora no</button></div>
   </section>
 
@@ -200,6 +200,9 @@
 <script src="/assets/lugar.js"></script>
 <script src="/assets/pasajero.js"></script>
 <script>
+// Reserva en línea desactivada por ahora: las reservas las crea el equipo (WhatsApp, teléfono o panel).
+// Para activarla: true (y volver a dar permiso a crear_reserva_app en la base de datos).
+const RESERVA_EN_LINEA = false;
 const { sb, esc, clp, fecha, pill, errText } = FK;
 const $ = id => document.getElementById(id);
 const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
@@ -209,7 +212,7 @@ const leer = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); re
 
 // ---------- Navegación ----------
 function ver(v) {
-  ["reservar", "viajes", "contacto"].forEach(x => $("v-" + x).hidden = x !== v);
+  ["reservar", "viajes", "contacto"].forEach(x => { const el = $("v-" + x); if (el) el.hidden = x !== v; });
   $("v-ok").hidden = true;
   document.querySelectorAll(".px-nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   if (v === "viajes") pintarViajes();
@@ -354,7 +357,7 @@ $("ok-otra").addEventListener("click", () => ver("reservar"));
 async function pintarViajes() {
   const lista = $("lista"), guardados = FKPasajero.lista();
   if (!guardados.length) {
-    lista.innerHTML = `<div class="panel vacio"><p style="margin:0">Aún no hay viajes en este teléfono.</p><button class="btn" type="button" onclick="ver('reservar')">Reservar un traslado</button></div>`;
+    lista.innerHTML = `<div class="panel vacio"><p style="margin:0">Aún no hay viajes en este teléfono.</p><p class="small muted" style="margin:0">Cuando reserve con nosotros, abra el enlace de seguimiento que le enviamos y su viaje aparecerá aquí.</p><a class="btn" href="https://wa.me/56922275399?text=${encodeURIComponent("Hola Flota-K, quiero reservar un traslado. Origen, destino, fecha y hora: ")}" target="_blank" rel="noopener">Reservar por WhatsApp</a></div>`;
     return;
   }
   lista.innerHTML = '<p class="muted">Cargando…</p>';
@@ -402,7 +405,12 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/app/sw.js")
 // Inicio
 ajustar();
 const h = location.hash.slice(1);
-if (["viajes", "contacto"].includes(h)) ver(h);
+if (!RESERVA_EN_LINEA) {
+  document.querySelector('.px-nav [data-v="reservar"]').remove();
+  document.querySelector(".px-nav").style.gridTemplateColumns = "1fr 1fr";
+  $("v-reservar").remove();
+  ver(h === "contacto" ? "contacto" : "viajes");
+} else if (["viajes", "contacto"].includes(h)) ver(h);
 </script>
 </body>
 </html>
