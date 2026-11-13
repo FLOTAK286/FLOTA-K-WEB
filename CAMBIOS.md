@@ -1,5 +1,14 @@
 # Cambios
 
+## 13 nov 2026 · App del pasajero y app de operaciones (pendiente de publicar)
+- **App del pasajero** en `fk-servicios.com/app` (se instala en el teléfono desde el navegador, Android y iPhone, gratis):
+  - Reservar: ida, regreso, ida y vuelta (regreso al valor de la ida) u otro trayecto; sector con tarifa fija; dirección con punto obligatorio en el mapa; auto o van; datos del pasajero recordados en el teléfono.
+  - Mis viajes: los viajes quedan guardados en el teléfono (sin cuenta ni contraseña), con estado, conductor y vehículo, y enlace al seguimiento en vivo. Al abrir un enlace de seguimiento, el viaje también se agrega.
+  - Contacto e incluidos. Mínimo 2 horas de anticipación (antes, por WhatsApp).
+  - Base de datos: `crear_reserva_app` (etapa 27) guarda las coordenadas, canal `app`, máximo 6 solicitudes por teléfono por hora.
+- **App Flota-K Operaciones**: el panel `/equipo` se puede instalar como app (teléfono o computador), con accesos directos a Nueva reserva, Reservas y Mapa.
+- Portada: enlaces "Reservar en línea" a la app.
+
 ## 12 nov 2026 · Textos con tono ejecutivo en toda la página (pendiente de publicar)
 - Portada (español e inglés) y las 13 páginas por comuna reescritas con tono de servicio ejecutivo: traslado privado puerta a puerta, seguimiento de vuelo en tiempo real, datos del conductor y del vehículo con seguimiento en vivo, disponibilidad a toda hora, convenio para empresas con detalle por pasajero y centro de costo. Sin cambios de precios ni de reglas (peajes y TAG en la RM, estacionamiento solo durante la espera, mascotas en canil, sin sillas para niños).
 - Viajes a la costa: "Traslados ejecutivos a la costa · Santiago Oriente ↔ Viña del Mar y Valparaíso", auto ejecutivo $170.000 y van para grupos $240.000.

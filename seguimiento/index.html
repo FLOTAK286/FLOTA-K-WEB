@@ -41,6 +41,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/chat.js"></script>
+<script src="/assets/pasajero.js"></script>
 <script>
 const { sb, esc, fecha, pill, ESTADOS } = FK;
 const box = document.getElementById("box");
@@ -55,6 +56,7 @@ async function cargar() {
   const { data, error } = await sb.rpc("ver_reserva_publica_v2", { p_token: token });
   if (error || !data || !data.length) { box.innerHTML = '<p class="msg err">No encontramos esta reserva. Revise el enlace o escríbanos por WhatsApp.</p>'; return; }
   const r = data[0]; reserva = r;
+  FKPasajero.agregar(token, r.o_codigo); // queda en "Mis viajes" de la app del pasajero en este teléfono
   const cambio = r.o_estado !== estado; estado = r.o_estado;
   if (!cambio && $("ub-box")) { return; } // mismo estado: solo se refresca la ubicación
   const i = ORDEN.indexOf(r.o_estado);
@@ -86,6 +88,7 @@ async function cargar() {
     ${pasos}
     ${!["finalizada", "cancelada"].includes(r.o_estado) ? '<div class="actions"><button class="btn ghost sm" type="button" id="ics">📅 Agregar a mi calendario</button><button class="btn ghost sm" type="button" id="compartir">🔗 Compartir mi viaje</button></div>' : ""}
     ${r.o_estado === "finalizada" || r.o_tipo_servicio === "ida" ? `<div class="actions"><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/56922275399?text=${encodeURIComponent(`Hola Flota-K, quiero reservar mi regreso (reserva ${r.o_codigo}): desde ${r.o_destino} a ${r.o_origen}. Fecha y hora: `)}">↩ Reservar mi regreso</a></div>` : ""}
+    <p class="small" style="margin:0"><a href="/app/#viajes" style="color:var(--gold)">🧳 Ver todos mis viajes y reservar en la app Flota-K →</a></p>
     <p class="muted small">${enCurso ? "La ubicación se actualiza sola cada 15 segundos." : "Esta página se actualiza sola cada minuto. Cuando su conductor vaya en camino, aquí verá su ubicación en el mapa."}</p>`;
   $("ics")?.addEventListener("click", calendario);
   $("compartir")?.addEventListener("click", async () => {

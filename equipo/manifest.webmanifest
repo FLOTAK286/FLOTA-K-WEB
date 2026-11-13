@@ -1,0 +1,21 @@
+{
+  "name": "Flota-K Operaciones",
+  "short_name": "FK Operaciones",
+  "description": "Despacho y reservas de Flota-K para el equipo.",
+  "lang": "es-CL",
+  "id": "/equipo/",
+  "start_url": "/equipo/",
+  "scope": "/equipo/",
+  "display": "standalone",
+  "background_color": "#0d0f12",
+  "theme_color": "#0d0f12",
+  "icons": [
+    { "src": "/assets/img/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/assets/img/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nueva reserva", "url": "/equipo/#nueva" },
+    { "name": "Reservas", "url": "/equipo/#reservas" },
+    { "name": "Mapa en vivo", "url": "/equipo/#mapa" }
+  ]
+}
