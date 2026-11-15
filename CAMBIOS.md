@@ -1,6 +1,7 @@
 # Cambios
 
-## 15 nov 2026 · Portal de empresas: vista app (pasajero y encargado) y vista computador (pendiente de publicar)
+## 15 nov 2026 · Portal de empresas: vista app (pasajero y encargado) y vista computador 
+- **"Acceso clientes"** de la portada (español e inglés) ahora lleva al portal de empresas `/empresa/`: solo cuentas registradas por Flota-K, sin registro abierto. `/cuenta/` queda sin enlace.
 - **Celular (app):** barra de navegación abajo, como app. El pasajero autorizado ve solo "Agendar" y "Mis viajes" con su presupuesto; el encargado ve además "Personas" y "Facturación". Encabezado compacto (🔑 contraseña, ⏻ salir). Las personas con acceso se muestran como tarjetas (antes la tabla no cabía).
 - **Computador:** menú lateral, agendar en dos columnas (formulario y resumen con precio y botón fijo a la derecha), viajes en dos columnas, tabla de personas completa.
 - **Instalable:** `/empresa/` se puede instalar como app "FK Empresas" desde el navegador (manifest y `empresa/sw.js`).
