@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Portal de empresas | Flota-K</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0d0f12">
+<link rel="icon" href="/assets/img/icono-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  .pe { max-width: 900px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  .pe h1 { font-family: var(--font-display); margin: 0; font-size: 1.9rem; line-height: 1.1; }
+  .pe input, .pe select, .pe textarea { min-height: 44px; font-size: 16px; }
+  .hab { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .hab button { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--fg); font: inherit; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; }
+  .hab button.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+  .hab b { font-family: var(--font-display); font-size: 1.15rem; }
+  .hab .p { color: var(--gold); font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; }
+  .barra { height: 10px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+  .barra i { display: block; height: 100%; background: var(--gold); }
+  .barra.alta i { background: #e5533d; }
+  .precio { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border: 1px solid var(--gold); border-radius: 6px; padding: 12px 14px; }
+  .precio b { font-family: var(--font-display); font-size: 1.7rem; color: var(--gold); }
+  .zona-sug { display: grid; border: 1px solid var(--line); border-radius: 6px; max-height: 240px; overflow: auto; background: var(--panel); }
+  .zona-sug button { text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--fg); font: inherit; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+  .aviso { border-left: 4px solid #e0a43a; padding: 8px 12px; background: var(--bg); border-radius: 4px; }
+  .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .tabs button { white-space: nowrap; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="brand" href="/empresa/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EMPRESAS</small></a>
+  <div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="pw-open" type="button">Contraseña</button><button class="btn ghost sm" id="salir" type="button">Salir</button></div></div></header>
+
+<main class="pe app">
+  <!-- Ingreso -->
+  <section class="panel" id="login" hidden>
+    <h2>Portal de empresas</h2>
+    <p class="muted" style="margin:0">Ingrese con el correo y la contraseña que le entregamos.</p>
+    <form id="login-f" class="f" novalidate>
+      <label for="l-mail">Correo</label><input id="l-mail" type="email" autocomplete="username" required>
+      <label for="l-pass" style="margin-top:6px">Contraseña</label><input id="l-pass" type="password" autocomplete="current-password" required>
+      <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
+    </form>
+    <div id="login-msg" class="msg" hidden></div>
+    <p class="small muted" style="margin:0">¿Olvidó su contraseña? Pídale una nueva al encargado de convenio de su empresa, o escríbanos por WhatsApp al +56 9 2227 5399.</p>
+  </section>
+
+  <!-- Sin acceso -->
+  <section class="panel" id="sinacceso" hidden>
+    <h2>Su usuario no tiene acceso al portal de empresas</h2>
+    <p class="muted" style="margin:0">Si cree que es un error, pídale acceso al encargado de convenio de su empresa o escríbanos por WhatsApp al +56 9 2227 5399.</p>
+  </section>
+
+  <!-- Cambio de contraseña (obligatorio la primera vez) -->
+  <section class="panel" id="pw" hidden>
+    <h2 id="pw-tit">Cree su contraseña</h2>
+    <p class="muted" style="margin:0" id="pw-help">Por seguridad, reemplace la contraseña provisoria por una suya.</p>
+    <form id="pw-f" class="f" novalidate>
+      <label for="pw-1">Nueva contraseña (mínimo 8 caracteres)</label><input id="pw-1" type="password" autocomplete="new-password">
+      <label for="pw-2" style="margin-top:6px">Repítala</label><input id="pw-2" type="password" autocomplete="new-password">
+      <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Guardar contraseña</button><button class="btn ghost" type="button" id="pw-cancel" hidden>Cancelar</button></div>
+    </form>
+    <div id="pw-msg" class="msg" hidden></div>
+  </section>
+
+  <!-- Portal -->
+  <section id="app" hidden>
+    <div style="display:grid;gap:14px">
+      <div>
+        <p class="eyebrow" style="margin:0" id="h-rol"></p>
+        <h1 id="h-emp"></h1>
+        <div id="h-pres" class="small" style="margin-top:8px"></div>
+      </div>
+      <div id="pend" class="panel aviso" hidden></div>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-t="agendar" aria-selected="true">Agendar</button>
+        <button role="tab" data-t="viajes" aria-selected="false">Viajes</button>
+        <button role="tab" data-t="equipo" aria-selected="false" class="enc">Presupuesto y personas</button>
+        <button role="tab" data-t="fact" aria-selected="false" class="enc">Facturación</button>
+      </nav>
+
+      <!-- AGENDAR -->
+      <div data-p="agendar" class="panel">
+        <h2>Agendar un traslado</h2>
+        <div class="f enc" id="b-para"><label for="para">Pasajero</label><select id="para"></select></div>
+        <div class="chips" id="modo"><button type="button" class="chip on" data-m="hab">Servicio habitual</button><button type="button" class="chip" data-m="otro">Otro traslado</button></div>
+        <div id="b-hab">
+          <label class="small muted" style="font-weight:600">Servicios habituales de su empresa (tarifa fija)</label>
+          <div class="hab" id="hab"></div>
+        </div>
+
+        <div id="b-otro" hidden style="display:grid;gap:12px">
+          <div class="f"><label>Tipo de traslado</label>
+            <div class="chips" id="tipo"><button type="button" class="chip on" data-t="ida">Ida al aeropuerto</button><button type="button" class="chip" data-t="regreso">Regreso del aeropuerto</button><button type="button" class="chip" data-t="punto_a_punto">Otro trayecto</button></div></div>
+          <div class="f"><label>Vehículo</label>
+            <div class="chips" id="veh"><button type="button" class="chip on" data-v="auto">Auto ejecutivo (hasta 4)</button><button type="button" class="chip" data-v="van">Van</button></div></div>
+          <div class="f" id="b-zona"><label for="zona">Sector (para la tarifa fija)</label><input id="zona" autocomplete="off" placeholder="Escriba la comuna, por ejemplo: Las Condes"><div class="zona-sug" id="zona-sug" hidden></div></div>
+          <div class="f lugar-f"><label for="dom" id="dom-l">Dirección de retiro</label><input id="dom" placeholder="Calle y número, o nombre del lugar"></div>
+          <div class="f lugar-f" id="b-dest" hidden><label for="dest">Destino</label><input id="dest" placeholder="Calle y número, o nombre del lugar"></div>
+          <div class="f" id="b-det"><label for="det">Detalle del retiro (opcional)</label><input id="det" maxlength="200" placeholder="Piso, oficina, portería"></div>
+        </div>
+
+        <div class="row3">
+          <div class="f"><label for="fh" id="fh-l">Fecha y hora de retiro</label><input id="fh" type="datetime-local"></div>
+          <div class="f" id="b-vuelo"><label for="vuelo">N.º de vuelo (opcional)</label><input id="vuelo" maxlength="12" placeholder="LA 123" autocapitalize="characters"></div>
+          <div class="f" id="b-cc"><label for="cc">Centro de costo</label><select id="cc"></select></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="pax">Pasajeros</label><input id="pax" type="number" min="1" max="15" value="1" inputmode="numeric"></div>
+          <div class="f"><label for="mal">Maletas</label><input id="mal" type="number" min="0" max="30" value="1" inputmode="numeric"></div>
+          <div class="f"><label for="com">Comentarios (opcional)</label><input id="com" maxlength="500" placeholder="Indicaciones para el conductor"></div>
+        </div>
+        <div class="precio"><span class="muted" id="precio-l">Elija un servicio</span><b id="precio-v">—</b></div>
+        <div id="a-pres" class="small"></div>
+        <div id="a-msg" class="msg" hidden></div>
+        <div class="actions"><button class="btn" type="button" id="agendar">Agendar traslado</button></div>
+        <p class="small muted" style="margin:0">Le confirmamos cada servicio. Para traslados en menos de 1 hora, escríbanos por WhatsApp al +56 9 2227 5399.</p>
+      </div>
+
+      <!-- VIAJES -->
+      <div data-p="viajes" class="panel" hidden>
+        <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Viajes</h2><button class="btn ghost sm" type="button" id="v-ref">↻ Actualizar</button></div>
+        <div id="v-lista" class="list"></div>
+      </div>
+
+      <!-- PRESUPUESTO Y PERSONAS (encargado) -->
+      <div data-p="equipo" class="panel" hidden>
+        <h2>Presupuesto mensual de la empresa</h2>
+        <div id="e-gasto" class="small"></div>
+        <div class="row3">
+          <div class="f"><label for="e-monto">Presupuesto mensual ($)</label><input id="e-monto" type="number" min="0" step="1000" inputmode="numeric" placeholder="Vacío = sin límite"></div>
+          <div class="f" style="grid-column:span 2"><label>Al superar el presupuesto (de la empresa o de una persona)</label>
+            <div class="chips" id="e-modo"><button type="button" class="chip" data-m="alerta">Avisar y permitir la reserva</button><button type="button" class="chip" data-m="bloqueo">Bloquear la reserva</button></div></div>
+        </div>
+        <div class="actions"><button class="btn" type="button" id="e-save">Guardar presupuesto</button></div>
+        <div id="e-msg" class="msg" hidden></div>
+
+        <h2 style="margin-top:10px">Personas con acceso</h2>
+        <p class="small muted" style="margin:0">Fije un presupuesto mensual por persona (vacío = sin límite propio). Los encargados de convenio ven todos los viajes, el presupuesto y la facturación.</p>
+        <div class="tblwrap"><table class="tbl"><thead><tr><th>Persona</th><th>Rol</th><th>Presupuesto mensual</th><th>Gastado este mes</th><th>Acceso</th><th></th></tr></thead><tbody id="e-tbody"></tbody></table></div>
+        <div id="u-msg" class="msg" hidden></div>
+        <h3 style="margin:10px 0 0">Agregar persona</h3>
+        <form id="u-f" class="row3" novalidate style="align-items:end">
+          <div class="f"><label for="u-nom">Nombre</label><input id="u-nom" maxlength="200"></div>
+          <div class="f"><label for="u-mail">Correo (será su usuario)</label><input id="u-mail" type="email" maxlength="200"></div>
+          <div class="f"><label for="u-tel">Teléfono</label><input id="u-tel" type="tel" maxlength="30" placeholder="+56 9 ..."></div>
+          <div class="f"><label for="u-rol">Rol</label><select id="u-rol"><option value="pasajero">Pasajero autorizado</option><option value="encargado">Encargado de convenio</option></select></div>
+          <div class="f"><label for="u-pres">Presupuesto mensual ($, opcional)</label><input id="u-pres" type="number" min="0" step="1000" inputmode="numeric"></div>
+          <div class="f"><button class="btn" type="submit">Dar acceso</button></div>
+        </form>
+        <div id="u-datos" class="confirm" hidden></div>
+      </div>
+
+      <!-- FACTURACIÓN (encargado) -->
+      <div data-p="fact" class="panel" hidden>
+        <h2 id="f-tit">Datos de facturación</h2>
+        <p class="small muted" style="margin:0" id="f-help">Con estos datos emitimos la factura mensual de su empresa.</p>
+        <form id="f-f" novalidate style="display:grid;gap:12px">
+          <div class="row2"><div class="f"><label for="f-rs">Razón social</label><input id="f-rs" maxlength="200"></div><div class="f"><label for="f-rut">RUT</label><input id="f-rut" maxlength="12" placeholder="76.123.456-7"></div></div>
+          <div class="row2"><div class="f"><label for="f-giro">Giro</label><input id="f-giro" maxlength="200"></div><div class="f"><label for="f-com">Comuna</label><input id="f-com" maxlength="100"></div></div>
+          <div class="f"><label for="f-dir">Dirección comercial</label><input id="f-dir" maxlength="300"></div>
+          <h3 style="margin:4px 0 0">Encargado de facturación</h3>
+          <div class="row3"><div class="f"><label for="f-fn">Nombre</label><input id="f-fn" maxlength="200"></div><div class="f"><label for="f-fc">Correo donde enviamos las facturas</label><input id="f-fc" type="email" maxlength="200"></div><div class="f"><label for="f-ft">Teléfono</label><input id="f-ft" type="tel" maxlength="30"></div></div>
+          <label class="chk"><input type="checkbox" id="f-oc"> Para pagar, nuestra empresa necesita orden de compra, HES u otro documento</label>
+          <div class="f" id="b-oc" hidden><label for="f-ocd">¿Qué documento y cómo se lo pedimos?</label><input id="f-ocd" maxlength="500" placeholder="Ej: orden de compra mensual, solicitarla a compras@empresa.cl"></div>
+          <div class="f"><label for="f-cc">Centros de costo (opcional, uno por línea)</label><textarea id="f-cc" rows="3" placeholder="Ej:&#10;Gerencia&#10;Operaciones"></textarea></div>
+          <p class="small muted" style="margin:0" id="f-pago"></p>
+          <div class="actions"><button class="btn" type="submit">Guardar datos de facturación</button></div>
+          <div id="f-msg" class="msg" hidden></div>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/vendor/supabase-2.45.4.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/assets/mapa.js"></script>
+<script src="/assets/tarifas.js"></script>
+<script src="/assets/lugar.js"></script>
+<script>
+const { sb, esc, clp, fecha, pill, errText } = FK;
+const $ = id => document.getElementById(id);
+const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
+const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const ROL = { encargado: "Encargado de convenio", pasajero: "Pasajero autorizado" };
+const VEH = { auto: "Auto", suv: "SUV", van: "Van" };
+function msg(id, t, k) { const m = $(id); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
+async function errFuncion(error) { try { const j = await error.context.json(); return j.error || errText(error); } catch (_) { return errText(error); } }
+const claveProvisoria = () => { const a = "abcdefghjkmnpqrstuvwxyz", d = "23456789", x = new Uint32Array(8); crypto.getRandomValues(x); return "Flotak-" + [...x].map((n, i) => i < 4 ? a[n % a.length] : d[n % d.length]).join(""); };
+const mostrar = id => ["login", "sinacceso", "pw", "app"].forEach(x => $(x).hidden = x !== id);
+
+let D = null, sesion = null, cuentaId = null;
+
+// ---------- Ingreso ----------
+$("login-f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const correo = $("l-mail").value.trim().toLowerCase(), clave = $("l-pass").value;
+  if (!correo || !clave) return msg("login-msg", "Escriba su correo y contraseña.", "err");
+  msg("login-msg", "Ingresando…");
+  const { error } = await sb.auth.signInWithPassword({ email: correo, password: clave });
+  if (error) return msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
+  $("login-msg").hidden = true;
+});
+$("salir").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+
+async function iniciar(session) {
+  sesion = session;
+  const { data, error } = await sb.rpc("convenio_inicio");
+  if (error || !data) { mostrar("sinacceso"); $("userbar").hidden = false; $("who").textContent = session.user.email; $("pw-open").hidden = true; return; }
+  D = data;
+  const { data: mia } = await sb.from("convenio_usuarios").select("cuenta_id").eq("user_id", session.user.id).maybeSingle();
+  cuentaId = mia && mia.cuenta_id;
+  $("userbar").hidden = false; $("who").textContent = D.yo.nombre;
+  if (!D.yo.clave_cambiada) return abrirPw(true);
+  pintar();
+}
+
+// ---------- Contraseña ----------
+function abrirPw(obligatoria) {
+  mostrar("pw");
+  $("pw-tit").textContent = obligatoria ? "Cree su contraseña" : "Cambiar contraseña";
+  $("pw-help").textContent = obligatoria ? "Bienvenido. Por seguridad, reemplace la contraseña provisoria por una suya." : "Escriba su nueva contraseña.";
+  $("pw-cancel").hidden = obligatoria; $("pw-f").reset(); $("pw-msg").hidden = true;
+}
+$("pw-open").addEventListener("click", () => abrirPw(false));
+$("pw-cancel").addEventListener("click", () => pintar());
+$("pw-f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const a = $("pw-1").value, b = $("pw-2").value;
+  if (a.length < 8) return msg("pw-msg", "La contraseña debe tener al menos 8 caracteres.", "err");
+  if (a !== b) return msg("pw-msg", "Las contraseñas no coinciden.", "err");
+  msg("pw-msg", "Guardando…");
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) return msg("pw-msg", /different|same/i.test(error.message) ? "La nueva contraseña debe ser distinta de la anterior." : errText(error), "err");
+  await sb.rpc("convenio_clave_cambiada");
+  D.yo.clave_cambiada = true; pintar();
+});
+
+// ---------- Portal ----------
+const enc = () => D.yo.rol === "encargado";
+function barra(gasto, tope) {
+  if (tope == null) return `Gastado este mes: <b>${clp(gasto || 0)}</b> <span class="muted">(sin límite)</span>`;
+  const pct = tope > 0 ? Math.min(100, Math.round(gasto / tope * 100)) : 100;
+  return `Gastado este mes: <b>${clp(gasto || 0)}</b> de <b>${clp(tope)}</b> (${pct}%)<div class="barra ${pct >= 80 ? "alta" : ""}" style="margin-top:4px"><i style="width:${pct}%"></i></div>`;
+}
+function pintar() {
+  mostrar("app");
+  const e = D.empresa;
+  $("h-rol").textContent = ROL[D.yo.rol];
+  $("h-emp").textContent = e.razon_social || "Su empresa";
+  document.querySelectorAll(".enc").forEach(x => x.hidden = !enc());
+  // Presupuesto en el encabezado
+  const partes = [];
+  if (enc()) partes.push(`<b>Empresa:</b> ${barra(e.gasto_mes, e.presupuesto)}`);
+  if (D.yo.presupuesto != null) partes.push(`<b>Su presupuesto:</b> ${barra(D.yo.gasto_mes, D.yo.presupuesto)}`);
+  $("h-pres").innerHTML = partes.join('<div style="height:8px"></div>');
+  // Facturación pendiente
+  if (!e.datos_completos) {
+    $("pend").hidden = false;
+    $("pend").innerHTML = enc() ? "<b>Antes de agendar, complete los datos de facturación de su empresa.</b> Es una sola vez y toma un par de minutos."
+      : "<b>Su empresa aún está completando sus datos de facturación.</b> Cuando el encargado de convenio los complete, podrá agendar aquí.";
+    if (enc()) { ir("fact"); pintarFact(); return; }
+  } else $("pend").hidden = true;
+  prepararAgendar();
+  if (enc()) { pintarEquipo(); pintarFact(); }
+  ir(location.hash === "#viajes" ? "viajes" : "agendar");
+}
+function ir(t) {
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.t === t)));
+  document.querySelectorAll("[data-p]").forEach(p => p.hidden = p.dataset.p !== t);
+  if (t === "viajes") cargarViajes();
+}
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  if (!D.empresa.datos_completos && b.dataset.t !== "fact" && enc()) { msg("f-msg", "Primero complete y guarde los datos de facturación.", "err"); return; }
+  ir(b.dataset.t);
+}));
+
+// ---------- Agendar ----------
+let modo = "hab", habSel = null, tipo = "ida", veh = "auto", zona = null, lugDom = null, lugDest = null;
+function prepararAgendar() {
+  // Para quién
+  const per = enc() ? (D.equipo || []).filter(u => u.activo) : [];
+  $("para").innerHTML = [`<option value="">${esc(D.yo.nombre)} (yo)</option>`, ...per.filter(u => u.id !== D.yo.id).map(u => `<option value="${esc(u.id)}">${esc(u.nombre)}</option>`)].join("");
+  // Habituales
+  const hs = D.habituales || [];
+  $("hab").innerHTML = hs.length ? hs.map(h => `<button type="button" data-h="${esc(h.id)}"><b>${esc(h.nombre)}</b><span class="small muted">${esc(h.origen)} → ${esc(h.destino)}</span><span class="small">${VEH[h.vehiculo] || "Auto"}</span><span class="p">${clp(h.precio)}</span></button>`).join("")
+    : '<p class="small muted">Su empresa aún no tiene servicios habituales. Use "Otro traslado".</p>';
+  $("hab").querySelectorAll("[data-h]").forEach(b => b.onclick = () => { habSel = hs.find(h => h.id === b.dataset.h); $("hab").querySelectorAll("[data-h]").forEach(x => x.classList.toggle("on", x === b)); ajustar(); });
+  if (!hs.length) setModo("otro"); else setModo(modo);
+  // Centros de costo
+  const cc = D.empresa.centros_costo || [];
+  $("b-cc").hidden = !cc.length;
+  $("cc").innerHTML = '<option value="">Elegir…</option>' + cc.map(c => `<option>${esc(c)}</option>`).join("");
+  if (!lugDom) { lugDom = FKLugar.montar($("dom"), { alCambiar: ajustar }); lugDest = FKLugar.montar($("dest"), { alCambiar: ajustar }); }
+  ajustar();
+}
+function setModo(m) { modo = m; $("modo").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c.dataset.m === m)); $("b-hab").hidden = m !== "hab"; $("b-otro").hidden = m !== "otro"; ajustar(); }
+$("modo").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (b) setModo(b.dataset.m); });
+$("tipo").addEventListener("click", e => { const b = e.target.closest("[data-t]"); if (!b) return; tipo = b.dataset.t; $("tipo").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === b)); ajustar(); });
+$("veh").addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (!b) return; veh = b.dataset.v; $("veh").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === b)); ajustar(); });
+$("para").addEventListener("change", ajustar);
+function pintarZonas() {
+  const q = norm($("zona").value.trim()), box = $("zona-sug");
+  if (q.length < 2) { box.hidden = true; return; }
+  const rs = T.filter(r => norm(r[0]).includes(q)).slice(0, 12);
+  box.hidden = false;
+  box.innerHTML = rs.length ? rs.map(r => `<button type="button" data-i="${T.indexOf(r)}"><span>${esc(r[0])}</span><span class="muted">${clp(r[1])}</span></button>`).join("") : '<p class="small muted" style="margin:8px 12px">No encontramos ese sector. Elija "Otro trayecto" y se lo cotizamos.</p>';
+}
+$("zona").addEventListener("input", () => { zona = null; pintarZonas(); ajustar(); });
+$("zona").addEventListener("focus", pintarZonas);
+$("zona").addEventListener("blur", () => setTimeout(() => $("zona-sug").hidden = true, 150));
+$("zona-sug").addEventListener("mousedown", e => { const b = e.target.closest("[data-i]"); if (!b) return; e.preventDefault(); zona = T[+b.dataset.i]; $("zona").value = zona[0]; $("zona-sug").hidden = true; ajustar(); });
+function precioOtro() {
+  if (tipo === "punto_a_punto") {
+    const a = lugDom && lugDom.get(), b = lugDest && lugDest.get(); if (!a || !b) return null;
+    const lado = p => [...(p.comunas || [])].map(norm), es = (l, lista) => l.some(t => lista.some(c => t.includes(c)));
+    const c = (window.FK_INTERURBANOS || []).find(x => (es(lado(a), x.oriente) && es(lado(b), x.costa)) || (es(lado(a), x.costa) && es(lado(b), x.oriente)));
+    return c ? (veh === "van" ? c.van : c.auto) : null;
+  }
+  if (!zona) return null;
+  return veh === "van" ? zona[3] : tipo === "regreso" ? zona[2] : zona[1];
+}
+function precioActual() { return modo === "hab" ? (habSel ? habSel.precio : null) : precioOtro(); }
+function ajustar() {
+  const aero = tipo !== "punto_a_punto";
+  $("b-zona").hidden = !aero; $("b-dest").hidden = aero; $("b-det").hidden = tipo === "regreso";
+  $("dom-l").textContent = tipo === "regreso" ? "Dirección de destino" : "Dirección de retiro";
+  const tipoEf = modo === "hab" ? (habSel && habSel.tipo) : tipo;
+  $("b-vuelo").hidden = !["ida", "regreso"].includes(tipoEf);
+  $("fh-l").textContent = tipoEf === "regreso" ? "Fecha y hora de aterrizaje" : "Fecha y hora de retiro";
+  const p = precioActual();
+  $("precio-l").textContent = modo === "hab" ? (habSel ? habSel.nombre + " · tarifa fija" : "Elija un servicio habitual") : p != null ? "Tarifa fija" : tipo === "punto_a_punto" ? "Valor: se lo confirmamos" : "Elija el sector para ver la tarifa";
+  $("precio-v").textContent = p != null ? clp(p) : "—";
+  // Presupuesto de quien viaja
+  const para = $("para").value, u = para ? (D.equipo || []).find(x => x.id === para) : { presupuesto: D.yo.presupuesto, gasto_mes: D.yo.gasto_mes, nombre: "usted" };
+  const lineas = [];
+  if (u && u.presupuesto != null) { const tot = (u.gasto_mes || 0) + (p || 0); lineas.push(`Presupuesto de ${para ? esc(u.nombre) : "usted"}: ${clp(tot)} de ${clp(u.presupuesto)} con este viaje${tot > u.presupuesto ? ' · <b class="warn">lo supera</b>' : ""}`); }
+  if (enc() && D.empresa.presupuesto != null) { const tot = (D.empresa.gasto_mes || 0) + (p || 0); lineas.push(`Presupuesto de la empresa: ${clp(tot)} de ${clp(D.empresa.presupuesto)} con este viaje${tot > D.empresa.presupuesto ? ' · <b class="warn">lo supera</b>' : ""}`); }
+  $("a-pres").innerHTML = lineas.join("<br>");
+}
+$("agendar").addEventListener("click", async () => {
+  msg("a-msg", "");
+  if (!$("fh").value) { $("fh").focus(); return msg("a-msg", "Indique la fecha y la hora.", "err"); }
+  const iso = FK.chileLocalToISO($("fh").value);
+  if (new Date(iso) < Date.now() + 60 * 60e3) return msg("a-msg", "Para traslados en menos de 1 hora, escríbanos por WhatsApp al +56 9 2227 5399.", "err");
+  if (!$("b-cc").hidden && !$("cc").value) { $("cc").focus(); return msg("a-msg", "Elija el centro de costo.", "err"); }
+  const base = { p_para: $("para").value || null, p_fecha_hora: iso, p_vuelo: $("b-vuelo").hidden ? null : ($("vuelo").value.trim() || null),
+    p_pasajeros: Math.max(1, +$("pax").value || 1), p_maletas: Math.max(0, +$("mal").value || 0), p_centro_costo: $("cc").value || null, p_comentarios: $("com").value.trim() || null };
+  let args;
+  if (modo === "hab") {
+    if (!habSel) return msg("a-msg", "Elija un servicio habitual.", "err");
+    args = { ...base, p_habitual: habSel.id };
+  } else {
+    const aero = tipo !== "punto_a_punto";
+    if (aero && !zona) { $("zona").focus(); return msg("a-msg", "Elija el sector de la lista para calcular la tarifa.", "err"); }
+    if (!$("dom").value.trim() || !lugDom.exigir()) return msg("a-msg", "Escriba la dirección y marque su punto exacto en el mapa.", "err");
+    if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("a-msg", "Escriba el destino y marque su punto en el mapa.", "err");
+    const dom = lugDom.get(), dest = lugDest.get(), txt = $("dom").value.trim();
+    const o = tipo === "regreso" ? { t: AERO.texto, lat: AERO.lat, lng: AERO.lng } : { t: txt, lat: dom.lat, lng: dom.lng };
+    const d = tipo === "ida" ? { t: AERO.texto, lat: AERO.lat, lng: AERO.lng } : tipo === "regreso" ? { t: txt, lat: dom.lat, lng: dom.lng } : { t: $("dest").value.trim(), lat: dest.lat, lng: dest.lng };
+    args = { ...base, p_habitual: null, p_tipo_servicio: tipo, p_origen: o.t, p_destino: d.t, p_origen_lat: o.lat, p_origen_lng: o.lng, p_destino_lat: d.lat, p_destino_lng: d.lng,
+      p_vehiculo: veh, p_tarifa: precioOtro(), p_comuna: aero && zona ? zona[0] : null, p_retiro_detalle: tipo === "regreso" ? null : ($("det").value.trim() || null) };
+  }
+  $("agendar").disabled = true; msg("a-msg", "Agendando…");
+  const { data, error } = await sb.rpc("crear_reserva_convenio", args);
+  $("agendar").disabled = false;
+  if (error) return msg("a-msg", errText(error), "err");
+  const r = data[0];
+  $("a-msg").className = "msg ok"; $("a-msg").hidden = false;
+  $("a-msg").innerHTML = `✅ Traslado agendado: <b>${esc(r.o_codigo)}</b>. Le confirmaremos el servicio y el conductor. <a href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener" style="color:var(--gold)">Ver seguimiento →</a>${r.o_aviso ? `<div class="aviso" style="margin-top:8px">💰 ${esc(r.o_aviso)}. La reserva quedó registrada y su encargado de convenio lo verá.</div>` : ""}`;
+  ["fh", "vuelo", "com", "det"].forEach(k => $(k).value = "");
+  const { data: nd } = await sb.rpc("convenio_inicio"); if (nd) { D = nd; const h = habSel && habSel.id; pintarCabecera(); prepararAgendar(); if (h) { habSel = (D.habituales || []).find(x => x.id === h) || null; $("hab").querySelector(`[data-h="${h}"]`)?.classList.add("on"); ajustar(); } }
+});
+function pintarCabecera() {
+  const e = D.empresa, partes = [];
+  if (enc()) partes.push(`<b>Empresa:</b> ${barra(e.gasto_mes, e.presupuesto)}`);
+  if (D.yo.presupuesto != null) partes.push(`<b>Su presupuesto:</b> ${barra(D.yo.gasto_mes, D.yo.presupuesto)}`);
+  $("h-pres").innerHTML = partes.join('<div style="height:8px"></div>');
+}
+
+// ---------- Viajes ----------
+async function cargarViajes() {
+  const box = $("v-lista"); box.innerHTML = '<p class="muted">Cargando…</p>';
+  const { data, error } = await sb.rpc("convenio_reservas");
+  if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const ahora = Date.now();
+  const prox = data.filter(r => !["finalizada", "cancelada"].includes(r.o_estado) && new Date(r.o_fecha_hora) > ahora - 6 * 3600e3).sort((a, b) => new Date(a.o_fecha_hora) - new Date(b.o_fecha_hora));
+  const ant = data.filter(r => !prox.includes(r));
+  const card = r => `<div class="card" style="cursor:default">
+      <div class="top"><span class="when">${esc(fecha(r.o_fecha_hora))}</span>${pill(r.o_estado)}</div>
+      <div>${esc(r.o_origen)} → ${esc(r.o_destino)}</div>
+      <div class="top small"><span class="code">${esc(r.o_codigo)}${enc() ? " · " + esc(r.o_pasajero) : ""}${r.o_centro_costo ? " · " + esc(r.o_centro_costo) : ""}</span><span>${r.o_valor != null ? clp(r.o_valor) : '<span class="muted">Valor por confirmar</span>'}</span></div>
+      ${r.o_conductor ? `<div class="small">🚘 ${esc(r.o_conductor)}</div>` : ""}
+      ${r.o_aviso ? `<div class="aviso small">💰 ${esc(r.o_aviso)}</div>` : ""}
+      <div class="actions"><a class="btn ghost sm" href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener">Ver seguimiento</a>${r.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-c="${esc(r.o_id)}">Cancelar</button>` : ""}</div>
+    </div>`;
+  box.innerHTML = `<h3 style="margin:0">Próximos</h3>${prox.length ? prox.map(card).join("") : '<p class="muted">No hay viajes agendados.</p>'}
+    ${ant.length ? `<h3 style="margin:10px 0 0">Anteriores (últimos 60 días)</h3>${ant.map(card).join("")}` : ""}`;
+  box.querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
+    const motivo = prompt("¿Seguro que desea cancelar este traslado? Si quiere, indique el motivo:");
+    if (motivo === null) return;
+    const { error } = await sb.rpc("convenio_cancelar", { p_reserva: b.dataset.c, p_motivo: motivo || null });
+    if (error) return alert(errText(error));
+    const { data: nd } = await sb.rpc("convenio_inicio"); if (nd) { D = nd; pintarCabecera(); }
+    cargarViajes();
+  });
+}
+$("v-ref").addEventListener("click", cargarViajes);
+
+// ---------- Presupuesto y personas (encargado) ----------
+let modoPres = "alerta";
+function pintarEquipo() {
+  const e = D.empresa;
+  $("e-gasto").innerHTML = barra(e.gasto_mes, e.presupuesto);
+  $("e-monto").value = e.presupuesto ?? "";
+  modoPres = e.modo || "alerta";
+  $("e-modo").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c.dataset.m === modoPres));
+  const us = D.equipo || [];
+  $("e-tbody").innerHTML = us.map(u => `<tr data-u="${esc(u.id)}">
+    <td><b>${esc(u.nombre)}</b>${u.id === D.yo.id ? ' <span class="muted small">(usted)</span>' : ""}<br><span class="muted small">${esc(u.correo)}</span></td>
+    <td><select data-k="rol" ${u.id === D.yo.id ? "disabled" : ""}><option value="pasajero" ${u.rol === "pasajero" ? "selected" : ""}>Pasajero autorizado</option><option value="encargado" ${u.rol === "encargado" ? "selected" : ""}>Encargado de convenio</option></select></td>
+    <td><input data-k="pres" type="number" min="0" step="1000" value="${u.presupuesto ?? ""}" placeholder="Sin límite" style="max-width:150px"></td>
+    <td>${clp(u.gasto_mes || 0)}${u.presupuesto != null && u.gasto_mes > u.presupuesto ? ' <b class="warn">superado</b>' : ""}</td>
+    <td><label class="chk"><input data-k="act" type="checkbox" ${u.activo ? "checked" : ""} ${u.id === D.yo.id ? "disabled" : ""}> Activo</label></td>
+    <td class="nowrap"><button class="btn ghost sm" type="button" data-k="ok">Guardar</button>${u.id !== D.yo.id ? ` <button class="linkbtn" type="button" data-k="clave">🔑 Nueva clave</button>` : ""}</td></tr>`).join("");
+  $("e-tbody").querySelectorAll("tr[data-u]").forEach(tr => {
+    const id = tr.dataset.u, u = us.find(x => x.id === id), q = k => tr.querySelector(`[data-k="${k}"]`);
+    q("ok").onclick = async () => {
+      const v = q("pres").value.trim();
+      const { error } = await sb.rpc("convenio_ajustar_usuario", { p_usuario: id, p_presupuesto: v === "" ? null : Math.round(+v), p_rol: q("rol").value, p_activo: q("act").checked });
+      if (error) return msg("u-msg", errText(error), "err");
+      msg("u-msg", `Cambios de ${u.nombre} guardados.`, "ok"); await recargar();
+    };
+    if (q("clave")) q("clave").onclick = async () => {
+      const clave = claveProvisoria();
+      if (!confirm(`¿Darle a ${u.nombre} una contraseña provisoria nueva?`)) return;
+      const { data: r, error } = await sb.functions.invoke("crear-usuario-convenio", { body: { cuenta: cuentaId, accion: "clave", id, clave } });
+      const err = error ? await errFuncion(error) : r && r.error;
+      if (err) return msg("u-msg", err, "err");
+      datosAcceso(u.nombre, u.correo, u.rol, clave, true);
+    };
+  });
+}
+$("e-modo").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; modoPres = b.dataset.m; $("e-modo").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === b)); });
+$("e-save").addEventListener("click", async () => {
+  const v = $("e-monto").value.trim();
+  const { error } = await sb.rpc("convenio_presupuesto_empresa", { p_monto: v === "" ? null : Math.round(+v), p_modo: modoPres });
+  if (error) return msg("e-msg", errText(error), "err");
+  msg("e-msg", "Presupuesto guardado.", "ok"); await recargar();
+});
+$("u-f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const nombre = $("u-nom").value.trim(), correo = $("u-mail").value.trim().toLowerCase(), telefono = $("u-tel").value.trim(), rol = $("u-rol").value, pres = $("u-pres").value.trim();
+  if (nombre.length < 2) return msg("u-msg", "Escriba el nombre.", "err");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return msg("u-msg", "Escriba un correo válido.", "err");
+  const clave = claveProvisoria();
+  msg("u-msg", "Dando acceso…");
+  const { data: r, error } = await sb.functions.invoke("crear-usuario-convenio", { body: { cuenta: cuentaId, nombre, correo, telefono, rol, clave } });
+  const err = error ? await errFuncion(error) : r && r.error;
+  if (err) return msg("u-msg", err, "err");
+  if (pres !== "" && r.id) await sb.rpc("convenio_ajustar_usuario", { p_usuario: r.id, p_presupuesto: Math.round(+pres), p_rol: rol, p_activo: true });
+  $("u-msg").hidden = true; $("u-f").reset();
+  datosAcceso(nombre, correo, rol, r.existia ? null : clave);
+  await recargar();
+});
+function datosAcceso(nombre, correo, rol, clave, soloClave) {
+  const url = location.origin + "/empresa/", emp = D.empresa.razon_social || "su empresa";
+  const t = !clave ? `${nombre} ya tenía cuenta en Flota-K: ahora tiene acceso al portal de ${emp} en ${url} con su contraseña de siempre.`
+    : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de traslados de ${emp} (Flota-K) es: ${clave}\nEntre en ${url} con su correo y esa contraseña; el sistema le pedirá cambiarla.`
+    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de traslados de ${emp} con Flota-K, como ${ROL[rol]}.\n\nEntre a: ${url}\nUsuario: ${correo}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.`;
+  $("u-datos").hidden = false;
+  $("u-datos").innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Acceso listo"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
+    <div class="actions"><button class="btn sm" type="button" id="u-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="u-cp">⧉ Copiar</button></div>`;
+  $("u-wa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
+  $("u-cp").onclick = () => navigator.clipboard?.writeText(t).then(() => $("u-cp").textContent = "Copiado").catch(() => {});
+  $("u-datos").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+async function recargar() {
+  const { data } = await sb.rpc("convenio_inicio"); if (!data) return;
+  D = data; pintarCabecera(); pintarEquipo(); prepararAgendar();
+}
+
+// ---------- Facturación (encargado) ----------
+function pintarFact() {
+  const e = D.empresa;
+  $("f-tit").textContent = e.datos_completos ? "Datos de facturación" : "Paso obligatorio: datos de facturación";
+  $("f-rs").value = e.razon_social || ""; $("f-rut").value = e.rut || ""; $("f-giro").value = e.giro || ""; $("f-com").value = e.comuna || ""; $("f-dir").value = e.direccion || "";
+  $("f-fn").value = e.fact_nombre || ""; $("f-fc").value = e.fact_correo || ""; $("f-ft").value = e.fact_telefono || "";
+  $("f-oc").checked = !!e.requiere_oc; $("b-oc").hidden = !e.requiere_oc; $("f-ocd").value = e.oc_detalle || "";
+  $("f-cc").value = (e.centros_costo || []).join("\n");
+  $("f-pago").textContent = `Condiciones acordadas con Flota-K: factura exenta mensual, pago a ${e.dias_pago ?? 30} días.`;
+}
+$("f-oc").addEventListener("change", () => $("b-oc").hidden = !$("f-oc").checked);
+$("f-f").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const p = { razon_social: $("f-rs").value, rut: $("f-rut").value.trim(), giro: $("f-giro").value, comuna: $("f-com").value, direccion: $("f-dir").value,
+    fact_nombre: $("f-fn").value, fact_correo: $("f-fc").value, fact_telefono: $("f-ft").value, requiere_oc: $("f-oc").checked, oc_detalle: $("f-ocd").value,
+    centros_costo: $("f-cc").value.split("\n").map(x => x.trim()).filter(Boolean) };
+  msg("f-msg", "Guardando…");
+  const { error } = await sb.rpc("convenio_guardar_facturacion", { p });
+  if (error) return msg("f-msg", errText(error), "err");
+  const primera = !D.empresa.datos_completos;
+  const { data } = await sb.rpc("convenio_inicio"); if (data) D = data;
+  if (primera) { pintar(); msg("a-msg", "✅ Datos de facturación guardados. Ya puede agendar. Le recomendamos revisar \"Presupuesto y personas\" para fijar el presupuesto y dar acceso a su equipo.", "ok"); }
+  else { pintarFact(); msg("f-msg", "Datos de facturación guardados.", "ok"); }
+});
+
+// ---------- Inicio ----------
+sb.auth.onAuthStateChange((ev, session) => { if (ev === "SIGNED_IN" && session && (!sesion || sesion.user.id !== session.user.id)) iniciar(session); });
+sb.auth.getSession().then(({ data }) => { if (data.session) iniciar(data.session); else mostrar("login"); });
+</script>
+</body>
+</html>

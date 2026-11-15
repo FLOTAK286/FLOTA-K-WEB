@@ -1,5 +1,14 @@
 # Cambios
 
+## 15 nov 2026 · Portal de empresas con convenio (/empresa)
+- Dos tipos de usuario de la empresa cliente: **encargado de convenio** y **pasajero autorizado** (tabla `convenio_usuarios`; no son parte del equipo y no ven el panel).
+- El admin crea la empresa y el primer acceso desde Clientes y cobros → Empresas → ficha → "Portal de empresas" (Edge Function `crear-usuario-convenio`, contraseña provisoria que el admin envía por WhatsApp). Al entrar, cambio de contraseña obligatorio.
+- Datos de facturación obligatorios antes de agendar (razón social, RUT, giro, dirección, encargado de facturación, correo de facturas, orden de compra, centros de costo).
+- Presupuesto mensual de la empresa y por persona; el encargado elige si al superarlo solo se avisa (la reserva queda con aviso 💰 en el despacho) o se bloquea.
+- Servicios habituales con tarifa fija que carga el admin en la ficha de la empresa (`servicios_habituales`); en el portal se agendan con un toque.
+- Reservas del portal: canal `convenio`, cobradas a la empresa con centro de costo; cancelación desde el portal hasta 2 horas antes.
+- Base de datos: etapa 28 (portal) y 28b (se cierra la reserva pública antigua `crear_reserva_publica`, que ya no usaba ninguna página).
+
 ## 15 nov 2026 · Estado del vuelo con Flightradar24
 - Panel y app del conductor: el vuelo abre Flightradar24 (avión en vivo y hora estimada real) en vez de la búsqueda de Google, más un enlace al sitio del aeropuerto (Nuevo Pudahuel). Funciones `FK.vueloFR24` / `FK.VUELO_PUDAHUEL` en assets/app.js.
 - App del conductor, servicios de regreso con vuelo: aviso para revisar el vuelo 1 hora antes y al salir (los vuelos suelen adelantarse).

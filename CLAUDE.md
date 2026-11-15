@@ -19,7 +19,7 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 
 ## Arquitectura actual
 - **Hosting:** GitHub Pages (`main` = sitio publicado en fk-servicios.com). Sitio estático, sin paso de compilación.
-- **Páginas:** `/` (marketing + tarifario), `/aeropuerto/<comuna>/` (SEO), `/cuenta/` (cliente), `/equipo/` (panel interno), `/conductor/` (app del conductor; también app Android en `app-android/`), `/propietario/` (portal de dueños de vehículos), `/en/` (inglés), `/seguimiento/?t=<token>`, `/app/` (app del pasajero, instalable: reservar con `crear_reserva_app` y "Mis viajes" guardados en el teléfono). `/equipo/` también se instala como app "Flota-K Operaciones".
+- **Páginas:** `/` (marketing + tarifario), `/aeropuerto/<comuna>/` (SEO), `/cuenta/` (cliente), `/equipo/` (panel interno), `/conductor/` (app del conductor; también app Android en `app-android/`), `/propietario/` (portal de dueños de vehículos), `/en/` (inglés), `/seguimiento/?t=<token>`, `/app/` (app del pasajero, instalable: reservar con `crear_reserva_app` y "Mis viajes" guardados en el teléfono). `/equipo/` también se instala como app "Flota-K Operaciones". `/empresa/` (portal de empresas con convenio: encargado de convenio y pasajero autorizado, tabla `convenio_usuarios`; reservas con `crear_reserva_convenio`, presupuesto con aviso o bloqueo, servicios habituales que carga el admin).
 - **Frontend:** HTML + JavaScript simple. supabase-js 2.45.4 desde jsDelivr. Código común en `assets/app.js`, estilos en `assets/site.css` y `assets/app.css`, configuración pública en `assets/config.js` (solo URL y clave `anon`).
 - **Base de datos:** Supabase, proyecto "FLOTAK Project" (`iejhmplstveockkjjbks`, región us-east-2). Migraciones en `supabase/migrations/` con el mismo número de versión que aparece en Supabase. Nunca editar una migración ya aplicada: crear una nueva.
 - **Ingreso:** equipo y conductores con correo + contraseña. El admin crea la cuenta con contraseña provisoria desde Equipo y roles (Edge Function `crear-miembro`), porque el correo gratuito de Supabase solo llega a miembros del equipo de Supabase. Clientes con enlace al correo, registro desactivado por ahora. Google desactivado (`google: false`).
@@ -32,7 +32,7 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 ## Reglas de seguridad
 - Nunca subir claves secretas (`service_role`, contraseña de la base). En el frontend solo URL + `anon`.
 - Toda tabla con Row Level Security. La seguridad la aplica la base de datos.
-- Reservas públicas solo con `crear_reserva_publica`. Cambios de estado con `cambiar_estado_reserva` (deja nota en `reserva_eventos`).
+- Reserva al público pausada (`crear_reserva_publica` y `crear_reserva_app` sin permiso). Empresas con convenio: `crear_reserva_convenio`. Cambios de estado con `cambiar_estado_reserva` (deja nota en `reserva_eventos`).
 - Nada se borra: las reservas se cancelan.
 - Fechas: el usuario escribe hora de Chile; convertir con `FK.chileLocalToISO` (considera horario de verano).
 
