@@ -1,5 +1,9 @@
 # Cambios
 
+## 15 nov 2026 · Estado del vuelo con Flightradar24
+- Panel y app del conductor: el vuelo abre Flightradar24 (avión en vivo y hora estimada real) en vez de la búsqueda de Google, más un enlace al sitio del aeropuerto (Nuevo Pudahuel). Funciones `FK.vueloFR24` / `FK.VUELO_PUDAHUEL` en assets/app.js.
+- App del conductor, servicios de regreso con vuelo: aviso para revisar el vuelo 1 hora antes y al salir (los vuelos suelen adelantarse).
+
 ## 13 nov 2026 · Reserva en línea pausada y apps Android del pasajero y de operaciones
 - A pedido del dueño: se quitó "Reservar en línea" de la portada; la app del pasajero (/app) queda solo con "Mis viajes" y "Contacto" (constante `RESERVA_EN_LINEA = false`). Las reservas las crea el equipo.
 - Base de datos (etapa 27b): sin permiso para usar `crear_reserva_app` hasta que se active.

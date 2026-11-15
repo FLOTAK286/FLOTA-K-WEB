@@ -77,5 +77,11 @@
     }
   }
 
-  window.FK = { sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
+  // Estado real del vuelo: Flightradar24 (posición del avión y hora estimada en vivo) y Nuevo Pudahuel (aeropuerto).
+  // Google muestra la hora programada/estimada de la aerolínea y puede quedar atrasada si el vuelo se adelanta.
+  const vueloCodigo = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const vueloFR24 = v => "https://www.flightradar24.com/data/flights/" + vueloCodigo(v).toLowerCase();
+  const VUELO_PUDAHUEL = "https://www.nuevopudahuel.cl/";
+
+  window.FK = { vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
 })();

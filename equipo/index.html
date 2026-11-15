@@ -1501,7 +1501,7 @@ $("rp-xlsx").addEventListener("click", () => {
 
 // ---- Tablero de despacho: una línea por servicio, lo urgente arriba
 let tablero = [], tbFiltro = "todo", timerDespacho = null, conocidasWeb = null, alertasConocidas = null, ubDe = {}, etqDe = {}, porCobrarTotal = 0, audioCtx = null;
-const vueloLink = v => v ? `<a href="https://www.google.com/search?q=${encodeURIComponent(v + " estado del vuelo")}" target="_blank" rel="noopener" class="vuelo" title="Ver estado del vuelo en Google">✈ ${esc(v)}</a>` : '<span class="muted">—</span>';
+const vueloLink = v => v ? `<a href="${esc(FK.vueloFR24(v))}" target="_blank" rel="noopener" class="vuelo" title="Ver el avión en vivo en Flightradar24 (más confiable que Google)">✈ ${esc(v)}</a> <a href="${FK.VUELO_PUDAHUEL}" target="_blank" rel="noopener" class="small muted" title="Llegadas en el sitio del aeropuerto">SCL</a>` : '<span class="muted">—</span>';
 const antesDeSalirR = r => ["recibida", "confirmada", "asignada"].includes(r.estado);
 function alertasDe(r, extra) {
   const ahora = Date.now(), t = new Date(r.fecha_hora).getTime(), min = Math.round((t - ahora) / 60000);
