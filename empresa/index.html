@@ -7,6 +7,10 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0d0f12">
 <link rel="icon" href="/assets/img/icono-192.png">
+<link rel="manifest" href="/empresa/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/img/icono-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FK Empresas">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
@@ -16,7 +20,7 @@
 <style>
   .pe { max-width: 900px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
   .pe h1 { font-family: var(--font-display); margin: 0; font-size: 1.9rem; line-height: 1.1; }
-  .pe input, .pe select, .pe textarea { min-height: 44px; font-size: 16px; }
+  .pe input, .pe select, .pe textarea { min-height: 44px; font-size: 16px; min-width: 0; max-width: 100%; box-sizing: border-box; }
   .hab { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
   .hab button { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--fg); font: inherit; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; }
   .hab button.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
@@ -33,11 +37,69 @@
   .tabs { overflow-x: auto; flex-wrap: nowrap; }
   .tabs button { white-space: nowrap; }
   [hidden] { display: none !important; }
+  .tabs .ic { display: none; }
+  .pe input[type=checkbox] { min-height: 0; width: 20px; height: 20px; }
+  .ub-ic { display: none; }
+
+  /* ===== Vista APP (celular): pasajero y encargado ===== */
+  @media (max-width: 899px) {
+    body.en-app { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+    header.top .wrap { padding-block: 8px; }
+    .userbar #who { display: none; }
+    .userbar .ub-tx { display: none; }
+    .userbar .ub-ic { display: inline; }
+    .userbar .btn { min-width: 40px; padding-inline: 10px; }
+    .pe { padding: 12px; gap: 12px; }
+    .pe h1 { font-size: 1.55rem; }
+    /* Barra de navegación inferior, como app */
+    body.en-app .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0;
+      background: var(--board); border-top: 1px solid #22262d; border-bottom: 0; padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px)); overflow: visible; }
+    body.en-app .tabs button { display: grid; justify-items: center; gap: 2px; border-bottom: 0; border-top: 3px solid transparent; padding: 6px 2px; font-size: .78rem; letter-spacing: .02em; color: #a3a6ad; white-space: normal; line-height: 1.1; }
+    body.en-app .tabs button[aria-selected="true"] { color: var(--gold); border-top-color: var(--gold); }
+    body.en-app .tabs button[hidden] { display: none; }
+    body.en-app .tabs .ic { display: block; font-size: 1.25rem; line-height: 1; }
+    body.en-app .tabs .lg { display: none; }
+    .hab { grid-template-columns: 1fr; }
+    .hab button { grid-template-columns: 1fr auto; align-items: center; }
+    .hab button b, .hab button .small { grid-column: 1; }
+    .hab button .p { grid-column: 2; grid-row: 1 / span 3; }
+    .ag-res { display: grid; gap: 8px; margin-top: 12px; }
+    .ag-res .actions .btn { width: 100%; }
+    /* Personas: tarjetas en vez de tabla */
+    .pe-tbl thead { display: none; }
+    .pe-tbl, .pe-tbl tbody { display: block; }
+    .pe-tbl tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+    .pe-tbl td { display: grid; gap: 4px; padding: 0 !important; border: 0; }
+    .pe-tbl td[data-l]::before { content: attr(data-l); color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+    .pe-tbl td:first-child, .pe-tbl td:last-child { grid-column: 1 / -1; }
+    .pe-tbl td select, .pe-tbl td input[type=number] { width: 100%; max-width: none !important; }
+    .pe-tbl td:last-child { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .tblwrap { overflow: visible; }
+  }
+
+  /* ===== Vista COMPUTADOR ===== */
+  @media (min-width: 900px) {
+    .pe { max-width: 1240px; padding: 24px; }
+    #app > .lay { display: grid; grid-template-columns: 230px 1fr; gap: 24px; align-items: start; }
+    #app .cab { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; }
+    #app .cab #h-pres { min-width: 360px; }
+    #app #pend { grid-column: 1 / -1; }
+    .tabs { flex-direction: column; border-bottom: 0; border-right: 1px solid var(--line); position: sticky; top: 80px; gap: 2px; padding-right: 10px; }
+    .tabs button { white-space: normal; text-align: left; border-bottom: 0; border-left: 3px solid transparent; padding: 12px 14px; display: flex; gap: 10px; align-items: center; border-radius: 0 6px 6px 0; }
+    .tabs button[aria-selected="true"] { border-left-color: var(--gold); background: var(--panel); }
+    .tabs .ic { display: inline; }
+    .ag { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+    .ag-res { position: sticky; top: 80px; border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 10px; background: var(--bg); }
+    .ag-res .actions .btn { width: 100%; }
+    .ag-res .precio { flex-direction: column; align-items: flex-start; }
+    .pe-tbl select { min-width: 190px; }
+    #v-lista .vg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  }
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="brand" href="/empresa/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EMPRESAS</small></a>
-  <div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="pw-open" type="button">Contraseña</button><button class="btn ghost sm" id="salir" type="button">Salir</button></div></div></header>
+  <div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="pw-open" type="button" title="Cambiar contraseña"><span class="ub-ic">🔑</span><span class="ub-tx">Contraseña</span></button><button class="btn ghost sm" id="salir" type="button" title="Salir"><span class="ub-ic">⏻</span><span class="ub-tx">Salir</span></button></div></div></header>
 
 <main class="pe app">
   <!-- Ingreso -->
@@ -73,23 +135,27 @@
 
   <!-- Portal -->
   <section id="app" hidden>
-    <div style="display:grid;gap:14px">
-      <div>
-        <p class="eyebrow" style="margin:0" id="h-rol"></p>
-        <h1 id="h-emp"></h1>
-        <div id="h-pres" class="small" style="margin-top:8px"></div>
+    <div class="lay" style="display:grid;gap:14px">
+      <div class="cab">
+        <div>
+          <p class="eyebrow" style="margin:0" id="h-rol"></p>
+          <h1 id="h-emp"></h1>
+        </div>
+        <div id="h-pres" class="small"></div>
       </div>
       <div id="pend" class="panel aviso" hidden></div>
       <nav class="tabs" role="tablist">
-        <button role="tab" data-t="agendar" aria-selected="true">Agendar</button>
-        <button role="tab" data-t="viajes" aria-selected="false">Viajes</button>
-        <button role="tab" data-t="equipo" aria-selected="false" class="enc">Presupuesto y personas</button>
-        <button role="tab" data-t="fact" aria-selected="false" class="enc">Facturación</button>
+        <button role="tab" data-t="agendar" aria-selected="true"><span class="ic">🚘</span><span>Agendar</span></button>
+        <button role="tab" data-t="viajes" aria-selected="false"><span class="ic">🗓️</span><span id="t-viajes">Viajes</span></button>
+        <button role="tab" data-t="equipo" aria-selected="false" class="enc"><span class="ic">👥</span><span><span class="lg">Presupuesto y </span>Personas</span></button>
+        <button role="tab" data-t="fact" aria-selected="false" class="enc"><span class="ic">🧾</span><span>Facturación</span></button>
       </nav>
+      <div class="cont" style="display:grid;gap:14px;min-width:0">
 
       <!-- AGENDAR -->
       <div data-p="agendar" class="panel">
         <h2>Agendar un traslado</h2>
+        <div class="ag"><div class="ag-form" style="display:grid;gap:12px;min-width:0">
         <div class="f enc" id="b-para"><label for="para">Pasajero</label><select id="para"></select></div>
         <div class="chips" id="modo"><button type="button" class="chip on" data-m="hab">Servicio habitual</button><button type="button" class="chip" data-m="otro">Otro traslado</button></div>
         <div id="b-hab">
@@ -118,11 +184,14 @@
           <div class="f"><label for="mal">Maletas</label><input id="mal" type="number" min="0" max="30" value="1" inputmode="numeric"></div>
           <div class="f"><label for="com">Comentarios (opcional)</label><input id="com" maxlength="500" placeholder="Indicaciones para el conductor"></div>
         </div>
+        </div>
+        <div class="ag-res">
         <div class="precio"><span class="muted" id="precio-l">Elija un servicio</span><b id="precio-v">—</b></div>
         <div id="a-pres" class="small"></div>
         <div id="a-msg" class="msg" hidden></div>
         <div class="actions"><button class="btn" type="button" id="agendar">Agendar traslado</button></div>
         <p class="small muted" style="margin:0">Le confirmamos cada servicio. Para traslados en menos de 1 hora, escríbanos por WhatsApp al +56 9 2227 5399.</p>
+        </div></div>
       </div>
 
       <!-- VIAJES -->
@@ -145,7 +214,7 @@
 
         <h2 style="margin-top:10px">Personas con acceso</h2>
         <p class="small muted" style="margin:0">Fije un presupuesto mensual por persona (vacío = sin límite propio). Los encargados de convenio ven todos los viajes, el presupuesto y la facturación.</p>
-        <div class="tblwrap"><table class="tbl"><thead><tr><th>Persona</th><th>Rol</th><th>Presupuesto mensual</th><th>Gastado este mes</th><th>Acceso</th><th></th></tr></thead><tbody id="e-tbody"></tbody></table></div>
+        <div class="tblwrap"><table class="tbl pe-tbl"><thead><tr><th>Persona</th><th>Rol</th><th>Presupuesto mensual</th><th>Gastado este mes</th><th>Acceso</th><th></th></tr></thead><tbody id="e-tbody"></tbody></table></div>
         <div id="u-msg" class="msg" hidden></div>
         <h3 style="margin:10px 0 0">Agregar persona</h3>
         <form id="u-f" class="row3" novalidate style="align-items:end">
@@ -177,6 +246,7 @@
           <div id="f-msg" class="msg" hidden></div>
         </form>
       </div>
+      </div>
     </div>
   </section>
 </main>
@@ -198,7 +268,7 @@ const VEH = { auto: "Auto", suv: "SUV", van: "Van" };
 function msg(id, t, k) { const m = $(id); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
 async function errFuncion(error) { try { const j = await error.context.json(); return j.error || errText(error); } catch (_) { return errText(error); } }
 const claveProvisoria = () => { const a = "abcdefghjkmnpqrstuvwxyz", d = "23456789", x = new Uint32Array(8); crypto.getRandomValues(x); return "Flotak-" + [...x].map((n, i) => i < 4 ? a[n % a.length] : d[n % d.length]).join(""); };
-const mostrar = id => ["login", "sinacceso", "pw", "app"].forEach(x => $(x).hidden = x !== id);
+const mostrar = id => { ["login", "sinacceso", "pw", "app"].forEach(x => $(x).hidden = x !== id); document.body.classList.toggle("en-app", id === "app"); };
 
 let D = null, sesion = null, cuentaId = null;
 
@@ -258,6 +328,9 @@ function pintar() {
   mostrar("app");
   const e = D.empresa;
   $("h-rol").textContent = ROL[D.yo.rol];
+  document.body.classList.add("en-app");
+  document.body.classList.toggle("rol-encargado", enc()); document.body.classList.toggle("rol-pasajero", !enc());
+  $("t-viajes").textContent = enc() ? "Viajes" : "Mis viajes";
   $("h-emp").textContent = e.razon_social || "Su empresa";
   document.querySelectorAll(".enc").forEach(x => x.hidden = !enc());
   // Presupuesto en el encabezado
@@ -280,6 +353,7 @@ function ir(t) {
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.t === t)));
   document.querySelectorAll("[data-p]").forEach(p => p.hidden = p.dataset.p !== t);
   if (t === "viajes") cargarViajes();
+  if (window.innerWidth < 900) window.scrollTo(0, 0);
 }
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
   if (!D.empresa.datos_completos && b.dataset.t !== "fact" && enc()) { msg("f-msg", "Primero complete y guarde los datos de facturación.", "err"); return; }
@@ -405,8 +479,8 @@ async function cargarViajes() {
       ${r.o_aviso ? `<div class="aviso small">💰 ${esc(r.o_aviso)}</div>` : ""}
       <div class="actions"><a class="btn ghost sm" href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener">Ver seguimiento</a>${r.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-c="${esc(r.o_id)}">Cancelar</button>` : ""}</div>
     </div>`;
-  box.innerHTML = `<h3 style="margin:0">Próximos</h3>${prox.length ? prox.map(card).join("") : '<p class="muted">No hay viajes agendados.</p>'}
-    ${ant.length ? `<h3 style="margin:10px 0 0">Anteriores (últimos 60 días)</h3>${ant.map(card).join("")}` : ""}`;
+  box.innerHTML = `<h3 style="margin:0">Próximos</h3>${prox.length ? `<div class="vg">${prox.map(card).join("")}</div>` : '<p class="muted">No hay viajes agendados.</p>'}
+    ${ant.length ? `<h3 style="margin:10px 0 0">Anteriores (últimos 60 días)</h3><div class="vg">${ant.map(card).join("")}</div>` : ""}`;
   box.querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
     const motivo = prompt("¿Seguro que desea cancelar este traslado? Si quiere, indique el motivo:");
     if (motivo === null) return;
@@ -429,10 +503,10 @@ function pintarEquipo() {
   const us = D.equipo || [];
   $("e-tbody").innerHTML = us.map(u => `<tr data-u="${esc(u.id)}">
     <td><b>${esc(u.nombre)}</b>${u.id === D.yo.id ? ' <span class="muted small">(usted)</span>' : ""}<br><span class="muted small">${esc(u.correo)}</span></td>
-    <td><select data-k="rol" ${u.id === D.yo.id ? "disabled" : ""}><option value="pasajero" ${u.rol === "pasajero" ? "selected" : ""}>Pasajero autorizado</option><option value="encargado" ${u.rol === "encargado" ? "selected" : ""}>Encargado de convenio</option></select></td>
-    <td><input data-k="pres" type="number" min="0" step="1000" value="${u.presupuesto ?? ""}" placeholder="Sin límite" style="max-width:150px"></td>
-    <td>${clp(u.gasto_mes || 0)}${u.presupuesto != null && u.gasto_mes > u.presupuesto ? ' <b class="warn">superado</b>' : ""}</td>
-    <td><label class="chk"><input data-k="act" type="checkbox" ${u.activo ? "checked" : ""} ${u.id === D.yo.id ? "disabled" : ""}> Activo</label></td>
+    <td data-l="Rol"><select data-k="rol" ${u.id === D.yo.id ? "disabled" : ""}><option value="pasajero" ${u.rol === "pasajero" ? "selected" : ""}>Pasajero autorizado</option><option value="encargado" ${u.rol === "encargado" ? "selected" : ""}>Encargado de convenio</option></select></td>
+    <td data-l="Presupuesto mensual"><input data-k="pres" type="number" min="0" step="1000" value="${u.presupuesto ?? ""}" placeholder="Sin límite" style="max-width:150px"></td>
+    <td data-l="Gastado este mes">${clp(u.gasto_mes || 0)}${u.presupuesto != null && u.gasto_mes > u.presupuesto ? ' <b class="warn">superado</b>' : ""}</td>
+    <td data-l="Acceso"><label class="chk"><input data-k="act" type="checkbox" ${u.activo ? "checked" : ""} ${u.id === D.yo.id ? "disabled" : ""}> Activo</label></td>
     <td class="nowrap"><button class="btn ghost sm" type="button" data-k="ok">Guardar</button>${u.id !== D.yo.id ? ` <button class="linkbtn" type="button" data-k="clave">🔑 Nueva clave</button>` : ""}</td></tr>`).join("");
   $("e-tbody").querySelectorAll("tr[data-u]").forEach(tr => {
     const id = tr.dataset.u, u = us.find(x => x.id === id), q = k => tr.querySelector(`[data-k="${k}"]`);
@@ -518,6 +592,7 @@ $("f-f").addEventListener("submit", async ev => {
 
 // ---------- Inicio ----------
 sb.auth.onAuthStateChange((ev, session) => { if (ev === "SIGNED_IN" && session && (!sesion || sesion.user.id !== session.user.id)) iniciar(session); });
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/empresa/sw.js").catch(() => {});
 sb.auth.getSession().then(({ data }) => { if (data.session) iniciar(data.session); else mostrar("login"); });
 </script>
 </body>

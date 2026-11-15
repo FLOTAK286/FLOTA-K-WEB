@@ -1,5 +1,10 @@
 # Cambios
 
+## 15 nov 2026 · Portal de empresas: vista app (pasajero y encargado) y vista computador (pendiente de publicar)
+- **Celular (app):** barra de navegación abajo, como app. El pasajero autorizado ve solo "Agendar" y "Mis viajes" con su presupuesto; el encargado ve además "Personas" y "Facturación". Encabezado compacto (🔑 contraseña, ⏻ salir). Las personas con acceso se muestran como tarjetas (antes la tabla no cabía).
+- **Computador:** menú lateral, agendar en dos columnas (formulario y resumen con precio y botón fijo a la derecha), viajes en dos columnas, tabla de personas completa.
+- **Instalable:** `/empresa/` se puede instalar como app "FK Empresas" desde el navegador (manifest y `empresa/sw.js`).
+
 ## 15 nov 2026 · Portal de empresas con convenio (/empresa)
 - Dos tipos de usuario de la empresa cliente: **encargado de convenio** y **pasajero autorizado** (tabla `convenio_usuarios`; no son parte del equipo y no ven el panel).
 - El admin crea la empresa y el primer acceso desde Clientes y cobros → Empresas → ficha → "Portal de empresas" (Edge Function `crear-usuario-convenio`, contraseña provisoria que el admin envía por WhatsApp). Al entrar, cambio de contraseña obligatorio.
