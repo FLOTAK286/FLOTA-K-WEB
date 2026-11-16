@@ -17,9 +17,13 @@
     const ahora = Date.now() + (dif || 0);
     const fin = e.a_bordo_en ? new Date(e.a_bordo_en).getTime() : ahora;
     const llegada = new Date(e.llegada_en).getTime(), desde = new Date(e.cobro_desde).getTime();
+    // La espera se cuenta desde la hora agendada (si el conductor llegó antes) o desde que llegó (si llegó después)
+    const agendada = new Date(e.gracia_hasta).getTime() - 15 * 60000;
     const minutos = Math.max(0, Math.floor((fin - desde) / 60000));
     return {
-      esperando: (fin - llegada) / 1000,
+      antesDeHora: fin < agendada,
+      agendada,
+      esperando: (fin - Math.max(llegada, agendada)) / 1000,
       enGracia: fin < desde,
       faltaGracia: (desde - fin) / 1000,
       minutos, monto: minutos * e.tarifa_min,
@@ -44,10 +48,15 @@
         : `<div class="espera-box"><b>Espera sin costo</b><span class="small">${pas ? "Subió" : "El pasajero subió"} dentro del tiempo incluido.</span></div>`;
     }
     const t = `<span class="espera-reloj">${reloj(s.esperando)}</span>`;
+    if (s.antesDeHora) {
+      return `<div class="espera-box">
+        <b>${pas ? "Su conductor ya llegó" : "Llegó antes de la hora"}</b>
+        <span class="small">Hora agendada: ${esc(hhmm(s.agendada))}. ${pas ? "Desde esa hora tiene" : "Desde esa hora corren"} 15 min sin costo (hasta las ${esc(hhmm(e.gracia_hasta))}). Después: ${clp(e.tarifa_min)} por minuto.</span></div>`;
+    }
     if (s.enGracia) {
       return `<div class="espera-box">
         <b>⏱ ${pas ? "Su conductor lo espera hace" : "Esperando hace"} ${t}</b>
-        <span class="small">${pas ? "Llegó" : "Llegó"} a las ${esc(hhmm(e.llegada_en))}. Sin costo hasta las ${esc(hhmm(e.cobro_desde))} (quedan ${reloj(s.faltaGracia)}). Después: ${clp(e.tarifa_min)} por minuto.</span></div>`;
+        <span class="small">${pas ? "Su servicio era" : "Agendado"} a las ${esc(hhmm(s.agendada))}. Sin costo hasta las ${esc(hhmm(e.cobro_desde))} (quedan ${reloj(s.faltaGracia)}). Después: ${clp(e.tarifa_min)} por minuto.</span></div>`;
     }
     return `<div class="espera-box cobra">
       <b>⏱ ${pas ? "Lo esperamos hace" : "Esperando hace"} ${t}</b>

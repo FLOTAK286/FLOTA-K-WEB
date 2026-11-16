@@ -6,6 +6,7 @@
 - Al subir el pasajero, la espera queda como gasto "Espera" de la reserva y se suma al total en cobros.
 - Contador en vivo con lo que se va cobrando: enlace de seguimiento, app del pasajero ("Mis viajes") y app del conductor. Antes de la llegada se informa la regla.
 - Base de datos: `espera_calculo`, `ver_espera_publica` (con token), `ver_espera` (conductor y equipo), trigger `reservas_zz_cobro_espera`. Migración `20261116193753_etapa30`.
+- El contador de espera parte en la hora agendada aunque el conductor llegue antes (antes de esa hora se muestra "ya llegó" con la hora agendada). El cobro siempre parte a la hora agendada + 15 min o más tarde.
 - Nuevo `assets/espera.js`. Caché de la app del pasajero `fk-app-v3`.
 
 ## 16 nov 2026 · Papelera de reservas: borrado definitivo a las 24 horas
