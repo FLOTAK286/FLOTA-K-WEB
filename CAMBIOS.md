@@ -1,5 +1,9 @@
 # Cambios
 
+## 16 nov 2026 · Página /empresas/ para prospección
+- Nueva página de venta para empresas (`/empresas/`): problema, lo que ven en el portal, cómo empezamos. Enlazada desde la sección Empresas de la portada y en el sitemap.
+- Base para los correos de prospección (sin prometer cantidad de vehículos: "vehículos coordinados con anticipación" para grupos).
+
 ## 16 nov 2026 · Vista previa del portal de empresas desde el panel
 - En Clientes y cobros → Empresas → ficha → Portal de empresas: botón 👁 por cada persona con acceso. Abre `/empresa/?como=<persona>` y muestra el portal exactamente como lo ve esa persona (encargado, directivo o pasajero), sin entrar a su cuenta.
 - Solo lectura: en la vista previa solo se permiten `convenio_inicio` y `convenio_reservas`; agendar, cancelar, personas, presupuesto y facturación quedan bloqueados en la página y, además, esas funciones siguen exigiendo ser la persona real.
