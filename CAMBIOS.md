@@ -6,7 +6,8 @@
 - La base de datos ya no pone el convenio sola cuando reserva el equipo (`asignar_cuenta_corporativa`: solo para reservas que hace el propio cliente).
 - **Rol "Directivo"** en empresas con convenio (ej.: el dueño): ve todos los viajes de la empresa y el gasto del mes, sin administrar personas, presupuestos ni facturación. Lo puede dar el admin de Flota-K (Portal de empresas) o el encargado de convenio.
 - **Portal /empresa:** cada persona ve además sus viajes particulares (los que paga ella, sin convenio), con filtro Todos / Empresa / Particulares. Los particulares no se pueden cancelar desde el portal.
-- Al dar acceso al portal, si la persona ya era cliente particular con ese correo, se usa la misma ficha (conserva su historial).
+- Al dar acceso al portal, si la persona ya era cliente particular (por correo o, si no, por teléfono), se usa la misma ficha y conserva su historial (migración `20261116195711_etapa31b`).
+- Datos: cliente Roberto González (+56993591706) creado; FK-CC6D07 y FK-9FE18D quedan a su nombre como solicitante (particular), pasajera María Eugenia de González.
 - Base de datos: migración `20261116195017_etapa31`; Edge Function `crear-usuario-convenio` v2 acepta el rol directivo.
 
 ## 16 nov 2026 · Espera en servicios punto a punto
