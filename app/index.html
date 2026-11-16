@@ -199,6 +199,7 @@
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/lugar.js"></script>
 <script src="/assets/pasajero.js"></script>
+<script src="/assets/espera.js"></script>
 <script>
 // Reserva en línea desactivada por ahora: las reservas las crea el equipo (WhatsApp, teléfono o panel).
 // Para activarla: true (y volver a dar permiso a crear_reserva_app en la base de datos).
@@ -354,6 +355,7 @@ $("ok-ver").addEventListener("click", () => ver("viajes"));
 $("ok-otra").addEventListener("click", () => ver("reservar"));
 
 // ---------- Mis viajes ----------
+let viajesVistos = [];
 async function pintarViajes() {
   const lista = $("lista"), guardados = FKPasajero.lista();
   if (!guardados.length) {
@@ -363,7 +365,14 @@ async function pintarViajes() {
   lista.innerHTML = '<p class="muted">Cargando…</p>';
   const filas = await Promise.all(guardados.map(async g => {
     const { data } = await sb.rpc("ver_reserva_publica", { p_token: g.t });
-    return data && data[0] ? { ...data[0], t: g.t } : null;
+    if (!data || !data[0]) return null;
+    const v = { ...data[0], t: g.t };
+    // Espera de punto a punto: solo para viajes de hoy que no están cerrados
+    if (!["finalizada", "cancelada"].includes(v.o_estado) || Math.abs(new Date(v.o_fecha_hora) - Date.now()) < 12 * 3600e3) {
+      const { data: e } = await sb.rpc("ver_espera_publica", { p_token: g.t });
+      v.espera = e && e[0] ? e[0] : null; v.esperaDif = FKEspera.desfase(v.espera);
+    }
+    return v;
   }));
   const vs = filas.filter(Boolean);
   // Quita de la lista los enlaces que ya no existen
@@ -376,22 +385,35 @@ async function pintarViajes() {
     <a class="card" href="/seguimiento/?t=${esc(v.t)}" style="text-decoration:none">
       <div class="top"><span class="when">${esc(fecha(v.o_fecha_hora))}</span>${pill(v.o_estado)}</div>
       <div>${esc(v.o_origen)} → ${esc(v.o_destino)}</div>
+      <div data-espera-t="${esc(v.t)}">${FKEspera.html(v.espera, v.esperaDif, "pasajero", v.o_estado)}</div>
       ${v.o_conductor ? `<div class="small">🚘 ${esc(v.o_conductor)}${v.o_vehiculo ? " · " + esc(v.o_vehiculo) : ""}${v.o_patente ? " · " + esc(v.o_patente) : ""}</div>` : ""}
       <div class="top"><span class="code">${esc(v.o_codigo)}</span><span class="small" style="color:var(--gold)">${enCurso.includes(v.o_estado) ? "📍 Ver su conductor en el mapa →" : "Ver detalle →"}</span></div>
     </a>
     <button type="button" class="small muted" data-quitar="${esc(v.t)}" style="background:none;border:0;padding:4px 2px;cursor:pointer;text-decoration:underline">Quitar de este teléfono</button></div>`;
+  viajesVistos = vs;
   lista.innerHTML = `
     <h3 style="margin:0">Próximos</h3>${proximos.length ? proximos.map(tarjeta).join("") : '<p class="muted">No tiene viajes agendados.</p>'}
     ${pasados.length ? `<h3 style="margin:10px 0 0">Anteriores</h3>${pasados.map(tarjeta).join("")}` : ""}`;
 }
 $("refrescar").addEventListener("click", pintarViajes);
+// Contador de espera: se mueve cada segundo sin volver a cargar
+setInterval(() => {
+  if ($("v-viajes").hidden) return;
+  viajesVistos.forEach(v => { const el = document.querySelector(`[data-espera-t="${CSS.escape(v.t)}"]`); if (el && v.espera) el.innerHTML = FKEspera.html(v.espera, v.esperaDif, "pasajero", v.o_estado); });
+}, 1000);
 $("lista").addEventListener("click", e => {
   const b = e.target.closest("[data-quitar]"); if (!b) return;
   if (!confirm("¿Quitar este viaje de este teléfono? La reserva no se cancela.")) return;
   FKPasajero.quitar(b.dataset.quitar); pintarViajes();
 });
 // Se actualiza solo cada minuto mientras está en Mis viajes
-setInterval(() => { if (!$("v-viajes").hidden && document.visibilityState === "visible") pintarViajes(); }, 60000);
+// (cada 20 s si el conductor ya llegó y está esperando)
+let vueltas = 0;
+setInterval(() => {
+  vueltas++;
+  if ($("v-viajes").hidden || document.visibilityState !== "visible") return;
+  if (vueltas % 3 === 0 || viajesVistos.some(v => v.o_estado === "en_lugar")) pintarViajes();
+}, 20000);
 
 // ---------- Instalar la app ----------
 let promptInstalar = null;

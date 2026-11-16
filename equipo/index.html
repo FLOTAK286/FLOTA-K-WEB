@@ -1772,7 +1772,7 @@ function pintarLinea(grupos, fin, d) {
 }
 
 // ---- Cobro de una reserva (ficha)
-const GASTO = { tag: "TAG", peaje: "Peaje", estacionamiento: "Estacionamiento", otro: "Otro" };
+const GASTO = { tag: "TAG", peaje: "Peaje", estacionamiento: "Estacionamiento", otro: "Otro", espera: "Espera" };
 let empresaTarifas = null;
 async function tarifas() {
   if (!empresaTarifas) { const { data } = await sb.from("empresas").select("id, nombre, taxi_bajada, taxi_cada_200m, taxi_cada_60s, valor_tag").eq("id", yo.empresa_id).single(); empresaTarifas = data; }

@@ -209,6 +209,7 @@ body.drv { overscroll-behavior-y: contain; }
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
 <script src="/assets/chat.js"></script>
+<script src="/assets/espera.js"></script>
 <script src="/assets/autos.js"></script>
 <script>
 const { sb, esc, clp, pill, errText, SERVICIOS } = FK;
@@ -552,10 +553,27 @@ function avisoSalida() {
   });
 }
 setInterval(avisoSalida, 60000);
+// Punto a punto con tarifa fija: 15 min sin costo desde la hora agendada; después $180/min (auto) o $270/min (SUV o van).
+// El contador y el cobro los calcula la base de datos (igual que ve el pasajero en su enlace).
+const esPaP = r => r.tipo_servicio === "punto_a_punto" && r.tipo_cobro !== "taximetro";
+const esperaPor = {}; // id -> { e, dif, en }
+async function traerEspera(id) {
+  esperaPor[id] = Object.assign(esperaPor[id] || {}, { en: Date.now() });
+  const { data } = await sb.rpc("ver_espera", { p_reserva: id });
+  const e = data && data[0] ? data[0] : null;
+  esperaPor[id] = { e, dif: FKEspera.desfase(e), en: Date.now() };
+}
 // Cronómetro de espera al llegar: incluido 15 min en domicilio; en aeropuerto 45 min (nacional) o 1 h (internacional) desde el aterrizaje
 setInterval(() => {
   document.querySelectorAll("[data-espera]").forEach(el => {
     const id = el.dataset.espera, r = items.find(x => x.id === id); if (!r) return;
+    if (esPaP(r)) {
+      const x = esperaPor[id];
+      if (!x || Date.now() - x.en > (r.estado === "en_lugar" ? 20000 : 120000)) traerEspera(id);
+      el.className = "";
+      el.innerHTML = x && x.e ? FKEspera.html(x.e, x.dif, "conductor", r.estado) : "";
+      return;
+    }
     let desde = 0; try { desde = Number(localStorage.getItem("fk_llegue_" + id)) || 0; } catch (_) {}
     if (!desde) { el.textContent = "Esperando al pasajero"; return; }
     const seg = Math.floor((Date.now() - desde) / 1000), mm = String(Math.floor(seg / 60)).padStart(2, "0"), ss = String(seg % 60).padStart(2, "0");
@@ -1103,7 +1121,7 @@ function pintar() {
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
       ${!fin ? `<a class="btn navegar" href="${(r.estado === "a_bordo" ? waze(r.destino, r.destino_lat, r.destino_lng) : waze(r.origen, r.origen_lat, r.origen_lng))}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>` : ""}
       <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
-      ${r.estado === "en_lugar" ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
+      ${r.estado === "en_lugar" || (esPaP(r) && ["asignada", "en_camino", "a_bordo", "finalizada"].includes(r.estado)) ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="${esc(FK.vueloFR24(r.vuelo))}" target="_blank" rel="noopener" style="color:var(--gold)" title="Flightradar24: el avión en vivo"><b>✈ ${esc(r.vuelo)}</b></a> · <a href="${FK.VUELO_PUDAHUEL}" target="_blank" rel="noopener" style="color:var(--gold)">Aeropuerto</a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
       ${r.vuelo && r.tipo_servicio === "regreso" && !["a_bordo", "finalizada", "cancelada"].includes(r.estado) ? `<p class="small" style="margin:4px 0 0">⏱ Revise el vuelo en <b>Flightradar</b> 1 hora antes y de nuevo al salir: los vuelos suelen aterrizar antes de lo que dice Google.</p>` : ""}
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>${r.retiro_detalle ? `<span class="small" style="color:var(--gold)">📍 ${esc(r.retiro_detalle)}</span>` : ""}
@@ -1139,7 +1157,7 @@ function pintar() {
             <div class="f"><label>Observación (opcional)</label><textarea class="nota" rows="2" maxlength="1000"></textarea></div>
             <div class="pay tx-total">Total: —</div>
             <div class="actions"><button class="btn end ok" type="button">Finalizar servicio</button><button class="btn ghost no" type="button">Volver</button></div></div>`
-          : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
+          : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}${esPaP(r) && esperaPor[r.id] && esperaPor[r.id].e && esperaPor[r.id].e.monto > 0 ? ` + espera ${clp(esperaPor[r.id].e.monto)} = <b>${clp((cobro || 0) + esperaPor[r.id].e.monto)}</b>` : ""}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
         : `<div class="swipe ${s.c} next" role="button" tabindex="0" data-e="${s.e}" aria-label="${esc(s.t)} (deslice o presione Enter)"><span class="swipe-txt">Deslice → ${esc(s.t)}</span><span class="swipe-thumb">➜</span></div>`) : ""}
       ${fin ? califHtml(r) : ""}
       <div class="msg err" hidden></div>
