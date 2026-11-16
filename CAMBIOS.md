@@ -1,5 +1,11 @@
 # Cambios
 
+## 16 nov 2026 · Vista previa del portal de empresas desde el panel
+- En Clientes y cobros → Empresas → ficha → Portal de empresas: botón 👁 por cada persona con acceso. Abre `/empresa/?como=<persona>` y muestra el portal exactamente como lo ve esa persona (encargado, directivo o pasajero), sin entrar a su cuenta.
+- Solo lectura: en la vista previa solo se permiten `convenio_inicio` y `convenio_reservas`; agendar, cancelar, personas, presupuesto y facturación quedan bloqueados en la página y, además, esas funciones siguen exigiendo ser la persona real.
+- Base de datos: `convenio_yo_o_vista(p_como)` (solo equipo de Flota-K y de la misma empresa); `convenio_inicio(p_como)` y `convenio_reservas(p_desde, p_como)` con parámetro opcional. Migración `20261116200515_etapa32`.
+- Caché del portal `fk-empresa-v2`.
+
 ## 16 nov 2026 · Particular o convenio en cada reserva, rol directivo y viajes particulares en el portal
 - **Nueva reserva (despacho):** campo obligatorio "¿Particular o convenio?". Si es convenio, se elige la empresa y aparece el centro de costo. Si el cliente tiene convenio en su ficha, se sugiere, pero el despachador confirma. Al copiar una reserva se mantiene lo mismo.
 - **Ficha de la reserva:** se puede cambiar entre particular y un convenio.

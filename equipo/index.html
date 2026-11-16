@@ -2052,6 +2052,7 @@ async function pintarPortal(e) {
     </dl></details>` : ""}
     <div class="small">💰 Presupuesto mensual de la empresa: <b>${f.presupuesto != null ? clp(f.presupuesto) : "sin límite"}</b>${f.presupuesto != null ? ` · al superarlo: <b>${f.modo === "bloqueo" ? "se bloquean las reservas" : "solo aviso"}</b>` : ""} · gastado este mes: <b>${clp(f.gasto_mes || 0)}</b> <span class="muted">(lo define el encargado en el portal)</span></div>
     <h4 style="margin:6px 0 0">Personas con acceso</h4>
+    ${us.length ? `<p class="small" style="margin:0">👁 <b>Ver el portal como lo ve cada persona</b> (solo lectura, sin entrar a su cuenta): ${us.map(u => `<a class="btn ghost sm" href="/empresa/?como=${esc(u.id)}" target="_blank" rel="noopener">${esc(u.nombre)} · ${esc((ROL_CONV[u.rol] || u.rol).split(" (")[0].split(":")[0])}</a>`).join(" ")}</p>` : ""}
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Presupuesto</th><th>Estado</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>
       ${us.length ? us.map(u => `<tr><td><b>${esc(u.nombre)}</b><br><span class="muted small">${esc(u.correo)}${u.telefono ? " · " + esc(u.telefono) : ""}</span></td>
         <td>${esc(ROL_CONV[u.rol] || u.rol)}</td><td>${u.presupuesto != null ? clp(u.presupuesto) : '<span class="muted">—</span>'}</td>

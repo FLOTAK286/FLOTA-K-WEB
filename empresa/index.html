@@ -95,6 +95,9 @@
     .pe-tbl select { min-width: 190px; }
     #v-lista .vg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   }
+  .vista-previa { position: sticky; top: 0; z-index: 50; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--gold); color: var(--gold-ink, #111); font-size: .95rem; text-align: center; }
+  .vista-previa .btn { color: inherit; border-color: currentColor; }
 </style>
 </head>
 <body>
@@ -260,6 +263,17 @@
 <script src="/assets/lugar.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText } = FK;
+
+// ---------- Vista previa para el equipo de Flota-K (/empresa/?como=<persona>) ----------
+// Muestra el portal tal como lo ve esa persona, sin entrar a su cuenta y SOLO PARA LEER:
+// solo se permiten las dos consultas de lectura; todo lo que guarda o cancela queda bloqueado aquí.
+const COMO = new URLSearchParams(location.search).get("como");
+if (COMO) {
+  const rpc0 = sb.rpc.bind(sb), LECTURA = ["convenio_inicio", "convenio_reservas"];
+  const bloqueo = { data: null, error: { message: "Vista previa: solo lectura. Aquí no se guarda ni se cancela nada." } };
+  sb.rpc = (fn, args) => LECTURA.includes(fn) ? rpc0(fn, { ...(args || {}), p_como: COMO }) : Promise.resolve(bloqueo);
+  sb.functions.invoke = () => Promise.resolve(bloqueo);
+}
 const $ = id => document.getElementById(id);
 const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -287,6 +301,17 @@ $("salir").addEventListener("click", async () => { await sb.auth.signOut(); loca
 async function iniciar(session) {
   sesion = session;
   const { data, error } = await sb.rpc("convenio_inicio");
+  if (COMO) {
+    if (error || !data) { mostrar("sinacceso"); $("userbar").hidden = false; $("who").textContent = session.user.email; $("pw-open").hidden = true; return; }
+    D = data;
+    const b = document.createElement("div");
+    b.className = "vista-previa";
+    b.innerHTML = `👁 <b>Vista previa</b> como <b>${esc(D.yo.nombre)}</b> (${esc(ROL[D.yo.rol] || D.yo.rol)}${D.yo.activo === false ? ", acceso desactivado" : ""}) · solo lectura <button type="button" class="btn ghost sm" onclick="window.close()">Cerrar</button>`;
+    document.body.prepend(b);
+    document.title = "Vista previa · " + D.yo.nombre;
+    $("userbar").hidden = false; $("who").textContent = D.yo.nombre; $("pw-open").hidden = true; $("salir").hidden = true;
+    return pintar();
+  }
   if (error || !data) { mostrar("sinacceso"); $("userbar").hidden = false; $("who").textContent = session.user.email; $("pw-open").hidden = true; return; }
   D = data;
   const { data: mia } = await sb.from("convenio_usuarios").select("cuenta_id").eq("user_id", session.user.id).maybeSingle();
