@@ -2041,6 +2041,15 @@ async function pintarPortal(e) {
     sb.from("servicios_habituales").select("*").eq("cuenta_id", e.id).order("orden").order("nombre")]);
   if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const f = d.facturacion || {}, us = d.usuarios || [], hs = hab || [];
+  // Recuadro destacado arriba de la ficha: ver el portal como lo ve la empresa (solo lectura)
+  const vb = $("ef-vista");
+  if (vb) {
+    vb.hidden = false;
+    vb.innerHTML = us.length
+      ? `<b>👁 Ver lo que ve la empresa</b><span class="small muted">Abre su portal tal como lo ve cada persona, sin entrar a su cuenta. Solo para mirar: no se guarda ni se cancela nada.</span>
+         <div class="actions">${us.map(u => `<a class="btn sm" href="/empresa/?como=${esc(u.id)}" target="_blank" rel="noopener">Ver como ${esc(u.nombre)} · ${esc((ROL_CONV[u.rol] || u.rol).split(" (")[0].split(":")[0])}</a>`).join("")}</div>`
+      : `<b>👁 Ver lo que ve la empresa</b><span class="small muted">Disponible cuando la empresa tenga al menos una persona con acceso al portal.</span>`;
+  }
   const filaF = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
   box.innerHTML = `
     <h3 style="margin:0">🏢 Portal de empresas <span class="muted small">fk-servicios.com/empresa</span></h3>
@@ -2219,6 +2228,7 @@ async function fichaEmpresa(id) {
   $("cl-ficha").innerHTML = `
     <div class="actions"><button class="btn ghost sm" id="ef-volver" type="button">◀ Volver a empresas</button></div>
     <h2 style="margin-top:10px">${esc(e.razon_social)}</h2>
+    <div id="ef-vista" class="pay" hidden></div>
     <div class="row3">
       <div class="f"><label for="ef-rut">RUT</label><input id="ef-rut" value="${esc(e.rut || "")}" maxlength="20"></div>
       <div class="f"><label for="ef-con">Contacto</label><input id="ef-con" value="${esc(e.contacto || "")}" maxlength="200"></div>
