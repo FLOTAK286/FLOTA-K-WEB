@@ -56,7 +56,8 @@ async function cargar() {
   const { data, error } = await sb.rpc("ver_reserva_publica_v2", { p_token: token });
   if (error || !data || !data.length) { box.innerHTML = '<p class="msg err">No encontramos esta reserva. Revise el enlace o escríbanos por WhatsApp.</p>'; return; }
   const r = data[0]; reserva = r;
-  FKPasajero.agregar(token, r.o_codigo); // queda en "Mis viajes" de la app del pasajero en este teléfono
+  // Queda en "Mis viajes" de este teléfono, salvo que quien lo abre sea del equipo de la empresa
+  if (!(await FKPasajero.esEquipo(sb))) FKPasajero.agregar(token, r.o_codigo);
   const cambio = r.o_estado !== estado; estado = r.o_estado;
   if (!cambio && $("ub-box")) { return; } // mismo estado: solo se refresca la ubicación
   const i = ORDEN.indexOf(r.o_estado);

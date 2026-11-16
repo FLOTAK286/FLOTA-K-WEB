@@ -1,5 +1,11 @@
 # Cambios
 
+## 16 nov 2026 · Privacidad en "Mis viajes" de la app del pasajero
+- "Mis viajes" (`/app`) muestra los viajes cuyos enlaces de seguimiento se abrieron en ese teléfono (se guardan en el teléfono, no hay cuenta). Cuando el admin o un conductor abría el enlace de un pasajero, ese viaje quedaba en su "Mis viajes" y parecía que se veían viajes de otras personas. La base de datos no estaba expuesta: un pasajero solo ve los viajes cuyo enlace tiene.
+- `/seguimiento` ya no guarda el viaje en "Mis viajes" si en ese teléfono hay una sesión del equipo (cualquier persona con perfil: admin, despachador, telefonista, conductor, propietario).
+- Cada viaje en "Mis viajes" tiene "Quitar de este teléfono" (no cancela la reserva).
+- Caché de la app del pasajero `fk-app-v2`.
+
 ## 15 nov 2026 · Portal de empresas: vista app (pasajero y encargado) y vista computador 
 - **"Acceso clientes"** de la portada (español e inglés) ahora lleva al portal de empresas `/empresa/`: solo cuentas registradas por Flota-K, sin registro abierto. `/cuenta/` queda sin enlace.
 - **Celular (app):** barra de navegación abajo, como app. El pasajero autorizado ve solo "Agendar" y "Mis viajes" con su presupuesto; el encargado ve además "Personas" y "Facturación". Encabezado compacto (🔑 contraseña, ⏻ salir). Las personas con acceso se muestran como tarjetas (antes la tabla no cabía).

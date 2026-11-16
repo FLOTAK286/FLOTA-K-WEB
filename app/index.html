@@ -372,18 +372,24 @@ async function pintarViajes() {
   const proximos = vs.filter(v => !["finalizada", "cancelada"].includes(v.o_estado) && new Date(v.o_fecha_hora) > ahora - 6 * 3600e3).sort((a, b) => new Date(a.o_fecha_hora) - new Date(b.o_fecha_hora));
   const pasados = vs.filter(v => !proximos.includes(v)).sort((a, b) => new Date(b.o_fecha_hora) - new Date(a.o_fecha_hora));
   const enCurso = ["en_camino", "en_lugar", "a_bordo"];
-  const tarjeta = v => `
+  const tarjeta = v => `<div>
     <a class="card" href="/seguimiento/?t=${esc(v.t)}" style="text-decoration:none">
       <div class="top"><span class="when">${esc(fecha(v.o_fecha_hora))}</span>${pill(v.o_estado)}</div>
       <div>${esc(v.o_origen)} → ${esc(v.o_destino)}</div>
       ${v.o_conductor ? `<div class="small">🚘 ${esc(v.o_conductor)}${v.o_vehiculo ? " · " + esc(v.o_vehiculo) : ""}${v.o_patente ? " · " + esc(v.o_patente) : ""}</div>` : ""}
       <div class="top"><span class="code">${esc(v.o_codigo)}</span><span class="small" style="color:var(--gold)">${enCurso.includes(v.o_estado) ? "📍 Ver su conductor en el mapa →" : "Ver detalle →"}</span></div>
-    </a>`;
+    </a>
+    <button type="button" class="small muted" data-quitar="${esc(v.t)}" style="background:none;border:0;padding:4px 2px;cursor:pointer;text-decoration:underline">Quitar de este teléfono</button></div>`;
   lista.innerHTML = `
     <h3 style="margin:0">Próximos</h3>${proximos.length ? proximos.map(tarjeta).join("") : '<p class="muted">No tiene viajes agendados.</p>'}
     ${pasados.length ? `<h3 style="margin:10px 0 0">Anteriores</h3>${pasados.map(tarjeta).join("")}` : ""}`;
 }
 $("refrescar").addEventListener("click", pintarViajes);
+$("lista").addEventListener("click", e => {
+  const b = e.target.closest("[data-quitar]"); if (!b) return;
+  if (!confirm("¿Quitar este viaje de este teléfono? La reserva no se cancela.")) return;
+  FKPasajero.quitar(b.dataset.quitar); pintarViajes();
+});
 // Se actualiza solo cada minuto mientras está en Mis viajes
 setInterval(() => { if (!$("v-viajes").hidden && document.visibilityState === "visible") pintarViajes(); }, 60000);
 

@@ -13,5 +13,18 @@
   }
   // Deja solo los enlaces que siguen existiendo
   function dejar(tokens) { if (!tokens) return; const s = new Set(tokens); escribir(lista().filter(x => s.has(x.t))); }
-  window.FKPasajero = { lista, agregar, dejar };
+  // Quita un viaje de este teléfono
+  function quitar(t) { escribir(lista().filter(x => x.t !== t)); }
+  // ¿Hay alguien del equipo (admin, despachador, conductor…) conectado en este teléfono?
+  // Si es así, los enlaces que abre son de pasajeros y no deben quedar en "Mis viajes".
+  async function esEquipo(sb) {
+    try {
+      const { data: s } = await sb.auth.getSession();
+      const uid = s && s.session && s.session.user && s.session.user.id;
+      if (!uid) return false;
+      const { data } = await sb.from("perfiles").select("id").eq("id", uid).maybeSingle();
+      return !!data;
+    } catch (_) { return false; }
+  }
+  window.FKPasajero = { lista, agregar, dejar, quitar, esEquipo };
 })();
