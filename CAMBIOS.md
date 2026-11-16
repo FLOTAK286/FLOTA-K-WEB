@@ -1,5 +1,11 @@
 # Cambios
 
+## 16 nov 2026 · Papelera de reservas: borrado definitivo a las 24 horas
+- Las reservas eliminadas quedan 24 horas en la papelera (se pueden restaurar) y después se borran definitivamente junto con sus eventos, gastos, mensajes, calificaciones, ubicaciones e historial de cambios.
+- Función `purgar_reservas_eliminadas()` (solo la ejecuta la tarea programada) y tarea pg_cron `flotak-purgar-eliminadas`, cada hora al minuto 17. Migración `20261116183114_etapa29`.
+- La papelera del panel muestra cuándo se borra cada reserva.
+- Al probarla se borraron FK-C41CC8 y FK-6600FB, que llevaban más de 24 horas en la papelera.
+
 ## 16 nov 2026 · Privacidad en "Mis viajes" de la app del pasajero
 - "Mis viajes" (`/app`) muestra los viajes cuyos enlaces de seguimiento se abrieron en ese teléfono (se guardan en el teléfono, no hay cuenta). Cuando el admin o un conductor abría el enlace de un pasajero, ese viaje quedaba en su "Mis viajes" y parecía que se veían viajes de otras personas. La base de datos no estaba expuesta: un pasajero solo ve los viajes cuyo enlace tiene.
 - `/seguimiento` ya no guarda el viaje en "Mis viajes" si en ese teléfono hay una sesión del equipo (cualquier persona con perfil: admin, despachador, telefonista, conductor, propietario).

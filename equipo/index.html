@@ -955,13 +955,13 @@ async function cargarPapelera() {
   if (error) { $("lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const t = $("buscar").value.trim().toLowerCase();
   const rows = (data || []).filter(r => !t || [r.o_pasajero, r.o_codigo, r.o_origen, r.o_destino].join(" ").toLowerCase().includes(t));
-  $("lista").innerHTML = `<p class="small muted" style="margin:0">Reservas eliminadas: no aparecen en el despacho, la agenda, los reportes ni los cobros. Si eliminó una por error, use <b>Restaurar</b> y vuelve con el estado que tenía.</p>` +
+  $("lista").innerHTML = `<p class="small muted" style="margin:0">Reservas eliminadas: no aparecen en el despacho, la agenda, los reportes ni los cobros. Si eliminó una por error, use <b>Restaurar</b> y vuelve con el estado que tenía. <b>Pasadas 24 horas desde que se eliminó, la reserva se borra definitivamente</b> y ya no se puede restaurar.</p>` +
     (rows.length ? rows.map(r => `
     <div class="card">
       <div class="top"><span class="when">${esc(fecha(r.o_fecha_hora))}</span><span class="pill s-cancel">Eliminada</span></div>
       <div><b>${esc(r.o_pasajero)}</b> · <span class="code">${esc(r.o_codigo)}</span></div>
       <div>${esc(r.o_origen)} → ${esc(r.o_destino)}</div>
-      <div class="small muted">Eliminada ${esc(fecha(r.o_eliminada_en))}${r.o_por ? " por " + esc(r.o_por) : ""}${r.o_motivo ? " · motivo: " + esc(r.o_motivo) : ""}</div>
+      <div class="small muted">Se borra definitivamente ${esc(fecha(new Date(new Date(r.o_eliminada_en).getTime() + 864e5).toISOString()))} · Eliminada ${esc(fecha(r.o_eliminada_en))}${r.o_por ? " por " + esc(r.o_por) : ""}${r.o_motivo ? " · motivo: " + esc(r.o_motivo) : ""}</div>
       <div class="actions"><button class="btn ghost sm" type="button" data-rest="${esc(r.o_id)}">↩ Restaurar</button></div>
     </div>`).join("") : '<p class="muted">La papelera está vacía.</p>');
   $("lista").querySelectorAll("[data-rest]").forEach(b => b.addEventListener("click", async () => {
@@ -1081,7 +1081,7 @@ async function abrir(id) {
   };
   if ($("d-eliminar")) $("d-eliminar").onclick = async () => {
     if (["en_camino", "en_lugar", "a_bordo"].includes(r.estado)) return msg("d-msg", "El servicio está en curso: no se puede eliminar.", "err");
-    const motivo = prompt(`¿Eliminar la reserva ${r.codigo} de ${r.nombre_pasajero}?\nDesaparece del despacho, la agenda, los reportes y los cobros. Se puede restaurar desde Reservas → Eliminadas (papelera).\n\nMotivo (ej.: prueba, duplicada):`, "");
+    const motivo = prompt(`¿Eliminar la reserva ${r.codigo} de ${r.nombre_pasajero}?\nDesaparece del despacho, la agenda, los reportes y los cobros. Se puede restaurar desde Reservas → Eliminadas (papelera) durante 24 horas; después se borra definitivamente.\n\nMotivo (ej.: prueba, duplicada):`, "");
     if (motivo === null) return;
     msg("d-msg", "Eliminando…");
     const { error } = await sb.rpc("eliminar_reserva", { p_reserva: r.id, p_motivo: motivo });
