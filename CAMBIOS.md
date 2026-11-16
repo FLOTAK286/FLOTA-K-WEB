@@ -1,5 +1,13 @@
 # Cambios
 
+## 16 nov 2026 · Espera en servicios punto a punto
+- Regla: 15 min sin costo desde la hora agendada; después $180 por minuto (auto) o $270 (SUV o van, según lo que pidió el cliente). Solo tarifa fija (el taxímetro ya cobra su espera).
+- El cobro corre desde lo que pase después: fin de la gracia o llegada del conductor ("llegué"), hasta que el pasajero sube. Minutos completos.
+- Al subir el pasajero, la espera queda como gasto "Espera" de la reserva y se suma al total en cobros.
+- Contador en vivo con lo que se va cobrando: enlace de seguimiento, app del pasajero ("Mis viajes") y app del conductor. Antes de la llegada se informa la regla.
+- Base de datos: `espera_calculo`, `ver_espera_publica` (con token), `ver_espera` (conductor y equipo), trigger `reservas_zz_cobro_espera`. Migración `20261116193753_etapa30`.
+- Nuevo `assets/espera.js`. Caché de la app del pasajero `fk-app-v3`.
+
 ## 16 nov 2026 · Papelera de reservas: borrado definitivo a las 24 horas
 - Las reservas eliminadas quedan 24 horas en la papelera (se pueden restaurar) y después se borran definitivamente junto con sus eventos, gastos, mensajes, calificaciones, ubicaciones e historial de cambios.
 - Función `purgar_reservas_eliminadas()` (solo la ejecuta la tarea programada) y tarea pg_cron `flotak-purgar-eliminadas`, cada hora al minuto 17. Migración `20261116183114_etapa29`.
