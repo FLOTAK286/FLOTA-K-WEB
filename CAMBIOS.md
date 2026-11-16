@@ -1,5 +1,14 @@
 # Cambios
 
+## 16 nov 2026 · Particular o convenio en cada reserva, rol directivo y viajes particulares en el portal
+- **Nueva reserva (despacho):** campo obligatorio "¿Particular o convenio?". Si es convenio, se elige la empresa y aparece el centro de costo. Si el cliente tiene convenio en su ficha, se sugiere, pero el despachador confirma. Al copiar una reserva se mantiene lo mismo.
+- **Ficha de la reserva:** se puede cambiar entre particular y un convenio.
+- La base de datos ya no pone el convenio sola cuando reserva el equipo (`asignar_cuenta_corporativa`: solo para reservas que hace el propio cliente).
+- **Rol "Directivo"** en empresas con convenio (ej.: el dueño): ve todos los viajes de la empresa y el gasto del mes, sin administrar personas, presupuestos ni facturación. Lo puede dar el admin de Flota-K (Portal de empresas) o el encargado de convenio.
+- **Portal /empresa:** cada persona ve además sus viajes particulares (los que paga ella, sin convenio), con filtro Todos / Empresa / Particulares. Los particulares no se pueden cancelar desde el portal.
+- Al dar acceso al portal, si la persona ya era cliente particular con ese correo, se usa la misma ficha (conserva su historial).
+- Base de datos: migración `20261116195017_etapa31`; Edge Function `crear-usuario-convenio` v2 acepta el rol directivo.
+
 ## 16 nov 2026 · Espera en servicios punto a punto
 - Regla: 15 min sin costo desde la hora agendada; después $180 por minuto (auto) o $270 (SUV o van, según lo que pidió el cliente). Solo tarifa fija (el taxímetro ya cobra su espera).
 - El cobro corre desde lo que pase después: fin de la gracia o llegada del conductor ("llegué"), hasta que el pasajero sube. Minutos completos.

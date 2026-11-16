@@ -185,7 +185,12 @@
         </div>
         <div id="n-ruta" class="small" hidden></div>
         <div id="n-sugerida" class="small" hidden></div>
-        <div class="row2"><div class="f"><label for="n-cc">Centro de costo (empresas, opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div><div id="n-emp" class="small" style="align-self:end"></div></div>
+        <div class="row3">
+          <div class="f"><label for="n-paga">¿Particular o convenio?</label><select id="n-paga" required><option value="">— Elegir —</option><option value="particular">Particular (paga la persona)</option><option value="convenio">Convenio empresa (se cobra a la empresa)</option></select></div>
+          <div class="f" id="b-conv" hidden><label for="n-conv">Convenio</label><select id="n-conv"></select></div>
+          <div class="f" id="b-cc" hidden><label for="n-cc">Centro de costo (opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div>
+        </div>
+        <div id="n-emp" class="small"></div>
         <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
         <div class="row3">
           <div class="f"><label for="n-rep">Repetir</label><select id="n-rep"><option value="">No se repite</option><option value="semanal">Cada semana (mismo día y hora)</option><option value="habiles">Lunes a viernes (misma hora)</option><option value="diario">Todos los días (misma hora)</option></select></div>
@@ -644,6 +649,7 @@ function copiarReserva(r, regreso) {
   lugO.set(r.origen, r.origen_lat, r.origen_lng); lugD.set(r.destino, r.destino_lat, r.destino_lng); set("n-tipo", r.tipo_servicio); set("n-veh", r.vehiculo || "auto"); set("n-pax", r.pasajeros); set("n-maletas", r.maletas);
   set("n-precio", r.precio); set("n-pago", r.forma_pago || ""); set("n-cobro", r.tipo_cobro || "fija"); set("n-cc", r.centro_costo); set("n-com", r.comentarios);
   clienteSel = r.cliente_id || null;
+  $("n-paga").value = r.cuenta_corporativa_id ? "convenio" : "particular"; llenarConvenios(r.cuenta_corporativa_id); verPaga();
   if (regreso) {
     lugO.set(r.destino, r.destino_lat, r.destino_lng); lugD.set(r.origen, r.origen_lat, r.origen_lng); $("n-vuelo").value = "";
     set("n-tipo", r.tipo_servicio === "ida" ? "regreso" : r.tipo_servicio === "regreso" ? "ida" : r.tipo_servicio);
@@ -1007,7 +1013,7 @@ async function abrir(id) {
     </div>
     <div class="row2">
       <div class="f"><label for="d-cobro">Tipo de cobro</label><select id="d-cobro" ${r.estado === "finalizada" ? "disabled" : ""}><option value="fija" ${r.tipo_cobro !== "taximetro" ? "selected" : ""}>Tarifa fija</option><option value="taximetro" ${r.tipo_cobro === "taximetro" ? "selected" : ""}>Taxímetro</option></select></div>
-      <div></div>
+      <div class="f"><label for="d-conv">Particular o convenio</label><select id="d-conv"><option value="">Particular (paga la persona)</option>${cuentas.filter(c => c.activa || c.id === r.cuenta_corporativa_id).map(c => `<option value="${esc(c.id)}" ${c.id === r.cuenta_corporativa_id ? "selected" : ""}>Convenio: ${esc(c.razon_social)}</option>`).join("")}</select></div>
     </div>
     <div class="row2">
       <div class="f"><label for="d-estado">Estado</label><select id="d-estado">${opts}</select></div>
@@ -1134,8 +1140,11 @@ async function abrir(id) {
     const precio = $("d-precio").value === "" ? null : Number($("d-precio").value);
     const pago = $("d-pago").value.trim() || null;
     const cobro = $("d-cobro").value;
-    if (precio !== r.precio || pago !== r.forma_pago || cobro !== r.tipo_cobro) {
-      const { error } = await sb.from("reservas").update({ precio, forma_pago: pago, tipo_cobro: cobro }).eq("id", r.id);
+    const conv = $("d-conv").value || null;
+    if (precio !== r.precio || pago !== r.forma_pago || cobro !== r.tipo_cobro || conv !== (r.cuenta_corporativa_id || null)) {
+      const cambio = { precio, forma_pago: pago, tipo_cobro: cobro, cuenta_corporativa_id: conv };
+      if (!conv) cambio.centro_costo = null;
+      const { error } = await sb.from("reservas").update(cambio).eq("id", r.id);
       if (error) return msg("d-msg", errText(error), "err");
     }
     const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: $("d-estado").value, p_nota: $("d-nota").value });
@@ -2021,7 +2030,7 @@ $("tf").addEventListener("submit", async e => {
 });
 
 // ---- Portal de empresas (/empresa): accesos, facturación, presupuesto y servicios habituales
-const ROL_CONV = { encargado: "Encargado de convenio", pasajero: "Pasajero autorizado" };
+const ROL_CONV = { encargado: "Encargado de convenio", directivo: "Directivo / dueño (ve todos los viajes)", pasajero: "Pasajero autorizado" };
 const TIPO_HAB = { ida: "Ida al aeropuerto", regreso: "Regreso del aeropuerto", punto_a_punto: "Punto a punto", por_hora: "Por hora" };
 async function pintarPortal(e) {
   const box = $("ef-portal"); if (!box) return;
@@ -2054,7 +2063,7 @@ async function pintarPortal(e) {
       <div class="f"><label for="pu-nom">Nombre</label><input id="pu-nom" maxlength="200" placeholder="Nombre y apellido"></div>
       <div class="f"><label for="pu-mail">Correo (será su usuario)</label><input id="pu-mail" type="email" maxlength="200" placeholder="persona@empresa.cl"></div>
       <div class="f"><label for="pu-tel">Teléfono</label><input id="pu-tel" type="tel" maxlength="30" placeholder="+56 9 ..."></div>
-      <div class="f"><label for="pu-rol">Rol</label><select id="pu-rol"><option value="encargado">Encargado de convenio</option><option value="pasajero">Pasajero autorizado</option></select></div>
+      <div class="f"><label for="pu-rol">Rol</label><select id="pu-rol"><option value="encargado">Encargado de convenio</option><option value="directivo">Directivo / dueño: ve todos los viajes de la empresa, no administra</option><option value="pasajero">Pasajero autorizado</option></select></div>
       <div class="f"><label for="pu-clave">Contraseña provisoria</label><input id="pu-clave" maxlength="60"></div>
       <div class="f"><button class="btn" type="submit">Crear acceso</button></div>
     </form>
@@ -2161,7 +2170,20 @@ let cuentas = [];
 async function cargarCuentas() {
   const { data } = await sb.from("cuentas_corporativas").select("*").order("razon_social");
   cuentas = data || [];
+  llenarConvenios($("n-conv") && $("n-conv").value);
 }
+// Lista de convenios activos para elegir en una reserva
+function opcionesConvenio(sel) {
+  return '<option value="">— Elegir empresa —</option>' + cuentas.filter(c => c.activa || c.id === sel)
+    .map(c => `<option value="${esc(c.id)}" ${c.id === sel ? "selected" : ""}>${esc(c.razon_social)}</option>`).join("");
+}
+function llenarConvenios(sel) { if ($("n-conv")) $("n-conv").innerHTML = opcionesConvenio(sel || ""); }
+function verPaga() {
+  const conv = $("n-paga").value === "convenio";
+  $("b-conv").hidden = !conv; $("b-cc").hidden = !conv;
+  if (conv && !$("n-conv").options.length) llenarConvenios();
+}
+$("n-paga").addEventListener("change", () => { if ($("n-paga").value === "convenio") llenarConvenios($("n-conv").value); verPaga(); });
 function verClientes(emp) {
   $("cl-ver-per").classList.toggle("on", !emp); $("cl-ver-emp").classList.toggle("on", emp);
   $("cl-ficha").hidden = true; $("cl-lista").hidden = emp; $("em-lista").hidden = !emp;
@@ -2373,7 +2395,9 @@ async function elegirCliente(id) {
   clienteSel = c.id;
   if (!cuentas.length) await cargarCuentas();
   const emp = cuentas.find(x => x.id === c.cuenta_corporativa_id);
-  $("n-emp").innerHTML = emp ? `Se cobra a la empresa: <b>${esc(emp.razon_social)}</b>` : "";
+  if (emp) { $("n-paga").value = "convenio"; llenarConvenios(emp.id); }
+  verPaga();
+  $("n-emp").innerHTML = emp ? `⚠️ Este cliente tiene convenio con <b>${esc(emp.razon_social)}</b>. Confirme si <b>este viaje</b> es de la empresa o particular.` : "";
   $("n-nombre").value = c.nombre || ""; $("n-tel").value = c.telefono || ""; $("n-mail").value = c.correo || "";
   $("n-buscar").value = ""; pintarSugerencias([]);
   // Último servicio del cliente: preferencias y trayecto para repetir
@@ -2403,7 +2427,7 @@ async function elegirCliente(id) {
   };
   $("n-mismo")?.addEventListener("click", () => usar(r.origen, r.destino, false));
   $("n-inv")?.addEventListener("click", () => usar(r.destino, r.origen, true));
-  $("n-quitar").addEventListener("click", () => { clienteSel = null; $("n-cli").hidden = true; $("n-emp").innerHTML = ""; });
+  $("n-quitar").addEventListener("click", () => { clienteSel = null; $("n-cli").hidden = true; $("n-emp").innerHTML = ""; $("n-paga").value = ""; verPaga(); });
 }
 $("n-buscar").addEventListener("input", e => pintarSugerencias(buscarClientes(e.target.value)));
 $("n-buscar").addEventListener("keydown", e => { if (e.key === "Escape") pintarSugerencias([]); });
@@ -2488,6 +2512,8 @@ $("nf").addEventListener("submit", async e => {
   e.preventDefault();
   const otra = $("n-otra").checked;
   const req = ["n-nombre", "n-tel", "n-fecha", "n-origen", "n-destino"].concat(otra ? ["n-pnombre", "n-ptel"] : []);
+  if (!$("n-paga").value) { $("n-paga").focus(); return msg("n-msg", "Indique si la reserva es particular o de convenio.", "err"); }
+  if ($("n-paga").value === "convenio" && !$("n-conv").value) { $("n-conv").focus(); return msg("n-msg", "Elija el convenio (empresa) al que se cobra.", "err"); }
   const falta = req.find(id => !$(id).value.trim());
   if (falta) return msg("n-msg", "Complete: " + $(falta).labels[0].textContent, "err");
   const po = lugO.get(), pd = lugD.get();
@@ -2508,7 +2534,9 @@ $("nf").addEventListener("submit", async e => {
   if (clienteSel) fila.cliente_id = clienteSel;
   if (otra) Object.assign(fila, { solicitante_nombre: fila.nombre_pasajero, solicitante_telefono: fila.telefono, solicitante_correo: fila.correo,
     nombre_pasajero: $("n-pnombre").value.trim(), telefono: $("n-ptel").value.trim(), correo: null });
-  if ($("n-cc").value.trim()) fila.centro_costo = $("n-cc").value.trim();
+  // Particular o convenio: lo decide el despachador en cada reserva
+  fila.cuenta_corporativa_id = $("n-paga").value === "convenio" ? $("n-conv").value : null;
+  if (fila.cuenta_corporativa_id && $("n-cc").value.trim()) fila.centro_costo = $("n-cc").value.trim();
   const rep = $("n-rep").value, hasta = $("n-rep-hasta").value;
   let filas = [fila];
   if (rep) {
@@ -2527,7 +2555,7 @@ $("nf").addEventListener("submit", async e => {
   const { data, error } = await sb.from("reservas").insert(filas).select("codigo");
   if (error) return msg("n-msg", errText(error), "err");
   msg("n-msg", data.length > 1 ? `${data.length} reservas guardadas como confirmadas (${data[0].codigo} … ${data[data.length - 1].codigo}).` : `Reserva ${data[0].codigo} guardada como confirmada.`, "ok");
-  $("nf").reset(); lugO.limpiar(); lugD.limpiar(); rutaNueva = null; $("n-ruta").hidden = true; $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = "";
+  $("nf").reset(); lugO.limpiar(); lugD.limpiar(); rutaNueva = null; $("n-ruta").hidden = true; $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = ""; verPaga();
 });
 
 // ---- Equipo y roles (solo admin)

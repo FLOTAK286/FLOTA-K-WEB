@@ -213,7 +213,7 @@
         <div id="e-msg" class="msg" hidden></div>
 
         <h2 style="margin-top:10px">Personas con acceso</h2>
-        <p class="small muted" style="margin:0">Fije un presupuesto mensual por persona (vacío = sin límite propio). Los encargados de convenio ven todos los viajes, el presupuesto y la facturación.</p>
+        <p class="small muted" style="margin:0">Fije un presupuesto mensual por persona (vacío = sin límite propio). Los encargados de convenio ven todos los viajes, el presupuesto y la facturación. Los directivos ven todos los viajes y el gasto de la empresa, sin administrar.</p>
         <div class="tblwrap"><table class="tbl pe-tbl"><thead><tr><th>Persona</th><th>Rol</th><th>Presupuesto mensual</th><th>Gastado este mes</th><th>Acceso</th><th></th></tr></thead><tbody id="e-tbody"></tbody></table></div>
         <div id="u-msg" class="msg" hidden></div>
         <h3 style="margin:10px 0 0">Agregar persona</h3>
@@ -221,7 +221,7 @@
           <div class="f"><label for="u-nom">Nombre</label><input id="u-nom" maxlength="200"></div>
           <div class="f"><label for="u-mail">Correo (será su usuario)</label><input id="u-mail" type="email" maxlength="200"></div>
           <div class="f"><label for="u-tel">Teléfono</label><input id="u-tel" type="tel" maxlength="30" placeholder="+56 9 ..."></div>
-          <div class="f"><label for="u-rol">Rol</label><select id="u-rol"><option value="pasajero">Pasajero autorizado</option><option value="encargado">Encargado de convenio</option></select></div>
+          <div class="f"><label for="u-rol">Rol</label><select id="u-rol"><option value="pasajero">Pasajero autorizado</option><option value="directivo">Directivo (ve todos los viajes, no administra)</option><option value="encargado">Encargado de convenio</option></select></div>
           <div class="f"><label for="u-pres">Presupuesto mensual ($, opcional)</label><input id="u-pres" type="number" min="0" step="1000" inputmode="numeric"></div>
           <div class="f"><button class="btn" type="submit">Dar acceso</button></div>
         </form>
@@ -263,7 +263,7 @@ const { sb, esc, clp, fecha, pill, errText } = FK;
 const $ = id => document.getElementById(id);
 const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-const ROL = { encargado: "Encargado de convenio", pasajero: "Pasajero autorizado" };
+const ROL = { encargado: "Encargado de convenio", directivo: "Directivo", pasajero: "Pasajero autorizado" };
 const VEH = { auto: "Auto", suv: "SUV", van: "Van" };
 function msg(id, t, k) { const m = $(id); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
 async function errFuncion(error) { try { const j = await error.context.json(); return j.error || errText(error); } catch (_) { return errText(error); } }
@@ -319,6 +319,8 @@ $("pw-f").addEventListener("submit", async e => {
 
 // ---------- Portal ----------
 const enc = () => D.yo.rol === "encargado";
+// Ve todos los viajes de la empresa (encargado y directivo); el directivo no administra personas ni facturación
+const veTodo = () => ["encargado", "directivo"].includes(D.yo.rol);
 function barra(gasto, tope) {
   if (tope == null) return `Gastado este mes: <b>${clp(gasto || 0)}</b> <span class="muted">(sin límite)</span>`;
   const pct = tope > 0 ? Math.min(100, Math.round(gasto / tope * 100)) : 100;
@@ -330,12 +332,12 @@ function pintar() {
   $("h-rol").textContent = ROL[D.yo.rol];
   document.body.classList.add("en-app");
   document.body.classList.toggle("rol-encargado", enc()); document.body.classList.toggle("rol-pasajero", !enc());
-  $("t-viajes").textContent = enc() ? "Viajes" : "Mis viajes";
+  $("t-viajes").textContent = veTodo() ? "Viajes" : "Mis viajes";
   $("h-emp").textContent = e.razon_social || "Su empresa";
   document.querySelectorAll(".enc").forEach(x => x.hidden = !enc());
   // Presupuesto en el encabezado
   const partes = [];
-  if (enc()) partes.push(`<b>Empresa:</b> ${barra(e.gasto_mes, e.presupuesto)}`);
+  if (veTodo()) partes.push(`<b>Empresa:</b> ${barra(e.gasto_mes, e.presupuesto)}`);
   if (D.yo.presupuesto != null) partes.push(`<b>Su presupuesto:</b> ${barra(D.yo.gasto_mes, D.yo.presupuesto)}`);
   $("h-pres").innerHTML = partes.join('<div style="height:8px"></div>');
   // Facturación pendiente
@@ -464,23 +466,30 @@ function pintarCabecera() {
 }
 
 // ---------- Viajes ----------
+let filtroV = "todos";
 async function cargarViajes() {
   const box = $("v-lista"); box.innerHTML = '<p class="muted">Cargando…</p>';
-  const { data, error } = await sb.rpc("convenio_reservas");
+  let { data, error } = await sb.rpc("convenio_reservas");
   if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const ahora = Date.now();
+  const hayPart = data.some(r => r.o_tipo === "particular");
+  if (!hayPart) filtroV = "todos";
+  data = data.filter(r => filtroV === "todos" || r.o_tipo === filtroV);
   const prox = data.filter(r => !["finalizada", "cancelada"].includes(r.o_estado) && new Date(r.o_fecha_hora) > ahora - 6 * 3600e3).sort((a, b) => new Date(a.o_fecha_hora) - new Date(b.o_fecha_hora));
   const ant = data.filter(r => !prox.includes(r));
   const card = r => `<div class="card" style="cursor:default">
       <div class="top"><span class="when">${esc(fecha(r.o_fecha_hora))}</span>${pill(r.o_estado)}</div>
+      ${hayPart ? `<div class="small">${r.o_tipo === "particular" ? "👤 <b>Particular</b> · lo paga usted" : `🏢 <b>${esc(D.empresa.razon_social || "Empresa")}</b>`}</div>` : ""}
       <div>${esc(r.o_origen)} → ${esc(r.o_destino)}</div>
-      <div class="top small"><span class="code">${esc(r.o_codigo)}${enc() ? " · " + esc(r.o_pasajero) : ""}${r.o_centro_costo ? " · " + esc(r.o_centro_costo) : ""}</span><span>${r.o_valor != null ? clp(r.o_valor) : '<span class="muted">Valor por confirmar</span>'}</span></div>
+      <div class="top small"><span class="code">${esc(r.o_codigo)}${veTodo() || r.o_tipo === "particular" ? " · " + esc(r.o_pasajero) : ""}${r.o_centro_costo ? " · " + esc(r.o_centro_costo) : ""}</span><span>${r.o_valor != null ? clp(r.o_valor) : '<span class="muted">Valor por confirmar</span>'}</span></div>
       ${r.o_conductor ? `<div class="small">🚘 ${esc(r.o_conductor)}</div>` : ""}
       ${r.o_aviso ? `<div class="aviso small">💰 ${esc(r.o_aviso)}</div>` : ""}
       <div class="actions"><a class="btn ghost sm" href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener">Ver seguimiento</a>${r.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-c="${esc(r.o_id)}">Cancelar</button>` : ""}</div>
     </div>`;
-  box.innerHTML = `<h3 style="margin:0">Próximos</h3>${prox.length ? `<div class="vg">${prox.map(card).join("")}</div>` : '<p class="muted">No hay viajes agendados.</p>'}
+  const chips = hayPart ? `<div class="chips" id="v-filtro">${[["todos", "Todos"], ["empresa", "🏢 Empresa"], ["particular", "👤 Particulares"]].map(([k, t]) => `<button type="button" class="chip ${filtroV === k ? "on" : ""}" data-f="${k}">${t}</button>`).join("")}</div>` : "";
+  box.innerHTML = chips + `<h3 style="margin:0">Próximos</h3>${prox.length ? `<div class="vg">${prox.map(card).join("")}</div>` : '<p class="muted">No hay viajes agendados.</p>'}
     ${ant.length ? `<h3 style="margin:10px 0 0">Anteriores (últimos 60 días)</h3><div class="vg">${ant.map(card).join("")}</div>` : ""}`;
+  box.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filtroV = b.dataset.f; cargarViajes(); });
   box.querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
     const motivo = prompt("¿Seguro que desea cancelar este traslado? Si quiere, indique el motivo:");
     if (motivo === null) return;
@@ -503,7 +512,7 @@ function pintarEquipo() {
   const us = D.equipo || [];
   $("e-tbody").innerHTML = us.map(u => `<tr data-u="${esc(u.id)}">
     <td><b>${esc(u.nombre)}</b>${u.id === D.yo.id ? ' <span class="muted small">(usted)</span>' : ""}<br><span class="muted small">${esc(u.correo)}</span></td>
-    <td data-l="Rol"><select data-k="rol" ${u.id === D.yo.id ? "disabled" : ""}><option value="pasajero" ${u.rol === "pasajero" ? "selected" : ""}>Pasajero autorizado</option><option value="encargado" ${u.rol === "encargado" ? "selected" : ""}>Encargado de convenio</option></select></td>
+    <td data-l="Rol"><select data-k="rol" ${u.id === D.yo.id ? "disabled" : ""}><option value="pasajero" ${u.rol === "pasajero" ? "selected" : ""}>Pasajero autorizado</option><option value="directivo" ${u.rol === "directivo" ? "selected" : ""}>Directivo (ve todos los viajes)</option><option value="encargado" ${u.rol === "encargado" ? "selected" : ""}>Encargado de convenio</option></select></td>
     <td data-l="Presupuesto mensual"><input data-k="pres" type="number" min="0" step="1000" value="${u.presupuesto ?? ""}" placeholder="Sin límite" style="max-width:150px"></td>
     <td data-l="Gastado este mes">${clp(u.gasto_mes || 0)}${u.presupuesto != null && u.gasto_mes > u.presupuesto ? ' <b class="warn">superado</b>' : ""}</td>
     <td data-l="Acceso"><label class="chk"><input data-k="act" type="checkbox" ${u.activo ? "checked" : ""} ${u.id === D.yo.id ? "disabled" : ""}> Activo</label></td>

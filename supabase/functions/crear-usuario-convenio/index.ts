@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     const telefono = String(b.telefono ?? "").trim(), rol = String(b.rol ?? "");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return json({ error: "Correo no válido" }, 400);
     if (nombre.length < 2) return json({ error: "Ingrese el nombre" }, 400);
-    if (!["encargado", "pasajero"].includes(rol)) return json({ error: "Rol no válido" }, 400);
+    if (!["encargado", "pasajero", "directivo"].includes(rol)) return json({ error: "Rol no válido" }, 400);
 
     let userId: string | null = null, existia = false;
     const { data: nuevo, error: eC } = await admin.auth.admin.createUser({ email: correo, password: clave, email_confirm: true, user_metadata: { nombre } });
