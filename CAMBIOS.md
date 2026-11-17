@@ -18,6 +18,8 @@
 - App del pasajero (/app): "Mi cuenta" ya no lleva a /cuenta (enlace por correo, sin configurar): ahora "Entrar y agendar" lleva al portal /empresa, donde se entra con correo o usuario y contraseña.
 - /empresas: ficha para Google (datos estructurados `Service`) y se corrigió un `</head>` repetido.
 - Reseñas de Google: sección "Lo que dicen nuestros pasajeros" en la portada y botón en /empresas; `resenaGoogle` en `assets/config.js` (ficha de Google por CID), que el seguimiento ya ofrece al pasajero que califica con 5 estrellas. La ficha de Google se agregó a los datos estructurados de la portada.
+## 17 nov 2026 · Portal de empresas: el valor del viaje igual que en cobranza
+- Base de datos (etapa 35, ya aplicada): `valor_cobro(reserva)` calcula como `v_cobro` (taxímetro si se cobró con taxímetro; si no, precio fijo o tarifa web; más gastos). Lo usan `convenio_reservas` (valor que ve el pasajero o la empresa) y `convenio_gasto` (presupuestos). Antes los servicios con taxímetro salían "Valor por confirmar" en el portal.
 
 ## 17 nov 2026 · Nueva clave: mensaje visible y WhatsApp en las apps Android
 - Portal de empresas en el panel: el recuadro con la clave provisoria y el botón "Enviar por WhatsApp" aparece arriba de la sección y la pantalla baja sola hasta él (antes quedaba al final, fuera de la vista en el teléfono). El mensaje de clave nueva incluye el usuario corto.
