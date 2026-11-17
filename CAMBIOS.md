@@ -1,5 +1,13 @@
 # Cambios
 
+## 16 nov 2026 · Nueva reserva más amigable (panel)
+- El formulario se ordena en 5 pasos numerados: quién viaja, servicio y cuándo, dónde, pasajeros y vehículo, precio y quién paga. Canal y repetir quedan en "Más opciones".
+- Servicio, vehículo y "¿quién paga?" con botones grandes en vez de listas; pasajeros y maletas con − / +.
+- Atajos de fecha: Hoy / Mañana / Pasado mañana (mantiene la hora).
+- Al elegir Ida o Regreso, el aeropuerto se pone solo como destino u origen si está vacío.
+- Barra fija abajo con el resumen (fecha, trayecto, precio), lo que falta para guardar y aviso si la fecha ya pasó o si hay más de 4 pasajeros en auto.
+- Sin cambios en la base de datos: los mismos campos y la misma validación al guardar.
+
 ## 16 nov 2026 · Servicios con paradas intermedias y vuelo solo en aeropuerto
 - **Paradas (hasta 8)** entre el origen y el destino, cada una con su punto en el mapa: en la nueva reserva del despacho y en el portal de empresas ("Paradas en el camino"). La ruta y los km se recalculan con las paradas y el panel muestra cuánto agregan ("Ajuste el precio").
 - Portal de empresas: con paradas no se muestra tarifa fija ("el valor se lo confirmamos"); los servicios habituales no llevan paradas.

@@ -16,6 +16,20 @@
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/app.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+.paso { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+.paso h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.paso-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--gold); color: #17130a; font-size: .85rem; font-weight: 700; }
+details.paso > summary { cursor: pointer; }
+.nf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.nf-chips .chip { padding: 9px 14px; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper input { width: 64px; text-align: center; }
+.stepper .chip { width: 40px; height: 40px; padding: 0; font-size: 1.2rem; font-weight: 700; }
+.nf-barra { position: sticky; bottom: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--gold); border-radius: 12px; padding: 10px 12px; box-shadow: 0 -4px 16px rgba(0,0,0,.18); }
+.nf-resumen { flex: 1 1 240px; font-size: .92rem; }
+</style>
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="brand" href="/equipo/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EQUIPO</small></a><div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="pw-open" type="button">Contraseña</button><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
@@ -140,65 +154,92 @@
     </div>
 
     <div data-pane="nueva" class="panel" style="margin-top:14px" hidden>
-      <h2>Registrar una reserva</h2>
-      <p class="muted">Para reservas que llegan por teléfono, WhatsApp o correo.</p>
-      <details class="confirm" id="n-rapida"><summary><b>⚡ Reserva rápida: pegue el mensaje de WhatsApp</b></summary>
+      <h2>Nueva reserva</h2>
+      <p class="muted" style="margin-top:0">5 pasos cortos. Lo que falta aparece abajo, junto al botón Guardar.</p>
+      <details class="confirm" id="n-rapida"><summary><b>⚡ ¿Llegó por WhatsApp? Pegue el mensaje y se completa solo</b></summary>
         <div class="list" style="margin-top:8px">
           <textarea id="n-pegar" rows="4" placeholder="Ej.: Hola, necesito un traslado mañana a las 6:00 desde Las Condes al aeropuerto, vuelo LA800, somos 2 pasajeros con 3 maletas. Soy Fernando Chacana +56 9 9222 6063"></textarea>
           <div class="actions"><button class="btn sm" type="button" id="n-leer">Completar el formulario</button><span class="small muted" id="n-leido"></span></div>
         </div></details>
       <form id="nf" novalidate class="list">
-        <div class="f" style="position:relative"><label for="n-buscar">¿Cliente registrado? Búsquelo y se completan sus datos</label>
-          <input id="n-buscar" placeholder="Escriba nombre, teléfono o correo" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="n-sug">
-          <div id="n-sug" class="sug" role="listbox" hidden></div></div>
-        <div id="n-cli" class="pay" hidden></div>
-        <div class="row3">
-          <div class="f"><label for="n-nombre" id="l-nombre">Pasajero</label><input id="n-nombre" required></div>
-          <div class="f"><label for="n-tel">Teléfono</label><input id="n-tel" type="tel" required></div>
-          <div class="f"><label for="n-mail">Correo</label><input id="n-mail" type="email"></div>
+        <section class="paso"><h3><span class="paso-n">1</span> ¿Quién viaja?</h3>
+          <div class="f" style="position:relative"><label for="n-buscar">Buscar cliente (nombre, teléfono o correo)</label>
+            <input id="n-buscar" placeholder="Si ya viajó con nosotros, aparece aquí" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="n-sug">
+            <div id="n-sug" class="sug" role="listbox" hidden></div></div>
+          <div id="n-cli" class="pay" hidden></div>
+          <div class="row3">
+            <div class="f"><label for="n-nombre" id="l-nombre">Pasajero</label><input id="n-nombre" required autocomplete="off"></div>
+            <div class="f"><label for="n-tel">Teléfono</label><input id="n-tel" type="tel" inputmode="tel" required placeholder="+56 9 …"></div>
+            <div class="f"><label for="n-mail">Correo <span class="muted">(opcional)</span></label><input id="n-mail" type="email" inputmode="email"></div>
+          </div>
+          <label class="chk"><input type="checkbox" id="n-otra"> Viaja otra persona (quien reserva paga; ej.: sus suegros, un invitado)</label>
+          <div class="row3" id="n-pas" hidden>
+            <div class="f"><label for="n-pnombre">Nombre del pasajero</label><input id="n-pnombre" maxlength="200"></div>
+            <div class="f"><label for="n-ptel">Teléfono del pasajero</label><input id="n-ptel" type="tel" maxlength="30"></div>
+            <div class="small muted" style="align-self:end">El conductor y el enlace de seguimiento son para el pasajero. El cobro va a quien reserva.</div>
+          </div>
+        </section>
+
+        <section class="paso"><h3><span class="paso-n">2</span> ¿Qué servicio y cuándo?</h3>
+          <div class="chips nf-chips" data-for="n-tipo" data-cortos='{"ida":"✈ Ida al aeropuerto","regreso":"🛬 Regreso del aeropuerto","ida_vuelta":"↔ Ida y vuelta","punto_a_punto":"📍 Punto a punto","por_hora":"⏱ Por hora"}'></div>
+          <select id="n-tipo" hidden><option value="ida">Ida al aeropuerto</option><option value="regreso">Regreso desde el aeropuerto</option><option value="ida_vuelta">Ida y vuelta</option><option value="punto_a_punto">Punto a punto</option><option value="por_hora">Por hora</option></select>
+          <div class="row2">
+            <div class="f"><label for="n-fecha">Fecha y hora de retiro</label><input id="n-fecha" type="datetime-local" required>
+              <div class="chips" id="n-dias" style="margin-top:6px"><button type="button" class="chip" data-dia="0">Hoy</button><button type="button" class="chip" data-dia="1">Mañana</button><button type="button" class="chip" data-dia="2">Pasado mañana</button></div></div>
+            <div class="f" id="b-n-vuelo"><label for="n-vuelo">Número de vuelo</label><input id="n-vuelo" placeholder="Ej.: LA800" autocapitalize="characters">
+              <span class="small muted" id="n-vuelo-ayuda">En regresos, la hora de retiro es la de aterrizaje.</span></div>
+          </div>
+        </section>
+
+        <section class="paso"><h3><span class="paso-n">3</span> ¿Desde dónde y hacia dónde?</h3>
+          <div class="row2">
+            <div class="f lugar-f"><label for="n-origen">Retiro (dirección exacta)</label><input id="n-origen" required placeholder="Escriba calle y número, o el nombre del lugar"></div>
+            <div class="f lugar-f"><label for="n-destino">Destino</label><input id="n-destino" required placeholder="Escriba calle y número, o el nombre del lugar"></div>
+          </div>
+          <div id="n-paradas"></div>
+          <div id="n-ruta" class="small" hidden></div>
+        </section>
+
+        <section class="paso"><h3><span class="paso-n">4</span> Pasajeros y vehículo</h3>
+          <div class="row3">
+            <div class="f"><label for="n-pax">Pasajeros</label><div class="stepper"><button type="button" class="chip" data-paso="n-pax" data-d="-1" aria-label="Menos pasajeros">−</button><input id="n-pax" type="number" min="1" max="20" value="1" inputmode="numeric"><button type="button" class="chip" data-paso="n-pax" data-d="1" aria-label="Más pasajeros">+</button></div></div>
+            <div class="f"><label for="n-maletas">Maletas</label><div class="stepper"><button type="button" class="chip" data-paso="n-maletas" data-d="-1" aria-label="Menos maletas">−</button><input id="n-maletas" type="number" min="0" max="30" value="1" inputmode="numeric"><button type="button" class="chip" data-paso="n-maletas" data-d="1" aria-label="Más maletas">+</button></div></div>
+            <div class="f"><label>Vehículo que pide</label><div class="chips nf-chips" data-for="n-veh" data-cortos='{"auto":"🚗 Auto","suv":"🚙 SUV","van":"🚐 Van"}'></div>
+              <select id="n-veh" hidden><option value="auto">Auto (lo hace cualquiera)</option><option value="suv">SUV (SUV o van)</option><option value="van">Van (solo van)</option></select>
+              <span class="small muted" id="n-veh-ayuda"></span></div>
+          </div>
+          <div class="f"><label for="n-com">Comentarios para el conductor <span class="muted">(opcional)</span></label><textarea id="n-com" rows="2" placeholder="Ej.: lleva coche de guagua, toca el timbre 2, mascota en canil"></textarea></div>
+        </section>
+
+        <section class="paso"><h3><span class="paso-n">5</span> Precio y quién paga</h3>
+          <div class="f"><label>¿Quién paga?</label><div class="chips nf-chips" data-for="n-paga" data-cortos='{"particular":"👤 Particular (paga la persona)","convenio":"🏢 Convenio empresa"}'></div>
+            <select id="n-paga" hidden required><option value="">— Elegir —</option><option value="particular">Particular (paga la persona)</option><option value="convenio">Convenio empresa (se cobra a la empresa)</option></select></div>
+          <div class="row2">
+            <div class="f" id="b-conv" hidden><label for="n-conv">Convenio</label><select id="n-conv"></select></div>
+            <div class="f" id="b-cc" hidden><label for="n-cc">Centro de costo (opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div>
+          </div>
+          <div id="n-emp" class="small"></div>
+          <div id="n-sugerida" class="small" hidden></div>
+          <div class="row3">
+            <div class="f"><label for="n-precio">Precio acordado</label><input id="n-precio" type="number" min="0" step="1000" inputmode="numeric" placeholder="$"></div>
+            <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+            <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
+          </div>
+        </section>
+
+        <details class="paso"><summary><b>Más opciones</b> <span class="small muted">(por dónde llegó, repetir la reserva)</span></summary>
+          <div class="row3" style="margin-top:8px">
+            <div class="f"><label for="n-canal">Llegó por</label><select id="n-canal"><option value="whatsapp">WhatsApp</option><option value="telefono">Teléfono</option><option value="correo">Correo</option><option value="convenio">Convenio empresa</option><option value="otro">Otro</option></select></div>
+            <div class="f"><label for="n-rep">Repetir</label><select id="n-rep"><option value="">No se repite</option><option value="semanal">Cada semana (mismo día y hora)</option><option value="habiles">Lunes a viernes (misma hora)</option><option value="diario">Todos los días (misma hora)</option></select></div>
+            <div class="f"><label for="n-rep-hasta">Hasta (fecha)</label><input id="n-rep-hasta" type="date"></div>
+          </div>
+          <p class="small muted" style="margin:0">Repetir: para clientes y empresas que viajan seguido. Máximo 60 reservas por serie.</p>
+        </details>
+
+        <div class="nf-barra">
+          <div class="nf-resumen" id="n-resumen"></div>
+          <div class="actions" style="margin:0"><button class="btn" type="submit">Guardar reserva</button></div>
         </div>
-        <label class="chk"><input type="checkbox" id="n-otra"> Viaja otra persona (quien reserva paga; ej.: sus suegros, un invitado)</label>
-        <div class="row3" id="n-pas" hidden>
-          <div class="f"><label for="n-pnombre">Nombre del pasajero</label><input id="n-pnombre" maxlength="200"></div>
-          <div class="f"><label for="n-ptel">Teléfono del pasajero</label><input id="n-ptel" type="tel" maxlength="30"></div>
-          <div class="small muted" style="align-self:end">El conductor y el enlace de seguimiento son para el pasajero. El cobro va a quien reserva.</div>
-        </div>
-        <div class="row3">
-          <div class="f"><label for="n-fecha">Fecha y hora de retiro</label><input id="n-fecha" type="datetime-local" required></div>
-          <div class="f"><label for="n-tipo">Servicio</label><select id="n-tipo"><option value="ida">Ida al aeropuerto</option><option value="regreso">Regreso desde el aeropuerto</option><option value="ida_vuelta">Ida y vuelta</option><option value="punto_a_punto">Punto a punto</option><option value="por_hora">Por hora</option></select></div>
-          <div class="f"><label for="n-canal">Llegó por</label><select id="n-canal"><option value="whatsapp">WhatsApp</option><option value="telefono">Teléfono</option><option value="correo">Correo</option><option value="convenio">Convenio empresa</option><option value="otro">Otro</option></select></div>
-        </div>
-        <div class="row2">
-          <div class="f lugar-f"><label for="n-origen">Origen (dirección exacta de retiro)</label><input id="n-origen" required placeholder="Escriba calle y número, o el nombre del lugar"></div>
-          <div class="f lugar-f"><label for="n-destino">Destino</label><input id="n-destino" required placeholder="Escriba calle y número, o el nombre del lugar"></div>
-        </div>
-        <div id="n-paradas"></div>
-        <div class="row3">
-          <div class="f" id="b-n-vuelo"><label for="n-vuelo">Vuelo</label><input id="n-vuelo"></div>
-          <div class="f"><label for="n-pax">Pasajeros</label><input id="n-pax" type="number" min="1" max="20" value="1"></div>
-          <div class="f"><label for="n-maletas">Maletas</label><input id="n-maletas" type="number" min="0" max="30" value="1"></div>
-        </div>
-        <div class="row3">
-          <div class="f"><label for="n-veh">Vehículo que pide</label><select id="n-veh"><option value="auto">Auto (lo hace cualquiera)</option><option value="suv">SUV (SUV o van)</option><option value="van">Van (solo van)</option></select></div>
-          <div class="f"><label for="n-precio">Precio acordado</label><input id="n-precio" type="number" min="0" step="1000" inputmode="numeric"></div>
-          <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
-          <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
-        </div>
-        <div id="n-ruta" class="small" hidden></div>
-        <div id="n-sugerida" class="small" hidden></div>
-        <div class="row3">
-          <div class="f"><label for="n-paga">¿Particular o convenio?</label><select id="n-paga" required><option value="">— Elegir —</option><option value="particular">Particular (paga la persona)</option><option value="convenio">Convenio empresa (se cobra a la empresa)</option></select></div>
-          <div class="f" id="b-conv" hidden><label for="n-conv">Convenio</label><select id="n-conv"></select></div>
-          <div class="f" id="b-cc" hidden><label for="n-cc">Centro de costo (opcional)</label><input id="n-cc" maxlength="100" placeholder="Ej.: Ventas, Gerencia, Proyecto X"></div>
-        </div>
-        <div id="n-emp" class="small"></div>
-        <div class="f"><label for="n-com">Comentarios</label><textarea id="n-com" rows="2"></textarea></div>
-        <div class="row3">
-          <div class="f"><label for="n-rep">Repetir</label><select id="n-rep"><option value="">No se repite</option><option value="semanal">Cada semana (mismo día y hora)</option><option value="habiles">Lunes a viernes (misma hora)</option><option value="diario">Todos los días (misma hora)</option></select></div>
-          <div class="f"><label for="n-rep-hasta">Hasta (fecha)</label><input id="n-rep-hasta" type="date"></div>
-          <div class="small muted" style="align-self:end">Para clientes y empresas que viajan seguido. Máximo 60 reservas por serie.</div>
-        </div>
-        <div class="actions"><button class="btn" type="submit">Guardar reserva</button></div>
         <div id="n-msg" class="msg" hidden></div>
       </form>
     </div>
@@ -2580,6 +2621,66 @@ function verVuelo() {
 $("n-tipo").addEventListener("change", verVuelo);
 ["n-tipo", "n-veh"].forEach(i => $(i).addEventListener("change", sugerirPrecio));
 $("n-mail").addEventListener("change", detectarCliente);
+
+// ---- Formulario amigable: botones en vez de listas, + / −, atajos de fecha y resumen de lo que falta
+// Los <select> siguen siendo la fuente de datos (otras partes del panel los llenan); los botones solo los reflejan.
+document.querySelectorAll(".nf-chips").forEach(box => {
+  const sel = $(box.dataset.for), cortos = JSON.parse(box.dataset.cortos || "{}");
+  box.innerHTML = [...sel.options].filter(o => o.value).map(o => `<button type="button" class="chip" data-v="${esc(o.value)}">${esc(cortos[o.value] || o.textContent)}</button>`).join("");
+  box.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+    sel.value = b.dataset.v; sel.dispatchEvent(new Event("change", { bubbles: true })); pintarNueva();
+  }));
+});
+document.querySelectorAll("[data-paso]").forEach(b => b.addEventListener("click", () => {
+  const i = $(b.dataset.paso), min = Number(i.min) || 0, max = Number(i.max) || 99;
+  i.value = Math.min(max, Math.max(min, (Number(i.value) || 0) + Number(b.dataset.d))); pintarNueva();
+}));
+// Hoy / Mañana / Pasado mañana: cambia el día y mantiene la hora (si no hay hora, deja 08:00 para que la ajuste)
+document.querySelectorAll("#n-dias [data-dia]").forEach(b => b.addEventListener("click", () => {
+  const d = new Date(Date.now() + Number(b.dataset.dia) * 864e5);
+  const dia = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d), v = $("n-fecha").value;
+  $("n-fecha").value = dia + "T" + (v.slice(11, 16) || "08:00");
+  $("n-fecha").focus(); pintarNueva();
+}));
+// Al elegir ida o regreso, si el aeropuerto no está puesto, se pone solo en el lado que corresponde
+$("n-tipo").addEventListener("change", () => {
+  const t = $("n-tipo").value, A = FKLugar.AERO;
+  if (t === "ida" && !$("n-destino").value.trim()) lugD.set(A.texto, A.lat, A.lng);
+  if (t === "regreso" && !$("n-origen").value.trim()) lugO.set(A.texto, A.lat, A.lng);
+  $("n-vuelo-ayuda").textContent = t === "regreso" ? "En regresos, la hora de retiro es la de aterrizaje." : t === "ida_vuelta" ? "Vuelo de ida (el regreso se agenda después con ↩ Crear regreso)." : "";
+});
+function pintarNueva() {
+  document.querySelectorAll(".nf-chips").forEach(box => {
+    const v = $(box.dataset.for).value;
+    box.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  });
+  const veh = $("n-veh").value, pax = Number($("n-pax").value) || 1;
+  $("n-veh-ayuda").textContent = veh === "auto" && pax > 4 ? `⚠ ${pax} pasajeros no caben en un auto: elija Van.` : veh === "suv" ? "Lo puede hacer una SUV o una van." : veh === "van" ? "Solo van." : "Lo hace cualquier vehículo.";
+  // Resumen y lo que falta
+  const falta = [];
+  if (!$("n-nombre").value.trim()) falta.push("nombre");
+  if (!$("n-tel").value.trim()) falta.push("teléfono");
+  if ($("n-otra").checked && (!$("n-pnombre").value.trim() || !$("n-ptel").value.trim())) falta.push("datos del pasajero");
+  if (!$("n-fecha").value) falta.push("fecha y hora");
+  if (!$("n-origen").value.trim()) falta.push("retiro"); else if (!lugO.get()) falta.push("punto de retiro en el mapa");
+  if (!$("n-destino").value.trim()) falta.push("destino"); else if (!lugD.get()) falta.push("punto de destino en el mapa");
+  if (!$("n-paga").value) falta.push("quién paga");
+  else if ($("n-paga").value === "convenio" && !$("n-conv").value) falta.push("convenio");
+  const f = $("n-fecha").value, cuando = f ? new Date(FK.chileLocalToISO(f)) : null;
+  const corto = t => { t = (t || "").split(",")[0].trim(); return t.length > 28 ? t.slice(0, 27) + "…" : t; };
+  const partes = [
+    cuando && !isNaN(cuando) ? `<b>${esc(fecha(cuando.toISOString()))}</b>` : "",
+    $("n-origen").value.trim() || $("n-destino").value.trim() ? `${esc(corto($("n-origen").value) || "?")} → ${parN.cantidad() ? "🛑 " + parN.cantidad() + " → " : ""}${esc(corto($("n-destino").value) || "?")}` : "",
+    $("n-precio").value ? `<b>${clp(Number($("n-precio").value))}</b>` : ($("n-cobro").value === "taximetro" ? "Taxímetro" : "sin precio")
+  ].filter(Boolean);
+  if (cuando && !isNaN(cuando) && cuando < Date.now() - 5 * 60000) partes.push('<span class="warn">⚠ fecha pasada</span>');
+  $("n-resumen").innerHTML = (partes.length ? partes.join(" · ") : '<span class="muted">Complete los pasos de arriba.</span>')
+    + (falta.length ? `<div class="small warn">Falta: ${esc(falta.join(", "))}</div>` : '<div class="small" style="color:var(--ok, #2e7d32)">✓ Lista para guardar</div>');
+}
+$("nf").addEventListener("input", pintarNueva);
+$("nf").addEventListener("change", pintarNueva);
+setInterval(() => { if (!document.hidden && !$("nf").closest("[data-pane]").hidden) pintarNueva(); }, 700);
+pintarNueva();
 
 $("nf").addEventListener("submit", async e => {
   e.preventDefault();
