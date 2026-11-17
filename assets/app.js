@@ -4,6 +4,8 @@
   // Enlace del correo que cayó en la portada (Supabase vuelve a la dirección del sitio cuando la página pedida no está
   // en su lista permitida): se reenvía al panel del equipo con los datos del enlace, sin usarlos aquí.
   const traeEnlace = /access_token=|error_code=|[#&]type=(magiclink|recovery|signup|invite)/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search);
+  // Tipo de enlace del correo con que se entró (recovery, magiclink, invite, signup), para pedir la contraseña nueva
+  const enlaceTipo = /access_token=/.test(location.hash) ? ((location.hash.match(/[#&]type=([a-z_]+)/) || [])[1] || "magiclink") : null;
   if (traeEnlace && (location.pathname === "/" || location.pathname === "/index.html")) {
     location.replace("/equipo/" + location.search + location.hash);
   }
@@ -115,5 +117,5 @@
     if (!w) location.href = url;
   }
 
-  window.FK = { abrirExterno, usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
+  window.FK = { enlaceTipo, abrirExterno, usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
 })();

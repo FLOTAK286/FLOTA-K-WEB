@@ -115,7 +115,7 @@
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
     </form>
     <div id="login-msg" class="msg" hidden></div>
-    <p class="small muted" style="margin:0">¿Olvidó su contraseña? Pídale una nueva al encargado de convenio de su empresa, o escríbanos por WhatsApp al +56 9 2227 5399.</p>
+    <p class="small muted" style="margin:0"><button class="linkbtn" type="button" id="olvido">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. Si entra con usuario (sin correo), pídale una contraseña provisoria al encargado de convenio de su empresa o escríbanos por WhatsApp al +56 9 2227 5399.</p>
   </section>
 
   <!-- Sin acceso -->
@@ -258,6 +258,7 @@
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="/assets/recuperar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
@@ -289,6 +290,8 @@ const mostrar = id => { ["login", "sinacceso", "pw", "app"].forEach(x => $(x).hi
 let D = null, sesion = null, cuentaId = null;
 
 // ---------- Ingreso ----------
+$("olvido").addEventListener("click", () => FKRecuperar.enviar($("l-mail").value, (t, k) => msg("login-msg", t, k), location.origin + "/empresa/"));
+FKRecuperar.auto();
 $("login-f").addEventListener("submit", async e => {
   e.preventDefault();
   const correo = FK.usuarioACorreo($("l-mail").value), clave = $("l-pass").value;

@@ -46,14 +46,15 @@ details.paso > summary { cursor: pointer; }
       <label for="pass" style="margin-top:6px">Contraseña</label>
       <input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
-      <p class="small muted" style="margin-top:10px">¿Primera vez u olvidó su contraseña? Pídale al administrador una contraseña provisoria. <button class="linkbtn" type="button" id="magic">O envíeme un enlace al correo</button>.</p>
+      <p class="small muted" style="margin-top:10px"><button class="linkbtn" type="button" id="magic">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. Si entra con usuario (sin correo) o es su primera vez, pídale al administrador una contraseña provisoria.</p>
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
 
   <section class="panel" id="noaccess" hidden>
     <h2>Sin acceso</h2>
-    <p>Su correo <b id="na-mail"></b> no tiene un rol asignado en Flota-K. Pida al administrador que lo invite desde la pestaña Equipo.</p>
+    <p>Su correo <b id="na-mail"></b> no tiene un rol asignado en el equipo de Flota-K. Pida al administrador que lo invite desde la pestaña Equipo.</p>
+    <p class="small muted">¿Es cliente o empresa con convenio? Entre en <a href="/empresa/" style="color:var(--gold)"><b>fk-servicios.com/empresa</b></a>.</p>
     <div class="actions"><button class="btn ghost" id="logout2" type="button">Salir</button></div>
   </section>
 
@@ -386,6 +387,7 @@ details.paso > summary { cursor: pointer; }
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="/assets/recuperar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
@@ -466,18 +468,10 @@ $("login-form").addEventListener("submit", async e => {
   const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos. Si aún no crea su contraseña, use el enlace al correo." : errText(error), "err");
 });
-$("magic").addEventListener("click", async () => {
-  const v = FK.usuarioACorreo($("email").value);
-  if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Escriba su correo arriba y vuelva a tocar el enlace.", "err");
-  if (v.endsWith("@" + FK.DOMINIO_USUARIOS)) return msg("login-msg", "Las cuentas con usuario no reciben correos: pídale al administrador una contraseña provisoria.", "err");
-  msg("login-msg", "Revisando…");
-  const { data: ok, error: e1 } = await sb.rpc("puede_ingresar_equipo", { p_correo: v });
-  if (e1) return msg("login-msg", errText(e1), "err");
-  if (!ok) return msg("login-msg", "Este correo no tiene acceso al equipo. Pida una invitación al administrador.", "err");
-  msg("login-msg", "Enviando…");
-  const { error } = await FK.enviarEnlace(v, back, true);
-  msg("login-msg", error ? errText(error) : "Revise su correo y toque el enlace para entrar. Después cree su contraseña.", error ? "err" : "ok");
-});
+// ¿Olvidó su contraseña?: enlace solo al correo dueño de la cuenta; no crea cuentas ni revela si el correo existe
+$("magic").addEventListener("click", () => FKRecuperar.enviar($("email").value, (t, k) => msg("login-msg", t, k), back));
+// Al volver desde el enlace del correo: pedir la contraseña nueva (y cerrar las sesiones en otros dispositivos)
+FKRecuperar.auto();
 
 // ---- Contraseña
 function abrirPw(primera) {
@@ -509,14 +503,12 @@ async function iniciar(session) {
     $("noaccess").querySelector("h2").textContent = "Usted es propietario de vehículo";
     $("noaccess").querySelector("p").innerHTML = 'Sus reportes están en el portal del propietario: <a href="/propietario/" style="color:var(--gold)"><b>fk-servicios.com/propietario</b></a>.';
     $("noaccess").hidden = false;
-    if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
     return;
   }
   if (data && data.activo && data.rol === "conductor") {
     $("noaccess").querySelector("h2").textContent = "Usted es conductor";
     $("noaccess").querySelector("p").innerHTML = 'Sus servicios están en la app del conductor: <a href="/conductor/" style="color:var(--gold)"><b>fk-servicios.com/conductor</b></a>. Ábrala en su teléfono e instálela.';
     $("noaccess").hidden = false;
-    if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
     return;
   }
   if (!data || !data.activo) {
@@ -526,9 +518,6 @@ async function iniciar(session) {
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
   $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
   $("app").hidden = false;
-  // Entró con el enlace del correo: pedir la contraseña al tiro, sin esperar que cargue el resto del panel
-  const pedirClave = vieneDeEnlace;
-  if (pedirClave) { history.replaceState(null, "", back); abrirPw(true); }
   await cargarRecursos(); cargarCuentas();
   conectarEnVivo();
   cargarDespacho(); timerDespacho = setInterval(() => {

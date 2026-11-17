@@ -28,7 +28,7 @@
       <label for="email">Correo o usuario</label><input id="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required>
       <label for="pass" style="margin-top:6px">Contraseña</label><input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
-      <p class="small muted">¿Primera vez? Pida a Flota-K que lo invite como "Propietario de vehículo" y cree su contraseña entrando una vez por <a href="/equipo/" style="color:var(--gold)">fk-servicios.com/equipo</a>.</p>
+      <p class="small muted"><button class="linkbtn" type="button" id="olvido">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. ¿Primera vez? Pida a Flota-K una contraseña provisoria.</p>
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
@@ -53,6 +53,7 @@
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="/assets/recuperar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script>
 const { sb, esc, clp, fecha, errText, SERVICIOS, ESTADOS } = FK;
@@ -62,6 +63,8 @@ const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ej
 let yo = null, vehs = [], filas = [];
 function msg(id, t, k) { const m = $(id); m.hidden = false; m.className = "msg " + (k || ""); m.textContent = t; }
 
+$("olvido").addEventListener("click", () => FKRecuperar.enviar($("email").value, (t, k) => msg("login-msg", t, k), location.origin + "/propietario/"));
+FKRecuperar.auto();
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
   const v = FK.usuarioACorreo($("email").value), pw = $("pass").value;

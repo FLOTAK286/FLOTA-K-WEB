@@ -156,7 +156,7 @@ body.drv { overscroll-behavior-y: contain; }
       <label for="pass" style="margin-top:6px">Contraseña</label>
       <input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn big" type="submit">Entrar</button></div>
-      <p class="small muted">¿Primera vez o olvidó su contraseña? Pida al administrador que lo invite y entre una vez por <a href="/equipo/" style="color:var(--gold)">fk-servicios.com/equipo</a> para crearla.</p>
+      <p class="small muted"><button class="linkbtn" type="button" id="olvido">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. Si entra con usuario (sin correo) o es su primera vez, pídale al administrador una contraseña provisoria.</p>
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
@@ -209,6 +209,7 @@ body.drv { overscroll-behavior-y: contain; }
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
+<script src="/assets/recuperar.js"></script>
 <script src="/assets/chat.js"></script>
 <script src="/assets/espera.js"></script>
 <script src="/assets/autos.js"></script>
@@ -241,6 +242,8 @@ const waze = (q, lat, lng) => lat != null ? `https://waze.com/ul?ll=${lat},${lng
 const gmaps = (q, lat, lng) => "https://www.google.com/maps/dir/?api=1&destination=" + (lat != null ? `${lat},${lng}` : encodeURIComponent(q));
 
 // ---- Ingreso
+$("olvido").addEventListener("click", () => FKRecuperar.enviar($("email").value, (t, k) => msg("login-msg", t, k), location.origin + "/conductor/"));
+FKRecuperar.auto();
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
   const v = FK.usuarioACorreo($("email").value), pw = $("pass").value;

@@ -1,5 +1,11 @@
 # Cambios
 
+## 17 nov 2026 · Recuperar contraseña por correo (todas las pantallas de ingreso) y más seguridad
+- "¿Olvidó su contraseña?" en equipo, conductor, propietario y portal de empresas (`assets/recuperar.js`): envía un enlace de recuperación (`resetPasswordForEmail`) solo al correo dueño de la cuenta, con la misma respuesta exista o no la cuenta; las cuentas con usuario corto (@usuarios.fk-servicios.com) no tienen correo y se les indica pedir clave provisoria.
+- Al volver desde el enlace aparece "Cree su contraseña nueva" (mín. 8 caracteres, letras y números); al guardar se cierran las sesiones en otros dispositivos (`signOut({ scope: "others" })`) y se marca `convenio_clave_cambiada`.
+- El ingreso del equipo ya no puede crear cuentas (antes usaba `signInWithOtp` con `shouldCreateUser: true`) ni consulta `puede_ingresar_equipo` (que permitía averiguar si un correo es del equipo).
+- `FK.enlaceTipo` en assets/app.js indica con qué enlace del correo se entró.
+
 ## 17 nov 2026 · Correo propio (Gmail) y enlace de acceso que funciona en cualquier navegador
 - Supabase ya envía correos con SMTP de Gmail (gerencia@fk-servicios.com), configurado por el dueño. Límite: 30 por hora.
 - El enlace del correo entraba en un bucle: con `flowType: "pkce"` solo funcionaba en el mismo navegador donde se pidió (al abrirlo desde la app de Gmail fallaba con "code challenge does not match"). Ahora `flowType: "implicit"` en assets/app.js.
