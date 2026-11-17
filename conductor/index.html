@@ -191,9 +191,10 @@ body.drv { overscroll-behavior-y: contain; }
     </div>
     <div class="gps" id="gps" style="margin-top:12px"><span class="dot"></span><span id="gps-txt">Ubicación: iniciando…</span><button class="btn ghost sm" id="gps-btn" type="button" hidden>Activar ubicación</button></div>
     <div class="panel install" id="ubic-aviso" hidden style="margin-top:10px"></div>
+    <div class="panel install" id="permisos" hidden style="margin-top:10px"></div>
     <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
       <p style="margin:6px 0 0">Desde el navegador, la ubicación se envía solo mientras esta pantalla está abierta. Para que se siga enviando con Waze, Cabify u otra app abierta, instale la <b>app Android de Flota-K</b>: <a href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">descargar app Android</a>.</p></details>
-    <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze, Cabify u otra app. Mientras esté en segundo plano verá una notificación de Flota-K.</p>
+    <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze u otra app, e incluso con la app cerrada, hasta que cierre sesión. Mientras tanto verá una notificación fija de Flota-K.</p>
     <div id="inicio-mapa" class="mapa drv-mapa" hidden></div>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
     <div class="act-fila"><p class="muted small" id="updated" style="margin:0"></p><button class="btn ghost sm" id="refrescar" type="button">⟳ Actualizar</button></div>
@@ -252,7 +253,13 @@ $("login-form").addEventListener("submit", async e => {
   const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
 });
-$("logout").addEventListener("click", async () => { if (yo && yo.disponible) await sb.rpc("conductor_disponible", { p_disponible: false }); await sb.auth.signOut(); location.reload(); });
+// Cerrar sesión: queda desconectado y el teléfono deja de enviar la ubicación (también la de la app cerrada)
+async function salirSesion() {
+  try { if (yo && yo.disponible) await sb.rpc("conductor_disponible", { p_disponible: false }); } catch (_) {}
+  await detenerServicioNativo();
+  await sb.auth.signOut(); location.reload();
+}
+$("logout").addEventListener("click", salirSesion);
 $("reload").addEventListener("click", () => cargar());
 
 async function iniciar(session) {
@@ -1121,7 +1128,7 @@ async function pintarPerfil() {
     if (!error) $("pw-n").value = "";
   });
   $("pw-ver").addEventListener("change", ev => $("pw-n").type = ev.target.checked ? "text" : "password");
-  $("salir2").addEventListener("click", async () => { if (yo.disponible) await sb.rpc("conductor_disponible", { p_disponible: false }); await sb.auth.signOut(); location.reload(); });
+  $("salir2").addEventListener("click", salirSesion);
 }
 
 function pintar() {
@@ -1327,7 +1334,7 @@ function avisoUbicacion() {
     <p class="small" style="margin:4px 0">Mientras tenga la sesión iniciada en esta app, <b>Flota-K verá su ubicación también cuando esté desconectado</b> (cada 5 minutos; en servicio, cada 15 segundos). Así la central puede asignar el servicio más cercano y cuidar su seguridad. Si cierra sesión, deja de compartirse.</p>
     ${NATIVO ? `<p class="small" style="margin:4px 0">Para que funcione aunque use otras apps: en los ajustes de Flota-K → <b>Ubicación</b> → elija <b>"Permitir todo el tiempo"</b> (si aparece) o "Permitir mientras se usa la app", y en <b>Batería</b> elija <b>"Sin restricciones"</b>.</p>` : ""}
     <div class="actions">${NATIVO ? '<button class="btn ghost sm" type="button" id="ubic-ajustes">Abrir ajustes de la app</button>' : ""}<button class="btn sm" type="button" id="ubic-ok">Entiendo y acepto</button></div>`;
-  $("ubic-ajustes")?.addEventListener("click", () => { try { BG.openSettings(); } catch (_) {} });
+  $("ubic-ajustes")?.addEventListener("click", () => { try { FKN ? FKN.abrirAjustesApp() : BG.openSettings(); } catch (_) {} });
   $("ubic-ok").addEventListener("click", async () => {
     const { error } = await sb.rpc("conductor_aceptar_ubicacion");
     if (error) return alert(errText(error));
@@ -1347,6 +1354,69 @@ const NATIVO = !!(window.Capacitor && window.Capacitor.isNativePlatform && windo
 const BG = NATIVO ? window.Capacitor.registerPlugin("BackgroundGeolocation") : null;
 let watcherId = null, iniciandoNativo = false;
 if (NATIVO) { $("waze-web").hidden = true; $("waze-app").hidden = false; }
+// App 2.0 o más nueva: servicio propio que envía la ubicación aunque la app esté cerrada, hasta cerrar sesión.
+// La app registra el teléfono y recibe una llave que solo sirve para enviar la ubicación de este conductor.
+const FKN = NATIVO && window.Capacitor.isPluginAvailable && window.Capacitor.isPluginAvailable("FlotaKNativo") ? window.Capacitor.registerPlugin("FlotaKNativo") : null;
+const LLAVE_DISP = "fk_llave_disp";
+let nativoListo = false, revisandoNativo = false, estNativo = null;
+const leerLlave = () => { try { return localStorage.getItem(LLAVE_DISP); } catch (_) { return null; } };
+async function iniciarServicioNativo() {
+  if (revisandoNativo || !yo) return;
+  revisandoNativo = true;
+  try {
+    let est = await FKN.estado();
+    if (!est.ubicacion) est = await FKN.pedirUbicacion();
+    if (!est.ubicacion) {
+      gpsBloqueado = true; pintarPermisos(est);
+      return gpsEstado("err", "Ubicación no permitida. Toque Activar y elija \"Permitir todo el tiempo\" (o \"Mientras se usa la app\").", true);
+    }
+    const guardada = leerLlave();
+    if (est.activo && guardada) est = await FKN.iniciarUbicacion({ url: window.FK_CONFIG.url, anon: window.FK_CONFIG.anonKey, llave: guardada });
+    else {
+      const { data, error } = await sb.rpc("conductor_registrar_dispositivo", { p_plataforma: "android " + (est.android || "") });
+      if (error) throw error;
+      try { localStorage.setItem(LLAVE_DISP, data); } catch (_) {}
+      est = await FKN.iniciarUbicacion({ url: window.FK_CONFIG.url, anon: window.FK_CONFIG.anonKey, llave: data });
+    }
+    nativoListo = true; estNativo = est; pintarPermisos(est); estadoNativoUI();
+  } catch (e) {
+    gpsEstado("err", "No se pudo iniciar la ubicación: " + (e && e.message ? errText(e) : e), true);
+  } finally { revisandoNativo = false; }
+}
+async function detenerServicioNativo() {
+  if (!FKN) return;
+  const llave = leerLlave();
+  try { if (llave) await sb.rpc("conductor_cerrar_dispositivo", { p_llave: llave }); } catch (_) {}
+  try { await FKN.detenerUbicacion(); } catch (_) {}
+  try { localStorage.removeItem(LLAVE_DISP); } catch (_) {}
+  nativoListo = false;
+}
+async function estadoNativoUI() {
+  try { estNativo = await FKN.estado(); } catch (_) { return; }
+  if (!estNativo.activo) { nativoListo = false; return iniciarServicioNativo(); } // se detuvo (p. ej. otro teléfono): se vuelve a activar
+  if (vista === "inicio" && mapaIni && ultimaPos) { const p = [ultimaPos.coords.latitude, ultimaPos.coords.longitude]; if (pinYo) pinYo.setLatLng(p); else mapaInicio(items.find(r => EN_CURSO.includes(r.estado))); }
+  const env = estNativo.ultimoEnvio ? " · enviada " + hora(new Date(estNativo.ultimoEnvio).toISOString()) : " · esperando señal GPS";
+  gpsEstado("ok", (enServicio() ? "Compartiendo ubicación con el pasajero y el despacho" : yo && !yo.disponible ? "Desconectado (no recibe servicios) · la central ve su ubicación cada 5 min" : "Ubicación visible para el despacho") + env + " · también con la app cerrada");
+}
+// Ajustes del teléfono que necesita la app para no cortarse (como en otras apps de conductores)
+function pintarPermisos(est) {
+  const box = $("permisos"); if (!FKN || !est) return;
+  const filas = [
+    [est.todoElTiempo, "Ubicación: <b>Permitir todo el tiempo</b>", "pedirUbicacion", est.android >= 30 ? "Se abren los ajustes: toque Permisos → Ubicación → «Permitir todo el tiempo»." : ""],
+    [est.bateriaLibre, "Batería: <b>Sin restricciones</b>", "pedirBateria", "Si se abre una lista, busque Flota-K y elija «Sin restricciones» o «No optimizar»."],
+    [est.appsSinUsarDesactivado, "Desactivar <b>«Pausar actividad si no se usa»</b>", "abrirAppsSinUsar", "Apague el interruptor «Pausar actividad de la app si no se usa» (o «Quitar permisos si no se usa»)."]
+  ];
+  if (filas.every(f => f[0])) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<b>⚙️ Ajustes para que la app no se corte</b>
+    <p class="small" style="margin:4px 0">Así la central ve su ubicación y usted recibe los servicios aunque la app esté cerrada.</p>` +
+    filas.map((f, i) => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:6px">
+      <span class="small">${f[0] ? "✅" : "⚠️"} ${f[1]}${!f[0] && f[3] ? `<br><span class="muted">${f[3]}</span>` : ""}</span>
+      ${f[0] ? "" : `<button class="btn ghost sm" type="button" data-perm="${f[2]}">Activar</button>`}</div>`).join("");
+  box.querySelectorAll("[data-perm]").forEach(b => b.addEventListener("click", async () => {
+    try { pintarPermisos(await FKN[b.dataset.perm]()); } catch (_) {}
+  }));
+}
 async function iniciarGPSNativo() {
   if (watcherId || iniciandoNativo) return;
   iniciandoNativo = true;
@@ -1373,17 +1443,20 @@ async function iniciarGPSNativo() {
   iniciandoNativo = false;
 }
 function iniciarGPS() {
-  if (NATIVO) return iniciarGPSNativo();
-  if (!("geolocation" in navigator)) return gpsEstado("err", "Este teléfono no permite compartir ubicación desde el navegador.");
+  if (FKN) { if (!nativoListo) iniciarServicioNativo(); }   // envía el servicio del teléfono; aquí solo se usa para el mapa
+  else if (NATIVO) return iniciarGPSNativo();
+  if (!("geolocation" in navigator)) return FKN ? null : gpsEstado("err", "Este teléfono no permite compartir ubicación desde el navegador.");
   if (geoId !== null) return;
   geoId = navigator.geolocation.watchPosition(p => { ultimaPos = p; enviarUbicacion(); }, e => {
     navigator.geolocation.clearWatch(geoId); geoId = null;
+    if (FKN) return;
     if (e.code === 1) gpsBloqueado = true;
     if (e.code === 1) gpsEstado("err", "Ubicación bloqueada. Permita la ubicación para fk-servicios.com en los ajustes del navegador y toque Activar.", true);
     else gpsEstado("err", "No se pudo obtener la ubicación (sin señal GPS). Se reintentará.", true);
   }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
 }
 async function enviarUbicacion(forzar) {
+  if (FKN) return nativoListo ? estadoNativoUI() : null;   // lo envía el servicio del teléfono
   if (!ultimaPos || enviando) return;
   const desconectado = yo && !yo.disponible && !enServicio();
   // Desconectado: no recibe servicios, pero la central sigue viendo su ubicación (cada 5 minutos)
@@ -1423,10 +1496,16 @@ async function pantallaEncendida() {
   } catch (_) {}
 }
 $("gps-btn").addEventListener("click", () => {
+  if (FKN) { gpsBloqueado = false; gpsEstado("", "Ubicación: iniciando…"); return iniciarServicioNativo(); }
   if (NATIVO && gpsBloqueado) { BG.openSettings(); gpsBloqueado = false; return; }
   gpsBloqueado = false; gpsEstado("", "Ubicación: iniciando…"); iniciarGPS(); });
-setInterval(() => { if (geoId === null && watcherId === null && !gpsBloqueado && yo) iniciarGPS(); enviarUbicacion(); }, 15000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) { enviarUbicacion(true); pantallaEncendida(); } });
+setInterval(() => { if (((FKN && !nativoListo) || (geoId === null && watcherId === null)) && !gpsBloqueado && yo) iniciarGPS(); enviarUbicacion(); }, 15000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !yo) return;
+  // al volver de los ajustes del teléfono: se revisa de nuevo
+  if (FKN) { gpsBloqueado = false; FKN.estado().then(pintarPermisos).catch(() => {}); if (!nativoListo) iniciarServicioNativo(); }
+  enviarUbicacion(true); pantallaEncendida();
+});
 
 // ---- App Android: la versión instalada desde Chrome quedó obsoleta.
 if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});

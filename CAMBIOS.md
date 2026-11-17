@@ -1,5 +1,12 @@
 # Cambios
 
+## 17 nov 2026 · App del conductor 2.0: ubicación con la app cerrada (rama `app-siempre-conectada`, sin publicar)
+- Android: servicio propio (`UbicacionService`) que envía la ubicación aunque el conductor cierre la app o reinicie el teléfono (`ArranqueReceiver`), hasta que cierre sesión. Cada 15 s en servicio, 60 s conectado, 5 min desconectado (lo indica el servidor). Notificación fija "Compartiendo su ubicación con la central".
+- Puente `FlotaKNativo` (página ↔ Android): iniciar/detener, pedir "Permitir todo el tiempo", batería "Sin restricciones" y desactivar "Pausar actividad si no se usa". La pantalla del conductor muestra un recuadro "Ajustes para que la app no se corte" con un botón por ajuste pendiente.
+- Base de datos (etapa 37, ya aplicada): `dispositivos_conductor` y llave de dispositivo (solo se guarda su huella; solo sirve para enviar la ubicación de ese conductor). `conductor_registrar_dispositivo`, `conductor_ubicacion_dispositivo`, `conductor_cerrar_dispositivo` (al cerrar sesión), `admin_cerrar_dispositivos` (celular perdido) y `conductor_guardar_push` (para los avisos con la app cerrada, próxima etapa).
+- Las apps antiguas (1.x) siguen funcionando como antes. Versión 2.0 (`app-android/version.json`): la página avisa que hay que actualizar.
+- Armado de la app: solo `main` reemplaza la app que descargan los conductores; otras ramas publican una versión de PRUEBA ("conductor-prueba").
+
 ## 17 nov 2026 · Deshacer al mover el pin
 - `assets/lugar.js` (nueva reserva y edición en el panel, portal de empresas, servicios habituales): botón "↶ Deshacer" que devuelve el pin y el texto de la dirección al punto anterior, paso a paso (hasta 30). Cargar un punto desde el sistema (`set`) empieza un historial nuevo.
 - Seguimiento, "Confirme su punto exacto de retiro": "↶ Deshacer" y "Volver al punto guardado".
