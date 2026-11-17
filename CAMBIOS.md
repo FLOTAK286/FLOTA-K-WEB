@@ -1,5 +1,8 @@
 # Cambios
 
+## 17 nov 2026 · Portal de empresas: el valor del viaje igual que en cobranza
+- Base de datos (etapa 35, ya aplicada): `valor_cobro(reserva)` calcula como `v_cobro` (taxímetro si se cobró con taxímetro; si no, precio fijo o tarifa web; más gastos). Lo usan `convenio_reservas` (valor que ve el pasajero o la empresa) y `convenio_gasto` (presupuestos). Antes los servicios con taxímetro salían "Valor por confirmar" en el portal.
+
 ## 17 nov 2026 · Nueva clave: mensaje visible y WhatsApp en las apps Android
 - Portal de empresas en el panel: el recuadro con la clave provisoria y el botón "Enviar por WhatsApp" aparece arriba de la sección y la pantalla baja sola hasta él (antes quedaba al final, fuera de la vista en el teléfono). El mensaje de clave nueva incluye el usuario corto.
 - `FK.abrirExterno(url)`: en las apps Android (Capacitor) abre WhatsApp navegando directo; en el navegador, en pestaña nueva. Reemplaza los `window.open` de WhatsApp del panel, el portal de empresas y el seguimiento.
