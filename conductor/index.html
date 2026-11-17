@@ -585,6 +585,49 @@ setInterval(() => {
   });
 }, 1000);
 
+// Espera en paradas intermedias: 5 min sin costo en cada parada; después $180/min (auto) o $270/min (SUV o van).
+// El conductor marca "Llegué a la parada" y "Seguimos". El cálculo oficial lo hace la base de datos.
+const paradaEsp = {}; // id -> { lista, dif, en }
+async function traerParadas(id) {
+  paradaEsp[id] = Object.assign(paradaEsp[id] || { lista: [] }, { en: Date.now() });
+  const { data } = await sb.rpc("ver_paradas_espera", { p_reserva: id });
+  const lista = data || [];
+  paradaEsp[id] = { lista, dif: lista[0] ? new Date(lista[0].ahora).getTime() - Date.now() : 0, en: Date.now() };
+}
+function htmlParada(r, i) {
+  const x = paradaEsp[r.id], e = x && x.lista.find(y => y.indice === i);
+  const abierta = x && x.lista.find(y => !y.salida_en);
+  if (!e) {
+    if (r.estado !== "a_bordo") return "";
+    return `<button type="button" class="btn ghost sm par-btn" data-acc="llegue">📍 Llegué a la parada ${i + 1}</button>${abierta ? "" : ` <span class="small muted">5 min sin costo</span>`}`;
+  }
+  const fin = e.salida_en ? new Date(e.salida_en).getTime() : Date.now() + (x.dif || 0);
+  const seg = Math.max(0, (fin - new Date(e.llegada_en).getTime()) / 1000);
+  const reloj = FKEspera.reloj(seg), libre = 300 - seg;
+  const min = Math.max(0, Math.floor((seg - 300) / 60)), monto = e.aplica ? min * e.tarifa_min : 0;
+  if (e.salida_en) return `<span class="small">⏱ Esperó ${reloj}${monto > 0 ? ` · espera cobrada <b>${clp(monto)}</b>` : " · sin costo"}</span>`;
+  return `<div class="espera-box ${libre <= 0 && e.aplica ? "cobra" : ""}"><b>⏱ En la parada hace <span class="espera-reloj">${reloj}</span></b>
+    <span class="small">${!e.aplica ? "Este servicio no cobra espera en paradas." : libre > 0 ? `Sin costo por ${FKEspera.reloj(libre)} más. Después: ${clp(e.tarifa_min)} por minuto.` : `Cobrando espera: <b>${clp(monto)}</b> (${min} min × ${clp(e.tarifa_min)})`}</span></div>
+    <button type="button" class="btn go sm par-btn" data-acc="salgo">➤ Seguimos (salir de la parada ${i + 1})</button>`;
+}
+setInterval(() => {
+  document.querySelectorAll("[data-parada]").forEach(el => {
+    const id = el.dataset.parada, r = items.find(x => x.id === id); if (!r) return;
+    const x = paradaEsp[id];
+    if (!x || Date.now() - x.en > (r.estado === "a_bordo" ? 30000 : 300000)) traerParadas(id);
+    const h = htmlParada(r, Number(el.dataset.i));
+    if (el.innerHTML !== h) el.innerHTML = h;
+  });
+}, 1000);
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest(".par-btn"); if (!b) return;
+  const el = b.closest("[data-parada]"), id = el.dataset.parada;
+  b.disabled = true;
+  const { error } = await sb.rpc("conductor_parada", { p_reserva: id, p_indice: Number(el.dataset.i), p_accion: b.dataset.acc });
+  if (error) { b.disabled = false; return alert(error.message || "No se pudo guardar"); }
+  await traerParadas(id);
+});
+
 // ---- Calificaciones: el conductor califica al pasajero al terminar (interno, el pasajero no lo ve)
 async function cargarCalificaciones() {
   const ids = items.filter(r => r.estado === "finalizada").map(r => r.id);
@@ -1131,6 +1174,7 @@ function pintar() {
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>${r.retiro_detalle ? `<span class="small" style="color:var(--gold)">📍 ${esc(r.retiro_detalle)}</span>` : ""}
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       ${(r.paradas || []).map((p, i) => `<div class="place"><small>Parada ${i + 1}</small><span>${esc(p.direccion)}</span>
+        ${r.estado === "a_bordo" || (fin && (r.paradas || []).length) ? `<div class="par-esp" data-parada="${esc(r.id)}" data-i="${i}"></div>` : ""}
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(p.direccion, p.lat, p.lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(p.direccion, p.lat, p.lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>`).join("")}
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
@@ -1163,7 +1207,7 @@ function pintar() {
             <div class="f"><label>Observación (opcional)</label><textarea class="nota" rows="2" maxlength="1000"></textarea></div>
             <div class="pay tx-total">Total: —</div>
             <div class="actions"><button class="btn end ok" type="button">Finalizar servicio</button><button class="btn ghost no" type="button">Volver</button></div></div>`
-          : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}${esPaP(r) && esperaPor[r.id] && esperaPor[r.id].e && esperaPor[r.id].e.monto > 0 ? ` + espera ${clp(esperaPor[r.id].e.monto)} = <b>${clp((cobro || 0) + esperaPor[r.id].e.monto)}</b>` : ""}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
+          : `<div class="confirm"><b>¿Finalizar el servicio de ${esc(r.nombre_pasajero)}?</b><p class="small muted">Tarifa fija ${clp(cobro)}${esPaP(r) && esperaPor[r.id] && esperaPor[r.id].e && esperaPor[r.id].e.monto > 0 ? ` + espera ${clp(esperaPor[r.id].e.monto)} = <b>${clp((cobro || 0) + esperaPor[r.id].e.monto)}</b>` : ""}${(() => { const t = ((paradaEsp[r.id] || {}).lista || []).reduce((a, e) => a + (e.monto || 0), 0); return t > 0 ? ` + espera en paradas ${clp(t)}` : ""; })()}. Si algo fue distinto (paradas, esperas, gastos), déjelo en la observación y se revisa después.</p><textarea class="nota" rows="3" maxlength="1000" placeholder="Observación (opcional)"></textarea><div class="actions"><button class="btn end ok" type="button">Sí, finalizar</button><button class="btn ghost no" type="button">Volver</button></div></div>`)
         : `<div class="swipe ${s.c} next" role="button" tabindex="0" data-e="${s.e}" aria-label="${esc(s.t)} (deslice o presione Enter)"><span class="swipe-txt">Deslice → ${esc(s.t)}</span><span class="swipe-thumb">➜</span></div>`) : ""}
       ${fin ? califHtml(r) : ""}
       <div class="msg err" hidden></div>

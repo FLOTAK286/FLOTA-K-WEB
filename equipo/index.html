@@ -1003,7 +1003,7 @@ async function abrir(id) {
       <dt>Servicio</dt><dd>${esc(SERVICIOS[r.tipo_servicio] || "—")} · pide <b>${esc(PIDE[r.vehiculo] || r.vehiculo || "Auto")}</b></dd>
       <dt>Origen</dt><dd>${esc(r.origen)}${r.origen_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.origen_lat},${r.origen_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
       ${r.retiro_detalle ? `<dt>Indicaciones</dt><dd>📍 ${esc(r.retiro_detalle)} <span class="small muted">(las dejó el pasajero)</span></dd>` : ""}
-      ${(r.paradas || []).length ? `<dt>Paradas</dt><dd>${FKParadas.html(r.paradas, true)}</dd>` : ""}
+      ${(r.paradas || []).length || !["finalizada", "cancelada"].includes(r.estado) ? `<dt>Paradas</dt><dd><div id="d-par-ver">${(r.paradas || []).length ? FKParadas.html(r.paradas, true) : '<span class="muted">Sin paradas</span>'}</div>${!["finalizada", "cancelada"].includes(r.estado) ? '<button class="btn ghost sm" type="button" id="d-par-edit">✏ Editar paradas</button><div id="d-par-box" hidden><div id="d-par"></div><p id="d-par-km" class="small muted"></p><div class="actions"><button class="btn sm" type="button" id="d-par-save">Guardar paradas</button><button class="btn ghost sm" type="button" id="d-par-x">Volver</button></div></div>' : ""}<div id="d-par-esp" class="small"></div></dd>` : ""}
       <dt>Destino</dt><dd>${esc(r.destino)}${r.destino_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.destino_lat},${r.destino_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
       <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
       ${r.cuenta_corporativa_id || r.centro_costo ? `<dt>Empresa</dt><dd>${esc((cuentas.find(x => x.id === r.cuenta_corporativa_id) || {}).razon_social || "—")}${r.centro_costo ? " · centro de costo: " + esc(r.centro_costo) : ""}</dd>` : ""}
@@ -1105,6 +1105,7 @@ async function abrir(id) {
   $("wa-pas").onclick = () => enviarConfirmacion(r, false, $("wa-tipo").value);
   if ($("wa-sol")) $("wa-sol").onclick = () => enviarConfirmacion(r, true, $("wa-tipo").value);
   $("d-copiar").onclick = () => copiarReserva(r);
+  montarEdicionParadas(r);
   $("d-regreso").onclick = () => copiarReserva(r, true);
   estadoGps(r);
   if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
@@ -1157,6 +1158,51 @@ async function abrir(id) {
     if (error) return msg("d-msg", errText(error), "err");
     $("det").close(); refrescar();
   };
+}
+
+// Editar las paradas de una reserva ya creada (solo panel del despacho)
+function montarEdicionParadas(r) {
+  const ver = $("d-par-esp");
+  if (ver && (r.paradas || []).length) cargarEsperaParadas(r, ver);
+  const btn = $("d-par-edit"); if (!btn) return;
+  const pto = (la, ln) => la != null && ln != null ? { lat: la, lng: ln } : null;
+  let ed = null, kmAntes = null;
+  const recalcular = async () => {
+    const o = pto(r.origen_lat, r.origen_lng), d = pto(r.destino_lat, r.destino_lng);
+    if (!o || !d || !ed) return;
+    try {
+      const [a, b] = await Promise.all([FKLugar.ruta(o, d, r.paradas || []), FKLugar.ruta(o, d, ed.puntos())]);
+      kmAntes = a;
+      const dk = b.km - a.km, dm = b.min - a.min;
+      $("d-par-km").textContent = Math.abs(dk) < 0.1 ? "El recorrido no cambia."
+        : `Con estas paradas: ${String(b.km.toFixed(1)).replace(".", ",")} km (${dk > 0 ? "+" : ""}${String(dk.toFixed(1)).replace(".", ",")} km y ${dm > 0 ? "+" : ""}${Math.round(dm)} min respecto de antes). Ajuste el precio final si corresponde.`;
+    } catch (_) { $("d-par-km").textContent = ""; }
+  };
+  btn.onclick = () => {
+    btn.hidden = true; $("d-par-box").hidden = false; $("d-par-ver").hidden = true;
+    if (!ed) ed = FKParadas.montar($("d-par"), { alCambiar: recalcular });
+    ed.set(r.paradas || []);
+  };
+  $("d-par-x").onclick = () => { btn.hidden = false; $("d-par-box").hidden = true; $("d-par-ver").hidden = false; };
+  $("d-par-save").onclick = async () => {
+    const lista = ed.get();
+    if (!lista) { ed.exigir(); return msg("d-msg", "Marque en el mapa el punto exacto de cada parada (o quítela).", "err"); }
+    $("d-par-save").disabled = true;
+    const { data, error } = await sb.rpc("editar_paradas", { p_reserva: r.id, p_paradas: lista });
+    $("d-par-save").disabled = false;
+    if (error) return msg("d-msg", errText(error), "err");
+    r.paradas = data || [];
+    [cache, tablero].forEach(l => { const x = (l || []).find(y => y.id === r.id); if (x) x.paradas = r.paradas; });
+    $("d-par-ver").innerHTML = r.paradas.length ? FKParadas.html(r.paradas, true) : '<span class="muted">Sin paradas</span>';
+    btn.hidden = false; $("d-par-box").hidden = true; $("d-par-ver").hidden = false;
+    msg("d-msg", "Paradas guardadas. El conductor y el pasajero ya las ven. Revise el precio final si cambió el recorrido.", "ok");
+    refrescar();
+  };
+}
+async function cargarEsperaParadas(r, box) {
+  const { data } = await sb.rpc("ver_paradas_espera", { p_reserva: r.id });
+  if (!data || !data.length) return;
+  box.innerHTML = data.map(x => `⏱ Parada ${x.indice + 1}: ${x.salida_en ? "esperó" : "esperando"} ${Math.max(0, Math.round((new Date(x.salida_en || x.ahora) - new Date(x.llegada_en)) / 60000))} min${x.monto > 0 ? ` · espera cobrada <b>${clp(x.monto)}</b>` : " · sin costo"}`).join("<br>");
 }
 
 function refrescar() {

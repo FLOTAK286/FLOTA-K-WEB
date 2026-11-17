@@ -244,8 +244,29 @@ async function cargarParadas() {
   if (paradasPub === null && token) { const { data } = await sb.rpc("ver_paradas_publica", { p_token: token }); paradasPub = Array.isArray(data) ? data : []; }
   const dt = $("par-dt"), dd = $("par-dd");
   if (!dt || !paradasPub || !paradasPub.length) return;
-  dd.innerHTML = FKParadas.html(paradasPub, false); dt.hidden = false; dd.hidden = false;
+  if (!dd.dataset.lista) { dd.innerHTML = FKParadas.html(paradasPub, false) + '<div id="par-esp" class="small"></div>'; dd.dataset.lista = "1"; }
+  dt.hidden = false; dd.hidden = false;
+  if (["a_bordo", "finalizada"].includes(estado)) cargarEsperaParadas();
 }
+// Espera en paradas: 5 min sin costo en cada una; después la misma tarifa por minuto
+let parEsp = [], parDif = 0;
+async function cargarEsperaParadas() {
+  const { data } = await sb.rpc("ver_paradas_espera_publica", { p_token: token });
+  parEsp = data || []; parDif = parEsp[0] ? new Date(parEsp[0].ahora).getTime() - Date.now() : 0; pintarEsperaParadas();
+}
+function pintarEsperaParadas() {
+  const b = $("par-esp"); if (!b) return;
+  const clp = FKEspera.clp;
+  const h = parEsp.filter(e => e.aplica).map(e => {
+    const fin = e.salida_en ? new Date(e.salida_en).getTime() : Date.now() + parDif;
+    const seg = Math.max(0, (fin - new Date(e.llegada_en).getTime()) / 1000), min = Math.max(0, Math.floor((seg - 300) / 60));
+    if (e.salida_en) return `Parada ${e.indice + 1}: espera ${min > 0 ? `cobrada ${clp(min * e.tarifa_min)} (${min} min × ${clp(e.tarifa_min)})` : "sin costo"}`;
+    return `<div class="espera-box ${seg > 300 ? "cobra" : ""}"><b>⏱ En la parada ${e.indice + 1} hace <span class="espera-reloj">${FKEspera.reloj(seg)}</span></b><span class="small">${seg <= 300 ? `Sin costo por ${FKEspera.reloj(300 - seg)} más. Después: ${clp(e.tarifa_min)} por minuto.` : `Cobro de espera: <b>${clp(min * e.tarifa_min)}</b> (${min} min × ${clp(e.tarifa_min)})`}</span></div>`;
+  }).join("<br>");
+  if (b.innerHTML !== h) b.innerHTML = h;
+}
+setInterval(pintarEsperaParadas, 1000);
+setInterval(() => { if (!document.hidden && estado === "a_bordo" && paradasPub && paradasPub.length) cargarEsperaParadas(); }, 20000);
 
 // ---- Espera (servicios punto a punto): contador y cobro desde la hora agendada
 let espera = null, esperaDif = 0;
