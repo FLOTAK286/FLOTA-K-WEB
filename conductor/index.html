@@ -174,7 +174,7 @@ body.drv { overscroll-behavior-y: contain; }
     <nav class="bottom-nav" role="tablist" aria-label="Secciones">
       <button role="tab" data-v="inicio" aria-selected="true"><span class="ic">◉</span>Inicio</button>
       <button role="tab" data-v="hoy" aria-selected="false"><span class="ic">☰</span>Servicios</button>
-      <button role="tab" data-v="bolsa" aria-selected="false"><span class="ic">✋</span>Bolsa <span class="badge" id="b-bolsa" hidden></span></button>
+      <button role="tab" data-v="bolsa" aria-selected="false"><span class="ic">✋</span>Reservas <span class="badge" id="b-bolsa" hidden></span></button>
       <button role="tab" data-v="gan" aria-selected="false"><span class="ic">$</span>Billetera</button>
       <button role="tab" data-v="perfil" aria-selected="false"><span class="ic">☺</span>Perfil <span class="badge" id="b-central" hidden></span></button>
     </nav>
@@ -325,7 +325,7 @@ async function cargar() {
 
 // Deslizar para confirmar: evita toques accidentales mientras maneja (también funciona con Enter)
 let detallesRuta = false;
-// ---- Bolsa de servicios: servicios programados que la central liberó; el primero que lo toma se lo queda
+// ---- Reservas (antes "bolsa de servicios"): servicios programados que la central liberó; el primero que lo toma se lo queda
 let bolsa = [], bolsaCargada = false, miNivel = null;
 const PIDE_TXT = { auto: "auto", suv: "SUV", van: "van" };
 async function revisarBolsa(avisar = true) {
@@ -340,7 +340,7 @@ async function revisarBolsa(avisar = true) {
   if (avisar && bolsaCargada && nuevos.length && yo.disponible) {
     sonar(); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
     const x = nuevos[0];
-    if (LN) LN.schedule({ notifications: [{ id: 1500000000 + Math.floor(Math.random() * 99999999), title: "Nuevo servicio en la bolsa · " + FK.fecha(x.o_fecha_hora), body: `${x.o_zona_origen} → ${x.o_zona_destino}${x.o_valor ? " · " + clp(x.o_valor) : ""}. ¡Tómelo antes que otro!` }] }).catch(() => {});
+    if (LN) LN.schedule({ notifications: [{ id: 1500000000 + Math.floor(Math.random() * 99999999), title: "Nueva reserva disponible · " + FK.fecha(x.o_fecha_hora), body: `${x.o_zona_origen} → ${x.o_zona_destino}${x.o_valor ? " · " + clp(x.o_valor) : ""}. ¡Tómelo antes que otro!` }] }).catch(() => {});
   }
   bolsaCargada = true;
   if (vista === "bolsa" && !document.querySelector(".bolsa-item .swipe.arrastrando")) pintarBolsa(false);
@@ -354,7 +354,7 @@ async function pintarBolsa(recargar = true) {
     : miNivel.o_nivel === 2 ? `⭐ <b>Usted ve las reservas a los 10 minutos</b>, antes que el resto (${notaTxt}).`
     : `Usted ve las reservas a los 20 minutos de publicadas (${notaTxt}). Con <b>4,96 o más</b> las vería antes. Los servicios de momento los ven todos al mismo tiempo.`;
   const dia = iso => new Date(iso).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
-  $("list").innerHTML = `<div class="inicio-tit"><b>Bolsa de servicios</b></div>
+  $("list").innerHTML = `<div class="inicio-tit"><b>Reservas disponibles</b></div>
     <p class="small muted" style="margin:0">Servicios programados que la central dejó disponibles. <b>El primero que lo toma se lo queda.</b> Verá los datos del pasajero y la dirección exacta al tomarlo.</p>
     ${nivelTxt ? `<p class="small" style="margin:0">${nivelTxt}</p>` : ""}
     ${!veh ? '<div class="msg" style="margin:0;border-color:var(--gold)">🚗 Para tomar servicios, primero registre su vehículo. <button type="button" class="linkbtn" id="ir-veh">Registrarlo ahora →</button></div>' : ""}
@@ -368,7 +368,7 @@ async function pintarBolsa(recargar = true) {
       ${!x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
         : x.o_choque ? '<p class="small warn" style="margin:0">Se le cruza con otro servicio suyo a esa hora.</p>'
         : `<div class="swipe" role="button" tabindex="0" data-tomar="${esc(x.o_id)}" aria-label="Tomar este servicio (deslice o presione Enter)"><span class="swipe-txt">Deslice → Tomar</span><span class="swipe-thumb">➜</span></div>`}
-    </div>`).join("") : '<p class="muted">No hay servicios en la bolsa ahora. Cuando la central libere uno, le avisaremos con sonido.</p>'}
+    </div>`).join("") : '<p class="muted">No hay reservas disponibles ahora. Cuando la central publique una, le avisaremos con sonido.</p>'}
     <div class="msg" id="bolsa-msg" hidden></div>`;
   document.querySelectorAll("[data-tomar]").forEach(el => activarSwipe(el, () => tomarDeBolsa(el.dataset.tomar)));
 }
@@ -1143,7 +1143,7 @@ function pintar() {
         <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>`}
       </div>
       ${veh ? `<p class="small muted">Vehículo: ${esc(veh.descripcion || "")} · ${esc(veh.patente)}</p>` : ""}
-      ${["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) - Date.now() > 3 * 3600e3 ? '<button class="btn ghost sm devolver" type="button">↩ No podré hacerlo: devolver a la bolsa</button>' : ""}
+      ${["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) - Date.now() > 3 * 3600e3 ? '<button class="btn ghost sm devolver" type="button">↩ No podré hacerlo: devolver a Reservas</button>' : ""}
       ${s && !fin ? (pendiente === r.id
         ? (r.tipo_cobro === "taximetro" ? `<div class="confirm taxi">
             <b>Finalizar con taxímetro</b>
@@ -1209,7 +1209,7 @@ function pintar() {
     });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
     card.querySelector(".devolver")?.addEventListener("click", async () => {
-      if (!confirm(`¿Devolver el servicio ${r.codigo} (${FK.fecha(r.fecha_hora)}) a la bolsa?\n\nOtro conductor podrá tomarlo. La central recibe un aviso y queda registrado. Úselo solo si de verdad no puede hacerlo.`)) return;
+      if (!confirm(`¿Devolver el servicio ${r.codigo} (${FK.fecha(r.fecha_hora)}) a Reservas?\n\nOtro conductor podrá tomarlo. La central recibe un aviso y queda registrado. Úselo solo si de verdad no puede hacerlo.`)) return;
       const { error } = await sb.rpc("conductor_devolver_reserva", { p_reserva: id });
       if (error) return alert(errText(error));
       try { const k = "fk_snap_" + yo.id, s0 = JSON.parse(localStorage.getItem(k) || "{}"); delete s0[id]; localStorage.setItem(k, JSON.stringify(s0)); } catch (_) {} // no avisarse a sí mismo

@@ -1,5 +1,10 @@
 # Cambios
 
+## 16 nov 2026 · La "bolsa de servicios" se llama "Reservas"
+- App del conductor: pestaña "Reservas", título "Reservas disponibles", avisos "Nueva reserva disponible".
+- Panel: "Publicar en Reservas", "Quitar de Reservas", "Reservas para conductores" (para no confundir con la pestaña Reservas del panel).
+- Notas del historial que escribe la base de datos (liberar, devolver, tomar) dicen "Reservas". Solo textos: tablas, columnas y funciones siguen llamándose `bolsa`.
+
 ## 16 nov 2026 · Página /empresas/ para prospección
 - Nueva página de venta para empresas (`/empresas/`): problema, lo que ven en el portal, cómo empezamos. Enlazada desde la sección Empresas de la portada y en el sitemap.
 - Base para los correos de prospección (sin prometer cantidad de vehículos: "vehículos coordinados con anticipación" para grupos).
