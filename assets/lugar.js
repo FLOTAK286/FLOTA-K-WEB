@@ -37,16 +37,20 @@
     input.setAttribute("role", "combobox");
     wrap.innerHTML = `<div class="lugar-sug" role="listbox" hidden></div>
       <div class="lugar-barra"><span class="lugar-estado"></span>
-        <span><button type="button" class="linkbtn l-aero">✈ Aeropuerto SCL</button> · <button type="button" class="linkbtn l-mapa">📍 Marcar en el mapa</button></span></div>
+        <span><button type="button" class="linkbtn l-deshacer" hidden title="Volver el pin a donde estaba antes">↶ Deshacer</button><span class="l-sep" hidden> · </span><button type="button" class="linkbtn l-aero">✈ Aeropuerto SCL</button> · <button type="button" class="linkbtn l-mapa">📍 Marcar en el mapa</button></span></div>
       <div class="lugar-mapa" hidden></div>
       <div class="lugar-inv small" hidden></div>`;
     const sug = wrap.querySelector(".lugar-sug"), est = wrap.querySelector(".lugar-estado"), mapaEl = wrap.querySelector(".lugar-mapa"), inv = wrap.querySelector(".lugar-inv");
     let punto = null, mapa = null, pin = null, ctrl = null, timer = null, items = [], idx = -1;
+    // Historial para "Deshacer": cada vez que el punto cambia se guarda el anterior (y el texto de la dirección)
+    let historial = [], deshaciendo = false;
+    const btnDeshacer = wrap.querySelector(".l-deshacer"), sepDeshacer = wrap.querySelector(".l-sep");
     const avisar = () => { if (opts.alCambiar) opts.alCambiar(); };
 
     function estado() {
       est.className = "lugar-estado " + (punto ? "ok" : "falta");
       est.textContent = punto ? "✅ Punto marcado (puede arrastrar el pin)" : "⚠ Falta marcar el punto: elija una sugerencia o toque el mapa";
+      btnDeshacer.hidden = sepDeshacer.hidden = !historial.length;
     }
     function verMapa() {
       mapaEl.hidden = false;
@@ -58,6 +62,11 @@
       setTimeout(() => { mapa.invalidateSize(); if (punto) mapa.setView([punto.lat, punto.lng], Math.max(mapa.getZoom(), 16)); }, 60);
     }
     function fijar(lat, lng, desdeMapa, comunas) {
+      const nuevoLat = Math.round(lat * 1e6) / 1e6, nuevoLng = Math.round(lng * 1e6) / 1e6;
+      if (punto && !deshaciendo && (punto.lat !== nuevoLat || punto.lng !== nuevoLng)) {
+        historial.push({ lat: punto.lat, lng: punto.lng, comunas: [...(punto.comunas || [])], texto: input.value });
+        if (historial.length > 30) historial.shift();
+      }
       punto = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, comunas: comunas || [] };
       verMapa();
       if (mapa) {
@@ -112,6 +121,14 @@
       else if (e.key === "Escape") cerrar();
     });
     input.addEventListener("blur", () => setTimeout(cerrar, 150));
+    btnDeshacer.addEventListener("click", () => {
+      const prev = historial.pop(); if (!prev) return;
+      deshaciendo = true;
+      input.value = prev.texto;
+      fijar(prev.lat, prev.lng, false, prev.comunas);
+      deshaciendo = false;
+      estado(); avisar();
+    });
     wrap.querySelector(".l-aero").addEventListener("click", () => { input.value = AERO.texto; cerrar(); fijar(AERO.lat, AERO.lng, false); });
     wrap.querySelector(".l-mapa").addEventListener("click", () => { verMapa(); if (!punto) est.textContent = "👆 Toque el mapa en el punto exacto (puede acercar con + y −)"; });
     estado();
@@ -119,12 +136,15 @@
     const api = {
       get: () => punto ? { ...punto, comunas: [...punto.comunas] } : null,
       // Pone texto y punto; si no hay punto pero el texto es el aeropuerto, usa el punto del aeropuerto.
+      // (cargar un punto desde el sistema empieza un historial nuevo: "Deshacer" no vuelve a datos de otra reserva)
       set(texto, lat, lng) {
+        historial = []; deshaciendo = true;
         if (texto != null) input.value = texto;
         if (lat != null && lng != null) fijar(lat, lng, false);
         else { api.limpiar(); if (esAero(input.value)) fijar(AERO.lat, AERO.lng, false); }
+        deshaciendo = false; estado();
       },
-      limpiar() { punto = null; if (pin) { pin.remove(); pin = null; } mapaEl.hidden = true; inv.hidden = true; cerrar(); estado(); },
+      limpiar() { punto = null; historial = []; if (pin) { pin.remove(); pin = null; } mapaEl.hidden = true; inv.hidden = true; cerrar(); estado(); },
       buscarAhora() { opts.mostrarSiempre = true; buscarAhora(); setTimeout(() => { opts.mostrarSiempre = false; }, 3000); },
       exigir() { if (punto) return true; verMapa(); wrap.scrollIntoView({ behavior: "smooth", block: "center" }); est.classList.add("parpadeo"); setTimeout(() => est.classList.remove("parpadeo"), 1500); return false; }
     };

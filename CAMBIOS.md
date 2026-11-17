@@ -1,5 +1,9 @@
 # Cambios
 
+## 17 nov 2026 · Deshacer al mover el pin
+- `assets/lugar.js` (nueva reserva y edición en el panel, portal de empresas, servicios habituales): botón "↶ Deshacer" que devuelve el pin y el texto de la dirección al punto anterior, paso a paso (hasta 30). Cargar un punto desde el sistema (`set`) empieza un historial nuevo.
+- Seguimiento, "Confirme su punto exacto de retiro": "↶ Deshacer" y "Volver al punto guardado".
+
 ## 17 nov 2026 · El enlace de seguimiento siempre va con su mensaje
 - Panel, ficha de la reserva: "Copiar" copiaba solo el enlace. Ahora "⧉ Copiar mensaje" y "📲 Compartir por WhatsApp" (elige el contacto) usan `mensajeSeguimiento(r)`: saludo, código, fecha, origen, destino, vuelo, conductor y vehículo, y el enlace con lo que puede hacer en él.
 - Seguimiento, "Compartir mi viaje": el enlace va dentro del texto (WhatsApp a veces botaba el texto cuando el enlace iba aparte).

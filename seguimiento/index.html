@@ -121,7 +121,7 @@ async function pintarRetiro() {
     <p class="small muted" style="margin:0">Mueva el pin (o toque el mapa) hasta donde esperará al conductor, por ejemplo la entrada de su edificio. El conductor navegará justo a ese punto.</p>
     <div id="ret-mapa" class="mapa" style="height:260px"></div>
     <div class="f"><label for="ret-det">Indicaciones para el conductor (opcional)</label><input id="ret-det" maxlength="200" placeholder="Ej.: Torre B, portón negro, por la calle lateral" value="${esc(x.o_detalle || "")}"></div>
-    <div class="actions"><button class="btn sm" type="button" id="ret-ok">Guardar mi punto</button></div>
+    <div class="actions"><button class="btn sm" type="button" id="ret-ok">Guardar mi punto</button><button class="btn ghost sm" type="button" id="ret-undo" hidden>↶ Deshacer</button><button class="btn ghost sm" type="button" id="ret-orig" hidden>Volver al punto guardado</button></div>
     <p class="msg" id="ret-msg" hidden></p>`;
   const avisar = (t, k) => { const m = $("ret-msg"); m.hidden = false; m.className = "msg " + k; m.textContent = t; };
   if (!window.L || !window.FKMapa) { $("ret-mapa").innerHTML = '<p class="small muted" style="padding:10px">No se pudo cargar el mapa.</p>'; return; }
@@ -129,15 +129,27 @@ async function pintarRetiro() {
   const m = FKMapa.crear($("ret-mapa"), centro, x.o_lat != null ? 17 : 11);
   const icono = L.divIcon({ className: "lugar-pin", html: "<span>📍</span>", iconSize: [34, 34], iconAnchor: [17, 32] });
   let punto = x.o_lat != null ? L.latLng(centro) : null, mk = null;
-  const poner = ll => { punto = ll; if (!mk) { mk = L.marker(ll, { draggable: true, icon: icono }).addTo(m); mk.on("dragend", () => { punto = mk.getLatLng(); }); } else mk.setLatLng(ll); };
-  if (punto) poner(punto);
+  // "Deshacer": cada movimiento del pin guarda el punto anterior; "Volver al punto guardado" regresa al último guardado
+  let guardado = punto, historial = [];
+  const botones = () => { $("ret-undo").hidden = !historial.length; $("ret-orig").hidden = !guardado || !punto || guardado.equals(punto); };
+  const poner = (ll, sinHistorial) => {
+    if (punto && !sinHistorial && !punto.equals(ll)) historial.push(punto);
+    punto = ll;
+    if (!mk) { mk = L.marker(ll, { draggable: true, icon: icono }).addTo(m); mk.on("dragstart", () => { mk._antes = punto; }); mk.on("dragend", () => { const ant = mk._antes; punto = mk.getLatLng(); if (ant && !ant.equals(punto)) historial.push(ant); botones(); }); }
+    else mk.setLatLng(ll);
+    botones();
+  };
+  if (punto) poner(punto, true);
   m.on("click", e => poner(e.latlng));
+  $("ret-undo").onclick = () => { const prev = historial.pop(); if (prev) { poner(prev, true); m.panTo(prev); } };
+  $("ret-orig").onclick = () => { if (guardado) { historial = []; poner(guardado, true); m.setView(guardado, Math.max(m.getZoom(), 17)); } };
   $("ret-ok").onclick = async () => {
     if (!punto) return avisar("Toque el mapa en el lugar donde lo esperará el conductor.", "err");
     $("ret-ok").disabled = true;
     const { error } = await sb.rpc("pasajero_ajustar_retiro", { p_token: token, p_lat: punto.lat, p_lng: punto.lng, p_detalle: $("ret-det").value });
     $("ret-ok").disabled = false;
     avisar(error ? FK.errText(error) : "✅ Listo: su conductor llegará a ese punto.", error ? "err" : "ok");
+    if (!error) { guardado = punto; historial = []; botones(); }
   };
 }
 
