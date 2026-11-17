@@ -1,8 +1,16 @@
 // Utilidades compartidas: cliente Supabase, inicio de sesión, formatos.
 (function () {
   const C = window.FK_CONFIG;
+  // Enlace del correo que cayó en la portada (Supabase vuelve a la dirección del sitio cuando la página pedida no está
+  // en su lista permitida): se reenvía al panel del equipo con los datos del enlace, sin usarlos aquí.
+  const traeEnlace = /access_token=|error_code=|[#&]type=(magiclink|recovery|signup|invite)/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search);
+  if (traeEnlace && (location.pathname === "/" || location.pathname === "/index.html")) {
+    location.replace("/equipo/" + location.search + location.hash);
+  }
   const sb = window.supabase.createClient(C.url, C.anonKey, {
-    auth: Object.assign({ persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" },
+    // flowType "implicit": el enlace del correo funciona aunque se abra en otro navegador o en la app de Gmail
+    // (con "pkce" solo funcionaba en el mismo navegador donde se pidió, y si no, volvía a pedir iniciar sesión).
+    auth: Object.assign({ persistSession: true, autoRefreshToken: true, detectSessionInUrl: !(traeEnlace && location.pathname === "/"), flowType: "implicit" },
       // Dentro de la app Android, el "candado" del navegador puede quedarse pegado y dejar la pantalla en blanco: se omite.
       (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? { lock: (_n, _t, fn) => fn() } : {})
   });
@@ -35,6 +43,7 @@
     [/jwt expired|invalid jwt|session.*(missing|expired)|refresh token/i, "Su sesión venció. Cierre sesión y vuelva a ingresar."],
     [/failed to fetch|networkerror|network request failed|load failed/i, "Sin conexión a internet. Revise su señal e intente de nuevo."],
     [/payload too large|entity too large|exceeded the maximum allowed size/i, "El archivo es muy grande. Pruebe con una foto más liviana."],
+    [/error sending .*email|sending (magic link|recovery|confirmation)/i, "No se pudo enviar el correo en este momento. Intente de nuevo en unos minutos o pida una contraseña provisoria al administrador."],
     [/duplicate key|already exists/i, "Ese dato ya está registrado."]
   ];
   const errText = e => {

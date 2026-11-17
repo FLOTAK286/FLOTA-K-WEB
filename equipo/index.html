@@ -455,6 +455,8 @@ function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = 
 
 // ---- Ingreso
 const vieneDeEnlace = /[?&](code|token_hash)=/.test(location.search) || /access_token=/.test(location.hash);
+// Enlace vencido o ya usado: Supabase vuelve con "#error_code=otp_expired" (u otro error) en vez de iniciar sesión
+const errorEnlace = /error_code=|[#&]error=/.test(location.hash) ? decodeURIComponent((location.hash.match(/error_description=([^&]*)/) || [])[1] || "").replace(/\+/g, " ") : null;
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
   const v = FK.usuarioACorreo($("email").value), pw = $("pass").value;
@@ -524,6 +526,9 @@ async function iniciar(session) {
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
   $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
   $("app").hidden = false;
+  // Entró con el enlace del correo: pedir la contraseña al tiro, sin esperar que cargue el resto del panel
+  const pedirClave = vieneDeEnlace;
+  if (pedirClave) { history.replaceState(null, "", back); abrirPw(true); }
   await cargarRecursos(); cargarCuentas();
   conectarEnVivo();
   cargarDespacho(); timerDespacho = setInterval(() => {
@@ -536,7 +541,6 @@ async function iniciar(session) {
   const ir = location.hash.slice(1);
   if (["nueva", "reservas", "agenda", "mapa", "central"].includes(ir)) document.querySelector(`.tabs button[data-tab="${ir}"]`)?.click();
   avisoInstalar();
-  if (vieneDeEnlace) { history.replaceState(null, "", back); abrirPw(true); }
 }
 
 // ---- App instalable "Flota-K Operaciones" (teléfono o computador)
@@ -2819,7 +2823,10 @@ $("rf").addEventListener("submit", async e => {
 
 let iniciado = false;
 sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
-sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else $("login").hidden = false; });
+sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else {
+  $("login").hidden = false;
+  if (errorEnlace !== null) { history.replaceState(null, "", back); msg("login-msg", "Ese enlace ya venció o ya se usó. Escriba su correo y toque de nuevo \"envíeme un enlace al correo\" para recibir uno nuevo, y ábralo una sola vez.", "err"); }
+} });
 </script>
 </body>
 </html>

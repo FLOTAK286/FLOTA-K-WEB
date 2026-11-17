@@ -1,5 +1,11 @@
 # Cambios
 
+## 17 nov 2026 · Correo propio (Gmail) y enlace de acceso que funciona en cualquier navegador
+- Supabase ya envía correos con SMTP de Gmail (gerencia@fk-servicios.com), configurado por el dueño. Límite: 30 por hora.
+- El enlace del correo entraba en un bucle: con `flowType: "pkce"` solo funcionaba en el mismo navegador donde se pidió (al abrirlo desde la app de Gmail fallaba con "code challenge does not match"). Ahora `flowType: "implicit"` en assets/app.js.
+- Si el enlace cae en la portada (Supabase vuelve a la dirección del sitio cuando la página pedida no está en su lista permitida), la portada lo reenvía a /equipo.
+- /equipo: la ventana "Cree su contraseña" se abre apenas se entra con el enlace (antes esperaba que cargara todo el panel); un enlace vencido o ya usado muestra qué hacer. El error "Error sending magic link email" se traduce al español.
+
 ## 17 nov 2026 · Mejoras de la revisión general
 - Imagen al compartir el enlace (WhatsApp, Facebook, LinkedIn): `assets/img/compartir.jpg`, `compartir-en.jpg` y `compartir-empresas.jpg` (1200×630) con `og:image` y `twitter:card` en la portada, inglés, /empresas y las 13 páginas por comuna.
 - Ícono de Flota-K (favicon) en todas las páginas.

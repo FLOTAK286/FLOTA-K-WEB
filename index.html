@@ -2,6 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>/* Enlace de acceso del correo que cayó en la portada: se reenvía al panel del equipo. */
+if (/access_token=|error_code=|[#&]type=(magiclink|recovery|signup|invite)/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search)) location.replace("/equipo/" + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/assets/img/icono-192.png">
 <link rel="apple-touch-icon" href="/assets/img/icono-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
