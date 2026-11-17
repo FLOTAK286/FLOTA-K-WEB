@@ -174,6 +174,7 @@
           <div class="f" id="b-zona"><label for="zona">Sector (para la tarifa fija)</label><input id="zona" autocomplete="off" placeholder="Escriba la comuna, por ejemplo: Las Condes"><div class="zona-sug" id="zona-sug" hidden></div></div>
           <div class="f lugar-f"><label for="dom" id="dom-l">Dirección de retiro</label><input id="dom" placeholder="Calle y número, o nombre del lugar"></div>
           <div class="f lugar-f" id="b-dest" hidden><label for="dest">Destino</label><input id="dest" placeholder="Calle y número, o nombre del lugar"></div>
+          <div class="f" id="b-paradas"><label>Paradas en el camino (opcional)</label><span class="small muted">Por ejemplo, para recoger o dejar a otra persona. Con paradas, el valor se lo confirmamos.</span><div id="paradas"></div></div>
           <div class="f" id="b-det"><label for="det">Detalle del retiro (opcional)</label><input id="det" maxlength="200" placeholder="Piso, oficina, portería"></div>
         </div>
 
@@ -261,6 +262,7 @@
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/lugar.js"></script>
+<script src="/assets/paradas.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText } = FK;
 
@@ -403,7 +405,7 @@ function prepararAgendar() {
   const cc = D.empresa.centros_costo || [];
   $("b-cc").hidden = !cc.length;
   $("cc").innerHTML = '<option value="">Elegir…</option>' + cc.map(c => `<option>${esc(c)}</option>`).join("");
-  if (!lugDom) { lugDom = FKLugar.montar($("dom"), { alCambiar: ajustar }); lugDest = FKLugar.montar($("dest"), { alCambiar: ajustar }); }
+  if (!lugDom) { lugDom = FKLugar.montar($("dom"), { alCambiar: ajustar }); lugDest = FKLugar.montar($("dest"), { alCambiar: ajustar }); parE = FKParadas.montar($("paradas"), { alCambiar: ajustar }); }
   ajustar();
 }
 function setModo(m) { modo = m; $("modo").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c.dataset.m === m)); $("b-hab").hidden = m !== "hab"; $("b-otro").hidden = m !== "otro"; ajustar(); }
@@ -422,7 +424,9 @@ $("zona").addEventListener("input", () => { zona = null; pintarZonas(); ajustar(
 $("zona").addEventListener("focus", pintarZonas);
 $("zona").addEventListener("blur", () => setTimeout(() => $("zona-sug").hidden = true, 150));
 $("zona-sug").addEventListener("mousedown", e => { const b = e.target.closest("[data-i]"); if (!b) return; e.preventDefault(); zona = T[+b.dataset.i]; $("zona").value = zona[0]; $("zona-sug").hidden = true; ajustar(); });
+let parE = null; // paradas en el camino
 function precioOtro() {
+  if (parE && parE.cantidad()) return null; // con paradas, el valor lo confirma Flota-K
   if (tipo === "punto_a_punto") {
     const a = lugDom && lugDom.get(), b = lugDest && lugDest.get(); if (!a || !b) return null;
     const lado = p => [...(p.comunas || [])].map(norm), es = (l, lista) => l.some(t => lista.some(c => t.includes(c)));
@@ -441,7 +445,7 @@ function ajustar() {
   $("b-vuelo").hidden = !["ida", "regreso"].includes(tipoEf);
   $("fh-l").textContent = tipoEf === "regreso" ? "Fecha y hora de aterrizaje" : "Fecha y hora de retiro";
   const p = precioActual();
-  $("precio-l").textContent = modo === "hab" ? (habSel ? habSel.nombre + " · tarifa fija" : "Elija un servicio habitual") : p != null ? "Tarifa fija" : tipo === "punto_a_punto" ? "Valor: se lo confirmamos" : "Elija el sector para ver la tarifa";
+  $("precio-l").textContent = modo === "hab" ? (habSel ? habSel.nombre + " · tarifa fija" : "Elija un servicio habitual") : p != null ? "Tarifa fija" : parE && parE.cantidad() ? "Con paradas: el valor se lo confirmamos" : tipo === "punto_a_punto" ? "Valor: se lo confirmamos" : "Elija el sector para ver la tarifa";
   $("precio-v").textContent = p != null ? clp(p) : "—";
   // Presupuesto de quien viaja
   const para = $("para").value, u = para ? (D.equipo || []).find(x => x.id === para) : { presupuesto: D.yo.presupuesto, gasto_mes: D.yo.gasto_mes, nombre: "usted" };
@@ -467,11 +471,13 @@ $("agendar").addEventListener("click", async () => {
     if (aero && !zona) { $("zona").focus(); return msg("a-msg", "Elija el sector de la lista para calcular la tarifa.", "err"); }
     if (!$("dom").value.trim() || !lugDom.exigir()) return msg("a-msg", "Escriba la dirección y marque su punto exacto en el mapa.", "err");
     if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("a-msg", "Escriba el destino y marque su punto en el mapa.", "err");
+    const paradas = parE ? parE.get() : [];
+    if (!paradas) { parE.exigir(); return msg("a-msg", "Marque en el mapa el punto exacto de cada parada (o quítela).", "err"); }
     const dom = lugDom.get(), dest = lugDest.get(), txt = $("dom").value.trim();
     const o = tipo === "regreso" ? { t: AERO.texto, lat: AERO.lat, lng: AERO.lng } : { t: txt, lat: dom.lat, lng: dom.lng };
     const d = tipo === "ida" ? { t: AERO.texto, lat: AERO.lat, lng: AERO.lng } : tipo === "regreso" ? { t: txt, lat: dom.lat, lng: dom.lng } : { t: $("dest").value.trim(), lat: dest.lat, lng: dest.lng };
     args = { ...base, p_habitual: null, p_tipo_servicio: tipo, p_origen: o.t, p_destino: d.t, p_origen_lat: o.lat, p_origen_lng: o.lng, p_destino_lat: d.lat, p_destino_lng: d.lng,
-      p_vehiculo: veh, p_tarifa: precioOtro(), p_comuna: aero && zona ? zona[0] : null, p_retiro_detalle: tipo === "regreso" ? null : ($("det").value.trim() || null) };
+      p_vehiculo: veh, p_tarifa: precioOtro(), p_comuna: aero && zona ? zona[0] : null, p_retiro_detalle: tipo === "regreso" ? null : ($("det").value.trim() || null), p_paradas: paradas };
   }
   $("agendar").disabled = true; msg("a-msg", "Agendando…");
   const { data, error } = await sb.rpc("crear_reserva_convenio", args);
@@ -480,7 +486,7 @@ $("agendar").addEventListener("click", async () => {
   const r = data[0];
   $("a-msg").className = "msg ok"; $("a-msg").hidden = false;
   $("a-msg").innerHTML = `✅ Traslado agendado: <b>${esc(r.o_codigo)}</b>. Le confirmaremos el servicio y el conductor. <a href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener" style="color:var(--gold)">Ver seguimiento →</a>${r.o_aviso ? `<div class="aviso" style="margin-top:8px">💰 ${esc(r.o_aviso)}. La reserva quedó registrada y su encargado de convenio lo verá.</div>` : ""}`;
-  ["fh", "vuelo", "com", "det"].forEach(k => $(k).value = "");
+  ["fh", "vuelo", "com", "det"].forEach(k => $(k).value = ""); if (parE) parE.limpiar();
   const { data: nd } = await sb.rpc("convenio_inicio"); if (nd) { D = nd; const h = habSel && habSel.id; pintarCabecera(); prepararAgendar(); if (h) { habSel = (D.habituales || []).find(x => x.id === h) || null; $("hab").querySelector(`[data-h="${h}"]`)?.classList.add("on"); ajustar(); } }
 });
 function pintarCabecera() {

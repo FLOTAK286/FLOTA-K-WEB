@@ -234,6 +234,8 @@ function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = 
 const tel = t => (t || "").replace(/[^\d+]/g, "");
 const wa = t => { let d = (t || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d; return d; };
 // Navegar: al punto exacto marcado en el mapa (pin); si la reserva no tiene punto, a la dirección escrita
+// Google Maps con todas las paradas en orden hasta el destino (Waze no permite paradas intermedias)
+const gmapsRuta = r => `https://www.google.com/maps/dir/?api=1&destination=${r.destino_lat},${r.destino_lng}&travelmode=driving&waypoints=${encodeURIComponent((r.paradas || []).map(p => p.lat + "," + p.lng).join("|"))}`;
 const waze = (q, lat, lng) => lat != null ? `https://waze.com/ul?ll=${lat},${lng}&navigate=yes` : "https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes";
 const gmaps = (q, lat, lng) => "https://www.google.com/maps/dir/?api=1&destination=" + (lat != null ? `${lat},${lng}` : encodeURIComponent(q));
 
@@ -308,7 +310,7 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, bono_bolsa, retiro_detalle, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, paradas, bono_bolsa, retiro_detalle, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -1119,13 +1121,17 @@ function pintar() {
       ${vista === "inicio" && EN_CURSO.includes(r.estado) ? `<button type="button" class="linkbtn det-ruta">${detallesRuta ? "Ver pantalla simple" : "Ver detalles"}</button>` : ""}
       ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
-      ${!fin ? `<a class="btn navegar" href="${(r.estado === "a_bordo" ? waze(r.destino, r.destino_lat, r.destino_lng) : waze(r.origen, r.origen_lat, r.origen_lng))}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>` : ""}
+      ${!fin ? (r.estado === "a_bordo" && (r.paradas || []).length && r.destino_lat != null
+        ? `<a class="btn navegar" href="${gmapsRuta(r)}" target="_blank" rel="noopener">➤ Navegar con ${r.paradas.length} parada(s) hasta el destino (Google Maps)</a>`
+        : `<a class="btn navegar" href="${(r.estado === "a_bordo" ? waze(r.destino, r.destino_lat, r.destino_lng) : waze(r.origen, r.origen_lat, r.origen_lng))}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>`) : ""}
       <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
       ${r.estado === "en_lugar" || (esPaP(r) && ["asignada", "en_camino", "a_bordo", "finalizada"].includes(r.estado)) ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
       <div class="facts"><span><b>${esc(r.pasajeros)}</b> pasajero(s)</span>${r.maletas != null ? `<span><b>${esc(r.maletas)}</b> maleta(s)</span>` : ""}${r.vuelo ? `<span>Vuelo <a href="${esc(FK.vueloFR24(r.vuelo))}" target="_blank" rel="noopener" style="color:var(--gold)" title="Flightradar24: el avión en vivo"><b>✈ ${esc(r.vuelo)}</b></a> · <a href="${FK.VUELO_PUDAHUEL}" target="_blank" rel="noopener" style="color:var(--gold)">Aeropuerto</a></span>` : ""}<span class="code">${esc(r.codigo)}</span></div>
       ${r.vuelo && r.tipo_servicio === "regreso" && !["a_bordo", "finalizada", "cancelada"].includes(r.estado) ? `<p class="small" style="margin:4px 0 0">⏱ Revise el vuelo en <b>Flightradar</b> 1 hora antes y de nuevo al salir: los vuelos suelen aterrizar antes de lo que dice Google.</p>` : ""}
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>${r.retiro_detalle ? `<span class="small" style="color:var(--gold)">📍 ${esc(r.retiro_detalle)}</span>` : ""}
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
+      ${(r.paradas || []).map((p, i) => `<div class="place"><small>Parada ${i + 1}</small><span>${esc(p.direccion)}</span>
+        ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(p.direccion, p.lat, p.lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(p.direccion, p.lat, p.lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>`).join("")}
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       ${r.comentarios ? `<p class="small"><b>Nota:</b> ${esc(r.comentarios)}</p>` : ""}

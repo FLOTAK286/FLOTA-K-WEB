@@ -43,6 +43,7 @@
 <script src="/assets/chat.js"></script>
 <script src="/assets/pasajero.js"></script>
 <script src="/assets/espera.js"></script>
+<script src="/assets/paradas.js"></script>
 <script>
 const { sb, esc, fecha, pill, ESTADOS } = FK;
 const box = document.getElementById("box");
@@ -82,6 +83,7 @@ async function cargar() {
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.o_fecha_hora))}</dd>
       <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
+      <dt id="par-dt" hidden>Paradas</dt><dd id="par-dd" hidden></dd>
       <dt>Destino</dt><dd>${esc(r.o_destino)}</dd>
       ${r.o_vuelo ? `<dt>Vuelo</dt><dd>${esc(r.o_vuelo)}</dd>` : ""}
       ${r.o_conductor ? "" : '<dt>Conductor</dt><dd>Por asignar</dd>'}
@@ -102,7 +104,7 @@ async function cargar() {
   });
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
-  mensajes(); pintarRetiro(); cargarEspera();
+  mensajes(); pintarRetiro(); cargarEspera(); cargarParadas();
   if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
 }
 
@@ -236,6 +238,15 @@ async function ubicar() {
   txt.textContent = `Última ubicación ${FKMapa.hace(u.o_actualizado)}` + (viejo ? ". El conductor puede estar sin señal o con la app en segundo plano; se actualizará apenas vuelva." : ".");
 }
 const $ = id => document.getElementById(id);
+// ---- Paradas del viaje (si las hay)
+let paradasPub = null;
+async function cargarParadas() {
+  if (paradasPub === null && token) { const { data } = await sb.rpc("ver_paradas_publica", { p_token: token }); paradasPub = Array.isArray(data) ? data : []; }
+  const dt = $("par-dt"), dd = $("par-dd");
+  if (!dt || !paradasPub || !paradasPub.length) return;
+  dd.innerHTML = FKParadas.html(paradasPub, false); dt.hidden = false; dd.hidden = false;
+}
+
 // ---- Espera (servicios punto a punto): contador y cobro desde la hora agendada
 let espera = null, esperaDif = 0;
 async function cargarEspera() {

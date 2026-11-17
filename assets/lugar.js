@@ -133,19 +133,22 @@
   // Ruta real en auto (OSRM, datos de OpenStreetMap, gratis). Se suma un 25% por tráfico.
   // Si el servicio de rutas no responde, se estima con la distancia en línea recta (x1,35 y 25 km/h promedio).
   const TRAFICO = 1.25, cacheRuta = new Map();
-  async function ruta(a, b) {
+  // vias: paradas intermedias opcionales [{lat, lng}], en orden
+  async function ruta(a, b, vias = []) {
     if (!a || !b || a.lat == null || b.lat == null) return null;
-    const k = [a.lat, a.lng, b.lat, b.lng].map(x => Number(x).toFixed(4)).join(",");
+    const pts = [a, ...(vias || []).filter(v => v && v.lat != null), b];
+    const k = pts.flatMap(p => [p.lat, p.lng]).map(x => Number(x).toFixed(4)).join(",");
     if (cacheRuta.has(k)) return cacheRuta.get(k);
     let res = null;
     try {
       const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 6000);
-      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`, { signal: ctrl.signal });
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${pts.map(p => p.lng + "," + p.lat).join(";")}?overview=false`, { signal: ctrl.signal });
       clearTimeout(to);
       const x = ((await r.json()).routes || [])[0];
       if (x) res = { km: Math.round(x.distance / 100) / 10, min: Math.max(1, Math.ceil(x.duration * TRAFICO / 60)), aprox: false };
     } catch (_) {}
-    if (!res) { const km = Math.round(distKm(a, b) * 1.35 * 10) / 10; res = { km, min: Math.max(1, Math.ceil(km / 25 * 60)), aprox: true }; }
+    if (!res) { let lineal = 0; for (let i = 1; i < pts.length; i++) lineal += distKm(pts[i - 1], pts[i]);
+      const km = Math.round(lineal * 1.35 * 10) / 10; res = { km, min: Math.max(1, Math.ceil(km / 25 * 60)), aprox: true }; }
     cacheRuta.set(k, res);
     return res;
   }
