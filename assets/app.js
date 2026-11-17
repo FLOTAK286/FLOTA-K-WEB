@@ -97,5 +97,14 @@
   // Para mostrar: "rgonzalez@usuarios.fk-servicios.com" -> "rgonzalez"; un correo normal queda igual.
   const usuarioVisible = c => String(c || "").endsWith("@" + DOMINIO_USUARIOS) ? String(c).split("@")[0] : String(c || "");
 
-  window.FK = { usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
+  // Abre WhatsApp u otro sitio externo. Dentro de las apps Android (Capacitor) se navega directo, porque
+  // ahí window.open no siempre abre la otra app; en el navegador se abre en una pestaña nueva.
+  function abrirExterno(url) {
+    const nativo = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (nativo) { location.href = url; return; }
+    const w = window.open(url, "_blank", "noopener");
+    if (!w) location.href = url;
+  }
+
+  window.FK = { abrirExterno, usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
 })();

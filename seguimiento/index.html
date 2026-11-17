@@ -100,7 +100,7 @@ async function cargar() {
     // Para que un familiar vea el viaje en vivo (por seguridad o para coordinar la llegada)
     const t = `Sigue mi traslado con Flota-K en vivo (${r.o_origen} → ${r.o_destino}):`;
     if (navigator.share) { try { await navigator.share({ title: "Mi traslado Flota-K", text: t, url: location.href }); return; } catch (_) {} }
-    window.open("https://wa.me/?text=" + encodeURIComponent(t + " " + location.href), "_blank", "noopener");
+    FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t + " " + location.href));
   });
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }

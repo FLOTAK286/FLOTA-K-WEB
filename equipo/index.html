@@ -673,12 +673,12 @@ function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
     enlugar: `Hola ${nombre}, ${quien} ya está en el punto de retiro: ${r.origen}.${vTxt}\n\nSi necesita ubicarlo, escríbale desde aquí: ${link}\n\nFlota-K`,
     gracias: `Hola ${nombre}, gracias por viajar con Flota-K. Nos ayudaría mucho que califique ${alSolicitante ? `el traslado de ${r.nombre_pasajero}` : "su traslado"} aquí: ${link}\n\nPara su próximo viaje, reserve en fk-servicios.com o responda este mensaje.\n\nComprometidos con su traslado. Flota-K`
   };
-  if (otros[tipo]) return window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(otros[tipo]), "_blank", "noopener");
+  if (otros[tipo]) return FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(otros[tipo]));
   const t = `Hola ${nombre}, ${alSolicitante ? `el traslado de ${r.nombre_pasajero} está confirmado` : "su traslado con Flota-K está confirmado"}.\n\n` +
     `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
     (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
     `\n\nSiga su traslado y confirme su punto exacto de retiro aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nComprometidos con su traslado. Flota-K`;
-  window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(t), "_blank", "noopener");
+  FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(t));
 }
 // ---- Copiar reserva: abre "Nueva reserva" con los mismos datos (falta poner la fecha)
 function copiarReserva(r, regreso) {
@@ -2062,7 +2062,7 @@ async function fichaCliente(id) {
     const t = textoCobro(); if (!t) return msg("cf-msg", "Este cliente no tiene servicios pendientes en el período.", "err");
     let d = (c.telefono || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d;
     if (!d) return msg("cf-msg", "El cliente no tiene teléfono registrado.", "err");
-    window.open("https://wa.me/" + d + "?text=" + encodeURIComponent(t), "_blank", "noopener");
+    FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(t));
   });
   $("cf-mail").addEventListener("click", () => {
     const t = textoCobro(); if (!t) return msg("cf-msg", "Este cliente no tiene servicios pendientes en el período.", "err");
@@ -2147,6 +2147,7 @@ async function pintarPortal(e) {
   const filaF = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
   box.innerHTML = `
     <h3 style="margin:0">🏢 Portal de empresas <span class="muted small">fk-servicios.com/empresa</span></h3>
+    <div id="pu-datos" class="confirm" hidden style="border-color:var(--gold)"></div>
     <div class="small">${f.datos_completos_en ? `✅ Datos de facturación completos (${esc(fecha(f.datos_completos_en))})` : '⚠ <b>Facturación pendiente:</b> el encargado de convenio debe completarla al entrar. Mientras tanto no pueden agendar.'}</div>
     ${f.datos_completos_en ? `<details><summary class="small"><b>Ver datos de facturación</b></summary><dl class="kv small">
       ${filaF("Razón social", f.razon_social)}${filaF("RUT", f.rut)}${filaF("Giro", f.giro)}${filaF("Dirección", [f.direccion, f.comuna].filter(Boolean).join(", "))}
@@ -2171,7 +2172,7 @@ async function pintarPortal(e) {
       <div class="f"><label for="pu-clave">Contraseña provisoria</label><input id="pu-clave" maxlength="60"></div>
       <div class="f"><button class="btn" type="submit">Crear acceso</button></div>
     </form>
-    <div id="pu-datos" class="confirm" hidden></div><div id="pu-msg" class="msg" hidden></div>` : ""}
+    <div id="pu-msg" class="msg" hidden></div>` : ""}
     <h4 style="margin:10px 0 0">Servicios habituales (tarifa fija)</h4>
     <p class="muted small" style="margin:0">Aparecen como botones en el portal: la empresa los agenda con un toque al precio fijo.</p>
     <div class="list">${hs.length ? hs.map(h => `<div class="card" style="cursor:default"><div class="top"><b>${esc(h.nombre)}</b><span>${clp(h.precio)} · ${h.vehiculo === "van" ? "Van" : h.vehiculo === "suv" ? "SUV" : "Auto"}</span></div>
@@ -2259,13 +2260,14 @@ function datosAcceso(nombre, correo, rol, clave, empresa, soloClave) {
   const box = $("pu-datos"); if (!box) return;
   const url = location.origin + "/empresa/";
   const t = !clave ? `${nombre} ya tenía cuenta en Flota-K: ahora también tiene acceso al portal de ${empresa} y entra con su contraseña de siempre en ${url}`
-    : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de empresas de Flota-K es: ${clave}\nEntre en ${url} con su correo y esa contraseña; el sistema le pedirá cambiarla.`
+    : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de empresas de Flota-K es: ${clave}\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiarla.`
     : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de empresas de Flota-K para ${empresa}, como ${ROL_CONV[rol]}.\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.` + (rol === "encargado" ? " Luego complete los datos de facturación de la empresa para poder agendar." : "");
   box.hidden = false;
   box.innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Acceso listo"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
     <div class="actions"><button class="btn sm" type="button" id="pu-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="pu-cp">⧉ Copiar</button></div>`;
-  $("pu-wa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
+  $("pu-wa").onclick = () => FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t));
   $("pu-cp").onclick = () => navigator.clipboard?.writeText(t).then(() => $("pu-cp").textContent = "Copiado").catch(() => {});
+  box.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // ---- Nueva reserva
@@ -2787,8 +2789,9 @@ function mostrarDatos(nombre, correo, rol, clave, soloClave) {
   $("i-datos").hidden = false;
   $("i-datos").innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Cuenta lista"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
     <div class="actions"><button class="btn sm" type="button" id="i-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="i-cp">⧉ Copiar</button></div>`;
-  $("i-wa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
+  $("i-wa").onclick = () => FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t));
   $("i-cp").onclick = () => navigator.clipboard?.writeText(t).then(() => $("i-cp").textContent = "Copiado").catch(() => {});
+  $("i-datos").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 $("i-clave").value = claveProvisoria();
 $("inv").addEventListener("submit", async e => {

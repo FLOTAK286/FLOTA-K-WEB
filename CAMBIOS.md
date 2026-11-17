@@ -1,5 +1,9 @@
 # Cambios
 
+## 17 nov 2026 · Nueva clave: mensaje visible y WhatsApp en las apps Android
+- Portal de empresas en el panel: el recuadro con la clave provisoria y el botón "Enviar por WhatsApp" aparece arriba de la sección y la pantalla baja sola hasta él (antes quedaba al final, fuera de la vista en el teléfono). El mensaje de clave nueva incluye el usuario corto.
+- `FK.abrirExterno(url)`: en las apps Android (Capacitor) abre WhatsApp navegando directo; en el navegador, en pestaña nueva. Reemplaza los `window.open` de WhatsApp del panel, el portal de empresas y el seguimiento.
+
 ## 17 nov 2026 · Ingreso con usuario corto
 - Pantallas de ingreso (equipo, conductor, propietario y portal de empresas): el campo ahora es "Correo o usuario". Si no se escribe "@", la página pasa a minúsculas, quita espacios y tildes y agrega "@usuarios.fk-servicios.com" (`FK.usuarioACorreo` en assets/app.js). "R González", "rgonzalez" y "RGonzalez" entran a la misma cuenta.
 - Al crear cuentas en el panel o en el portal de empresas también se puede escribir solo el usuario; el mensaje para enviar muestra el usuario corto (`FK.usuarioVisible`).
