@@ -674,6 +674,16 @@ function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
     `\n\nSiga su traslado y confirme su punto exacto de retiro aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nComprometidos con su traslado. Flota-K`;
   FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(t));
 }
+// Mensaje completo con el enlace de seguimiento (para copiar o compartir por WhatsApp a cualquier contacto)
+function mensajeSeguimiento(r) {
+  const nombre = (r.nombre_pasajero || "").split(" ")[0];
+  const v = vehDe(r.conductor_id, r.vehiculo_id), cond = r.conductor_id ? etiquetaConductor(r.conductor_id).split(" · ").slice(0, 2).join(" · ") : "";
+  const link = `${location.origin}/seguimiento/?t=${r.token_seguimiento}`;
+  return `Hola${nombre ? " " + nombre : ""}, le compartimos el seguimiento de su traslado con Flota-K.\n\n` +
+    `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
+    (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
+    `\n\nEn este enlace puede ver a su conductor en el mapa cuando vaya en camino, confirmar su punto exacto de retiro y escribirnos:\n${link}\n\nComprometidos con su traslado. Flota-K`;
+}
 // ---- Copiar reserva: abre "Nueva reserva" con los mismos datos (falta poner la fecha)
 function copiarReserva(r, regreso) {
   $("det").close();
@@ -1047,7 +1057,7 @@ async function abrir(id) {
       <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
       <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
       <dt>Canal</dt><dd>${esc(r.canal)}</dd>
-      <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">Copiar</button> <a class="btn ghost sm" href="${esc(seg)}" target="_blank" rel="noopener">👁 Ver lo que ve el pasajero</a><div id="d-gps" class="small" style="margin-top:4px"></div></dd>
+      <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">⧉ Copiar mensaje</button> <button class="btn ghost sm" type="button" id="cp-wa">📲 Compartir por WhatsApp</button> <a class="btn ghost sm" href="${esc(seg)}" target="_blank" rel="noopener">👁 Ver lo que ve el pasajero</a><div id="d-gps" class="small" style="margin-top:4px"></div></dd>
     </dl>
     <div class="row2">
       <div class="f"><label for="d-precio">Precio final</label><input id="d-precio" type="number" min="0" step="1000" value="${esc(r.precio ?? "")}"></div>
@@ -1145,7 +1155,9 @@ async function abrir(id) {
   $("d-regreso").onclick = () => copiarReserva(r, true);
   estadoGps(r);
   if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
-  $("cp").onclick = () => navigator.clipboard?.writeText(seg).then(() => $("cp").textContent = "Copiado").catch(() => {});
+  // Copia o comparte el mensaje completo (no solo el enlace)
+  $("cp").onclick = () => { const t = mensajeSeguimiento(r); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => $("cp").textContent = "✅ Mensaje copiado").catch(() => prompt("Copie el mensaje:", t)); };
+  $("cp-wa").onclick = () => FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(mensajeSeguimiento(r)));
   const margen = () => {
     const p = r.precio ?? r.tarifa_web, c = $("a-costo").value === "" ? null : Number($("a-costo").value);
     $("a-margen").textContent = (p && c != null && $("a-der").value.trim()) ? `Margen: ${clp(p - c)} (${Math.round((p - c) / p * 100)}% sobre ${clp(p)})` : "";

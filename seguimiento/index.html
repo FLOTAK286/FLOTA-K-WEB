@@ -99,9 +99,10 @@ async function cargar() {
   $("ics")?.addEventListener("click", calendario);
   $("compartir")?.addEventListener("click", async () => {
     // Para que un familiar vea el viaje en vivo (por seguridad o para coordinar la llegada)
-    const t = `Sigue mi traslado con Flota-K en vivo (${r.o_origen} → ${r.o_destino}):`;
-    if (navigator.share) { try { await navigator.share({ title: "Mi traslado Flota-K", text: t, url: location.href }); return; } catch (_) {} }
-    FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t + " " + location.href));
+    // El enlace va dentro del texto (si se manda aparte, WhatsApp a veces bota el mensaje y deja solo el enlace)
+    const t = `Sigue mi traslado con Flota-K en vivo (${r.o_origen} → ${r.o_destino}, ${fecha(r.o_fecha_hora)}). Aquí puedes ver el auto en el mapa cuando vaya en camino:\n${location.href}`;
+    if (navigator.share) { try { await navigator.share({ title: "Mi traslado Flota-K", text: t }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+    FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t));
   });
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }

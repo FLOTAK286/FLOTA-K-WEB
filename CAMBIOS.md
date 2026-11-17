@@ -1,5 +1,9 @@
 # Cambios
 
+## 17 nov 2026 · El enlace de seguimiento siempre va con su mensaje
+- Panel, ficha de la reserva: "Copiar" copiaba solo el enlace. Ahora "⧉ Copiar mensaje" y "📲 Compartir por WhatsApp" (elige el contacto) usan `mensajeSeguimiento(r)`: saludo, código, fecha, origen, destino, vuelo, conductor y vehículo, y el enlace con lo que puede hacer en él.
+- Seguimiento, "Compartir mi viaje": el enlace va dentro del texto (WhatsApp a veces botaba el texto cuando el enlace iba aparte).
+
 ## 17 nov 2026 · Recuperar contraseña por correo (todas las pantallas de ingreso) y más seguridad
 - "¿Olvidó su contraseña?" en equipo, conductor, propietario y portal de empresas (`assets/recuperar.js`): envía un enlace de recuperación (`resetPasswordForEmail`) solo al correo dueño de la cuenta, con la misma respuesta exista o no la cuenta; las cuentas con usuario corto (@usuarios.fk-servicios.com) no tienen correo y se les indica pedir clave provisoria.
 - Al volver desde el enlace aparece "Cree su contraseña nueva" (mín. 8 caracteres, letras y números); al guardar se cierran las sesiones en otros dispositivos (`signOut({ scope: "others" })`) y se marca `convenio_clave_cambiada`.
