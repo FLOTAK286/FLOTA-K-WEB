@@ -1,5 +1,12 @@
 # Cambios
 
+## 17 nov 2026 · Mejoras de la revisión general
+- Imagen al compartir el enlace (WhatsApp, Facebook, LinkedIn): `assets/img/compartir.jpg`, `compartir-en.jpg` y `compartir-empresas.jpg` (1200×630) con `og:image` y `twitter:card` en la portada, inglés, /empresas y las 13 páginas por comuna.
+- Ícono de Flota-K (favicon) en todas las páginas.
+- App del pasajero (/app): "Mi cuenta" ya no lleva a /cuenta (enlace por correo, sin configurar): ahora "Entrar y agendar" lleva al portal /empresa, donde se entra con correo o usuario y contraseña.
+- /empresas: ficha para Google (datos estructurados `Service`) y se corrigió un `</head>` repetido.
+- Reseñas de Google: sección "Lo que dicen nuestros pasajeros" en la portada y botón en /empresas; `resenaGoogle` en `assets/config.js` (ficha de Google por CID), que el seguimiento ya ofrece al pasajero que califica con 5 estrellas. La ficha de Google se agregó a los datos estructurados de la portada.
+
 ## 17 nov 2026 · Nueva clave: mensaje visible y WhatsApp en las apps Android
 - Portal de empresas en el panel: el recuadro con la clave provisoria y el botón "Enviar por WhatsApp" aparece arriba de la sección y la pantalla baja sola hasta él (antes quedaba al final, fuera de la vista en el teléfono). El mensaje de clave nueva incluye el usuario corto.
 - `FK.abrirExterno(url)`: en las apps Android (Capacitor) abre WhatsApp navegando directo; en el navegador, en pestaña nueva. Reemplaza los `window.open` de WhatsApp del panel, el portal de empresas y el seguimiento.
