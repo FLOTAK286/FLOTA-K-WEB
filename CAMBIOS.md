@@ -1,5 +1,17 @@
 # Cambios
 
+## 16 nov 2026 · Servicios con paradas intermedias y vuelo solo en aeropuerto
+- **Paradas (hasta 8)** entre el origen y el destino, cada una con su punto en el mapa: en la nueva reserva del despacho y en el portal de empresas ("Paradas en el camino"). La ruta y los km se recalculan con las paradas y el panel muestra cuánto agregan ("Ajuste el precio").
+- Portal de empresas: con paradas no se muestra tarifa fija ("el valor se lo confirmamos"); los servicios habituales no llevan paradas.
+- Al duplicar o crear el regreso se copian las paradas (en el regreso, en orden inverso).
+- **Editar paradas** en una reserva ya creada: solo desde la ficha del panel (✏ Editar paradas), mientras no esté finalizada ni cancelada. Muestra el cambio de km/min y deja nota en el historial (`editar_paradas`).
+- **App del conductor:** cada parada con Waze / Google Maps; con el pasajero a bordo, el botón principal abre Google Maps con todas las paradas en orden. Botones "📍 Llegué a la parada" y "➤ Seguimos".
+- **Espera en paradas:** 5 min sin costo en cada parada; después $180/min (auto) o $270/min (SUV o van). No aplica a servicios por hora ni con taxímetro. Al salir de la parada (o al llegar a la siguiente, o al finalizar) queda como gasto "espera" de la reserva ("Espera en parada N: …"). Contador en la app del conductor, en el enlace del pasajero y resumen en la ficha del panel.
+- **Número de vuelo:** el panel lo oculta y no lo guarda en punto a punto y por hora (el portal y la app ya lo hacían).
+- Enlace del pasajero: muestra las paradas y su espera.
+- Base de datos: columna `reservas.paradas` (revisada con `paradas_limpias` en todo insert/update), tabla `reserva_paradas_espera` (RLS, sin acceso directo), `conductor_parada`, `ver_paradas_espera`, `ver_paradas_espera_publica`, `ver_paradas_publica`, `crear_reserva_convenio` con `p_paradas`. Migración `20261117011807_etapa34_paradas`.
+- Cachés: app del pasajero `fk-app-v6`, portal de empresas `fk-empresa-v3`.
+
 ## 16 nov 2026 · La "bolsa de servicios" se llama "Reservas"
 - App del conductor: pestaña "Reservas", título "Reservas disponibles", avisos "Nueva reserva disponible".
 - Panel: "Publicar en Reservas", "Quitar de Reservas", "Reservas para conductores" (para no confundir con la pestaña Reservas del panel).
