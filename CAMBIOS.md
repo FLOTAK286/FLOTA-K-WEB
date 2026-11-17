@@ -1,5 +1,10 @@
 # Cambios
 
+## 17 nov 2026 · Ingreso con usuario corto
+- Pantallas de ingreso (equipo, conductor, propietario y portal de empresas): el campo ahora es "Correo o usuario". Si no se escribe "@", la página pasa a minúsculas, quita espacios y tildes y agrega "@usuarios.fk-servicios.com" (`FK.usuarioACorreo` en assets/app.js). "R González", "rgonzalez" y "RGonzalez" entran a la misma cuenta.
+- Al crear cuentas en el panel o en el portal de empresas también se puede escribir solo el usuario; el mensaje para enviar muestra el usuario corto (`FK.usuarioVisible`).
+- El enlace al correo del equipo no se ofrece a cuentas con usuario (no tienen correo real).
+
 ## 16 nov 2026 · Nueva reserva más amigable (panel)
 - El formulario se ordena en 5 pasos numerados: quién viaja, servicio y cuándo, dónde, pasajeros y vehículo, precio y quién paga. Canal y repetir quedan en "Más opciones".
 - Servicio, vehículo y "¿quién paga?" con botones grandes en vez de listas; pasajeros y maletas con − / +.

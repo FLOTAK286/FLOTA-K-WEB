@@ -40,8 +40,8 @@ details.paso > summary { cursor: pointer; }
     <h2>Ingreso del equipo</h2>
     <p class="muted">Ingrese con su correo y contraseña.</p>
     <form id="login-form" class="f" novalidate>
-      <label for="email">Correo</label>
-      <input id="email" type="email" autocomplete="username" required>
+      <label for="email">Correo o usuario</label>
+      <input id="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required>
       <label for="pass" style="margin-top:6px">Contraseña</label>
       <input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button><button class="btn ghost" type="button" id="google" hidden>Ingresar con Google</button></div>
@@ -333,7 +333,7 @@ details.paso > summary { cursor: pointer; }
       <h2>Equipo y roles</h2>
       <p class="muted">Cree la cuenta con el correo, el rol y una contraseña provisoria. No se envía ningún correo: usted le pasa los datos por WhatsApp y la persona entra de inmediato (luego cambia su contraseña con el botón "Contraseña").</p>
       <form id="inv" class="row3" novalidate>
-        <div class="f"><label for="i-mail">Correo</label><input id="i-mail" type="email" required></div>
+        <div class="f"><label for="i-mail">Correo o usuario</label><input id="i-mail" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required></div>
         <div class="f"><label for="i-nombre">Nombre</label><input id="i-nombre" required></div>
         <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="propietario">Propietario de vehículo (ve reportes de sus autos)</option><option value="admin">Administrador</option></select></div>
         <div class="f"><label for="i-clave">Contraseña provisoria</label><input id="i-clave" minlength="8" maxlength="72" autocomplete="off"></div>
@@ -456,16 +456,17 @@ function msg(id, text, kind) { const m = $(id); m.hidden = false; m.className = 
 const vieneDeEnlace = /[?&](code|token_hash)=/.test(location.search) || /access_token=/.test(location.hash);
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const v = $("email").value.trim().toLowerCase(), pw = $("pass").value;
-  if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Ingrese un correo válido.", "err");
+  const v = FK.usuarioACorreo($("email").value), pw = $("pass").value;
+  if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Ingrese su correo o su usuario.", "err");
   if (!pw) return msg("login-msg", "Ingrese su contraseña. Si es su primera vez, use el enlace al correo de más abajo.", "err");
   msg("login-msg", "Entrando…");
   const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos. Si aún no crea su contraseña, use el enlace al correo." : errText(error), "err");
 });
 $("magic").addEventListener("click", async () => {
-  const v = $("email").value.trim();
+  const v = FK.usuarioACorreo($("email").value);
   if (!/.+@.+\..+/.test(v)) return msg("login-msg", "Escriba su correo arriba y vuelva a tocar el enlace.", "err");
+  if (v.endsWith("@" + FK.DOMINIO_USUARIOS)) return msg("login-msg", "Las cuentas con usuario no reciben correos: pídale al administrador una contraseña provisoria.", "err");
   msg("login-msg", "Revisando…");
   const { data: ok, error: e1 } = await sb.rpc("puede_ingresar_equipo", { p_correo: v });
   if (e1) return msg("login-msg", errText(e1), "err");
@@ -2164,7 +2165,7 @@ async function pintarPortal(e) {
     </tbody></table></div>
     ${admin ? `<form id="pu-form" class="row3" novalidate style="align-items:end">
       <div class="f"><label for="pu-nom">Nombre</label><input id="pu-nom" maxlength="200" placeholder="Nombre y apellido"></div>
-      <div class="f"><label for="pu-mail">Correo (será su usuario)</label><input id="pu-mail" type="email" maxlength="200" placeholder="persona@empresa.cl"></div>
+      <div class="f"><label for="pu-mail">Correo o usuario</label><input id="pu-mail" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="200" placeholder="persona@empresa.cl o usuario"></div>
       <div class="f"><label for="pu-tel">Teléfono</label><input id="pu-tel" type="tel" maxlength="30" placeholder="+56 9 ..."></div>
       <div class="f"><label for="pu-rol">Rol</label><select id="pu-rol"><option value="encargado">Encargado de convenio</option><option value="directivo">Directivo / dueño: ve todos los viajes de la empresa, no administra</option><option value="pasajero">Pasajero autorizado</option></select></div>
       <div class="f"><label for="pu-clave">Contraseña provisoria</label><input id="pu-clave" maxlength="60"></div>
@@ -2194,7 +2195,7 @@ async function pintarPortal(e) {
   $("pu-clave").value = claveProvisoria();
   $("pu-form").addEventListener("submit", async ev => {
     ev.preventDefault();
-    const nombre = $("pu-nom").value.trim(), correo = $("pu-mail").value.trim().toLowerCase(), telefono = $("pu-tel").value.trim(), rol = $("pu-rol").value, clave = $("pu-clave").value.trim();
+    const nombre = $("pu-nom").value.trim(), correo = FK.usuarioACorreo($("pu-mail").value), telefono = $("pu-tel").value.trim(), rol = $("pu-rol").value, clave = $("pu-clave").value.trim();
     if (nombre.length < 2) return msg("pu-msg", "Escriba el nombre.", "err");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return msg("pu-msg", "Escriba un correo válido.", "err");
     if (clave.length < 8) return msg("pu-msg", "La contraseña provisoria debe tener al menos 8 caracteres.", "err");
@@ -2259,7 +2260,7 @@ function datosAcceso(nombre, correo, rol, clave, empresa, soloClave) {
   const url = location.origin + "/empresa/";
   const t = !clave ? `${nombre} ya tenía cuenta en Flota-K: ahora también tiene acceso al portal de ${empresa} y entra con su contraseña de siempre en ${url}`
     : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de empresas de Flota-K es: ${clave}\nEntre en ${url} con su correo y esa contraseña; el sistema le pedirá cambiarla.`
-    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de empresas de Flota-K para ${empresa}, como ${ROL_CONV[rol]}.\n\nEntre a: ${url}\nUsuario: ${correo}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.` + (rol === "encargado" ? " Luego complete los datos de facturación de la empresa para poder agendar." : "");
+    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de empresas de Flota-K para ${empresa}, como ${ROL_CONV[rol]}.\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.` + (rol === "encargado" ? " Luego complete los datos de facturación de la empresa para poder agendar." : "");
   box.hidden = false;
   box.innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Acceso listo"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
     <div class="actions"><button class="btn sm" type="button" id="pu-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="pu-cp">⧉ Copiar</button></div>`;
@@ -2782,7 +2783,7 @@ function mostrarDatos(nombre, correo, rol, clave, soloClave) {
   const url = location.origin + (DESTINO_ROL[rol] || "/equipo/");
   const t = soloClave
     ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria de Flota-K es: ${clave}\nEntre con su correo y esa contraseña, y luego cámbiela con el botón "Contraseña".`
-    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso a Flota-K como ${ROLES[rol]}.\n\nEntre a: ${url}\nCorreo: ${correo}\nContraseña provisoria: ${clave}\n\nAl entrar, cámbiela con el botón "Contraseña".` + (rol === "conductor" ? "\nInstale la app del conductor desde esa misma página." : "");
+    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso a Flota-K como ${ROLES[rol]}.\n\nEntre a: ${url}\n${correo.endsWith("@" + FK.DOMINIO_USUARIOS) ? "Usuario" : "Correo"}: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, cámbiela con el botón "Contraseña".` + (rol === "conductor" ? "\nInstale la app del conductor desde esa misma página." : "");
   $("i-datos").hidden = false;
   $("i-datos").innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Cuenta lista"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
     <div class="actions"><button class="btn sm" type="button" id="i-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="i-cp">⧉ Copiar</button></div>`;
@@ -2792,7 +2793,7 @@ function mostrarDatos(nombre, correo, rol, clave, soloClave) {
 $("i-clave").value = claveProvisoria();
 $("inv").addEventListener("submit", async e => {
   e.preventDefault();
-  const correo = $("i-mail").value.trim(), nombre = $("i-nombre").value.trim(), rol = $("i-rol").value, clave = $("i-clave").value.trim();
+  const correo = FK.usuarioACorreo($("i-mail").value), nombre = $("i-nombre").value.trim(), rol = $("i-rol").value, clave = $("i-clave").value.trim();
   if (clave.length < 8) return msg("i-msg", "La contraseña provisoria debe tener al menos 8 caracteres.", "err");
   msg("i-msg", "Creando cuenta…"); $("i-datos").hidden = true;
   const { data: r, error } = await sb.functions.invoke("crear-miembro", { body: { correo, nombre, rol, clave } });

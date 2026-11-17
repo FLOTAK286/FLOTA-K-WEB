@@ -108,9 +108,9 @@
   <!-- Ingreso -->
   <section class="panel" id="login" hidden>
     <h2>Portal de empresas</h2>
-    <p class="muted" style="margin:0">Ingrese con el correo y la contraseña que le entregamos.</p>
+    <p class="muted" style="margin:0">Ingrese con el correo o el usuario y la contraseña que le entregamos.</p>
     <form id="login-f" class="f" novalidate>
-      <label for="l-mail">Correo</label><input id="l-mail" type="email" autocomplete="username" required>
+      <label for="l-mail">Correo o usuario</label><input id="l-mail" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required>
       <label for="l-pass" style="margin-top:6px">Contraseña</label><input id="l-pass" type="password" autocomplete="current-password" required>
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
     </form>
@@ -223,7 +223,7 @@
         <h3 style="margin:10px 0 0">Agregar persona</h3>
         <form id="u-f" class="row3" novalidate style="align-items:end">
           <div class="f"><label for="u-nom">Nombre</label><input id="u-nom" maxlength="200"></div>
-          <div class="f"><label for="u-mail">Correo (será su usuario)</label><input id="u-mail" type="email" maxlength="200"></div>
+          <div class="f"><label for="u-mail">Correo o usuario</label><input id="u-mail" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="200" placeholder="persona@empresa.cl o usuario"></div>
           <div class="f"><label for="u-tel">Teléfono</label><input id="u-tel" type="tel" maxlength="30" placeholder="+56 9 ..."></div>
           <div class="f"><label for="u-rol">Rol</label><select id="u-rol"><option value="pasajero">Pasajero autorizado</option><option value="directivo">Directivo (ve todos los viajes, no administra)</option><option value="encargado">Encargado de convenio</option></select></div>
           <div class="f"><label for="u-pres">Presupuesto mensual ($, opcional)</label><input id="u-pres" type="number" min="0" step="1000" inputmode="numeric"></div>
@@ -291,8 +291,8 @@ let D = null, sesion = null, cuentaId = null;
 // ---------- Ingreso ----------
 $("login-f").addEventListener("submit", async e => {
   e.preventDefault();
-  const correo = $("l-mail").value.trim().toLowerCase(), clave = $("l-pass").value;
-  if (!correo || !clave) return msg("login-msg", "Escriba su correo y contraseña.", "err");
+  const correo = FK.usuarioACorreo($("l-mail").value), clave = $("l-pass").value;
+  if (!correo || !clave) return msg("login-msg", "Escriba su correo o usuario y su contraseña.", "err");
   msg("login-msg", "Ingresando…");
   const { error } = await sb.auth.signInWithPassword({ email: correo, password: clave });
   if (error) return msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
@@ -575,7 +575,7 @@ $("e-save").addEventListener("click", async () => {
 });
 $("u-f").addEventListener("submit", async e => {
   e.preventDefault();
-  const nombre = $("u-nom").value.trim(), correo = $("u-mail").value.trim().toLowerCase(), telefono = $("u-tel").value.trim(), rol = $("u-rol").value, pres = $("u-pres").value.trim();
+  const nombre = $("u-nom").value.trim(), correo = FK.usuarioACorreo($("u-mail").value), telefono = $("u-tel").value.trim(), rol = $("u-rol").value, pres = $("u-pres").value.trim();
   if (nombre.length < 2) return msg("u-msg", "Escriba el nombre.", "err");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return msg("u-msg", "Escriba un correo válido.", "err");
   const clave = claveProvisoria();
@@ -592,7 +592,7 @@ function datosAcceso(nombre, correo, rol, clave, soloClave) {
   const url = location.origin + "/empresa/", emp = D.empresa.razon_social || "su empresa";
   const t = !clave ? `${nombre} ya tenía cuenta en Flota-K: ahora tiene acceso al portal de ${emp} en ${url} con su contraseña de siempre.`
     : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de traslados de ${emp} (Flota-K) es: ${clave}\nEntre en ${url} con su correo y esa contraseña; el sistema le pedirá cambiarla.`
-    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de traslados de ${emp} con Flota-K, como ${ROL[rol]}.\n\nEntre a: ${url}\nUsuario: ${correo}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.`;
+    : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de traslados de ${emp} con Flota-K, como ${ROL[rol]}.\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.`;
   $("u-datos").hidden = false;
   $("u-datos").innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Acceso listo"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
     <div class="actions"><button class="btn sm" type="button" id="u-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="u-cp">⧉ Copiar</button></div>`;

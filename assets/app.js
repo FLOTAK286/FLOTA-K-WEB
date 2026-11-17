@@ -83,5 +83,19 @@
   const vueloFR24 = v => "https://www.flightradar24.com/data/flights/" + vueloCodigo(v).toLowerCase();
   const VUELO_PUDAHUEL = "https://www.nuevopudahuel.cl/";
 
-  window.FK = { vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
+  // Ingreso con usuario corto: "R González", "rgonzalez" o "RGonzalez" -> "rgonzalez@usuarios.fk-servicios.com".
+  // Si trae "@" se usa como correo (en minúsculas y sin espacios).
+  const DOMINIO_USUARIOS = "usuarios.fk-servicios.com";
+  function usuarioACorreo(t) {
+    const v = String(t || "").trim();
+    if (!v) return "";
+    if (v.includes("@")) return v.toLowerCase().replace(/\s+/g, "");
+    const u = v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9._-]/g, "");
+    return u ? u + "@" + DOMINIO_USUARIOS : "";
+  }
+
+  // Para mostrar: "rgonzalez@usuarios.fk-servicios.com" -> "rgonzalez"; un correo normal queda igual.
+  const usuarioVisible = c => String(c || "").endsWith("@" + DOMINIO_USUARIOS) ? String(c).split("@")[0] : String(c || "");
+
+  window.FK = { usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
 })();

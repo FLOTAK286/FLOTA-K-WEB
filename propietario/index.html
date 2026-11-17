@@ -24,7 +24,7 @@
     <h2>Portal del propietario</h2>
     <p class="muted">Para dueños de vehículos y gestores de flota que trabajan con Flota-K. Ingrese con su correo y contraseña.</p>
     <form id="login-form" class="f" novalidate>
-      <label for="email">Correo</label><input id="email" type="email" autocomplete="username" required>
+      <label for="email">Correo o usuario</label><input id="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required>
       <label for="pass" style="margin-top:6px">Contraseña</label><input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
       <p class="small muted">¿Primera vez? Pida a Flota-K que lo invite como "Propietario de vehículo" y cree su contraseña entrando una vez por <a href="/equipo/" style="color:var(--gold)">fk-servicios.com/equipo</a>.</p>
@@ -63,8 +63,8 @@ function msg(id, t, k) { const m = $(id); m.hidden = false; m.className = "msg "
 
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const v = $("email").value.trim().toLowerCase(), pw = $("pass").value;
-  if (!/.+@.+\..+/.test(v) || !pw) return msg("login-msg", "Ingrese su correo y contraseña.", "err");
+  const v = FK.usuarioACorreo($("email").value), pw = $("pass").value;
+  if (!/.+@.+\..+/.test(v) || !pw) return msg("login-msg", "Ingrese su correo o usuario y su contraseña.", "err");
   msg("login-msg", "Entrando…");
   const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
