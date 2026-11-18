@@ -1,5 +1,12 @@
 # Cambios
 
+## 18 nov 2026 · Gastos (fijos o variables, por patente) y otros ingresos con comisión en Reportes
+- Gastos: se marcan **Fijo** o **Variable** (chips al ingresar y casilla "Fijo" en la lista para cambiarlo); se asocian a la **patente** (o a la empresa), sin conductor.
+- **Otros ingresos** (Cabify, Servimóvil, Uber, DiDi, particular, otra; se pueden agregar plataformas): monto bruto, % de comisión (por defecto según la plataforma; Servimóvil 23 %, editable en "⚙ Comisiones por plataforma"), viajes, patente; la comisión y el neto los calcula la base de datos. Se pueden anular.
+- Resultado = servicios Flota-K finalizados + otros ingresos netos − gastos; KPIs con gastos fijos/variables y comisiones; otros ingresos por plataforma; **resultado por patente** (Flota-K + otros − gastos). Excel con hojas "Gastos" y "Otros ingresos".
+- Base de datos (etapa 46, ya aplicada): `fuentes_ingreso` y `ingresos_externos` (solo administrador).
+- Nota: los "cierres diarios" que hacen los conductores (con Cabify) son aparte y no se suman a este resultado, para no contar dos veces.
+
 ## 18 nov 2026 · Gastos y resultado en Reportes
 - Panel → Reportes (solo admin): sección **"Gastos y resultado"**: agregar gasto (fecha, tipo, monto, móvil o "Empresa (general)", detalle, "se repite todos los meses"); ingresos (finalizados) − gastos = resultado y margen; gastos por tipo; **resultado por móvil** (ingresos de sus servicios − sus gastos); lista con "Anular"; botón "Cargar los gastos fijos de este mes" (copia los fijos del mes anterior que falten); Excel de gastos.
 - Base de datos (etapa 45, ya aplicada): tabla `gastos` (18 tipos, `fijo`, anular en vez de borrar), solo administrador.
