@@ -435,7 +435,7 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-CL", { timeZone: TZ, ho
 const hoyChile = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 async function cargarRecursos() {
   const [{ data: c }, { data: v }] = await Promise.all([
-    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono, movil, devoluciones_bolsa").eq("conduce", true).eq("activo", true).order("nombre"),
+    sb.from("perfiles").select("id, nombre, disponible, foto_path, telefono, movil, devoluciones_bolsa, otro_servicio_hasta, otro_servicio_destino").eq("conduce", true).eq("activo", true).order("nombre"),
     sb.from("vehiculos").select("id, patente, descripcion, tipo, capacidad, conductor_habitual, marca, modelo, anio, color, foto_path, categoria").eq("activo", true).order("patente")
   ]);
   conductores = (c || []).sort((a, b) => (Number(a.movil) || 1e9) - (Number(b.movil) || 1e9) || a.nombre.localeCompare(b.nombre)); vehiculos = v || [];
@@ -975,8 +975,10 @@ async function cargarMapa() {
     // Desconectado, la app envía su ubicación cada 5 minutos: "sin señal" solo si pasan más de 7 minutos
     const sinSenal = !u || Date.now() - new Date(u.actualizado_en) > (desconectado && !actual ? 7 : 3) * 60e3;
     const pronto = proximo && new Date(proximo.fecha_hora) - Date.now() < 60 * 60e3;
-    const est = actual ? "ocupado" : desconectado || sinSenal ? "viejo" : pronto ? "pronto" : "libre";
-    const txt = actual ? `Ocupado · ${ESTADOS[actual.estado].t}` : desconectado ? "Desconectado" : sinSenal ? "Sin señal" : pronto ? "Disponible · sale pronto" : "Disponible";
+    // "Estoy en otro servicio" marcado por el conductor en su app (Cabify, particular, etc.)
+    const c0 = conductores.find(c => c.id === id) || {}, otro = c0.otro_servicio_hasta && new Date(c0.otro_servicio_hasta) > Date.now() - 10 * 60e3;
+    const est = actual || otro ? "ocupado" : desconectado || sinSenal ? "viejo" : pronto ? "pronto" : "libre";
+    const txt = actual ? `Ocupado · ${ESTADOS[actual.estado].t}` : otro ? `En otro servicio hasta ${hora(c0.otro_servicio_hasta)}` : desconectado ? "Desconectado" : sinSenal ? "Sin señal" : pronto ? "Disponible · sale pronto" : "Disponible";
     return { id, u, actual, proximo, sinSenal, est, txt, nom: nombreConductor(id) || "Conductor" };
   }).sort((a, b) => ({ ocupado: 0, pronto: 1, libre: 2, viejo: 3 }[a.est] - { ocupado: 0, pronto: 1, libre: 2, viejo: 3 }[b.est]) || (a.sinSenal - b.sinSenal) || a.nom.localeCompare(b.nom));
   const det = r => `${esc(r.codigo)} · ${esc(hora(r.fecha_hora))} · ${esc(r.nombre_pasajero)} · ${esc(r.origen)} → ${esc(r.destino)}`;
@@ -1008,6 +1010,7 @@ async function cargarMapa() {
       </div>
       ${f.sinSenal ? `<span class="small">${f.actual ? '<span class="mp-est viejo">Sin señal</span> ' : ""}${f.u ? "La app está cerrada o el teléfono sin internet." : "Debe instalar y abrir la app del conductor."}</span>` : ""}
       ${f.actual ? `<span class="small">Ahora: ${det(f.actual)}</span>` : ""}
+      ${(() => { const c0 = conductores.find(c => c.id === f.id) || {}; return !f.actual && c0.otro_servicio_hasta && new Date(c0.otro_servicio_hasta) > Date.now() - 10 * 60e3 ? `<span class="small">🚕 En otro servicio hasta las <b>${esc(hora(c0.otro_servicio_hasta))}</b>${c0.otro_servicio_destino ? " · hacia " + esc(c0.otro_servicio_destino.split(",")[0]) : ""}</span>` : ""; })()}
       <span class="small muted">${f.proximo ? "Próximo: " + det(f.proximo) : "Sin servicios agendados en las próximas 36 horas."}</span>
     </div>`).join("") : '<p class="muted">No hay conductores. Marque "Conduce" en Equipo y roles.</p>');
   $("mp-lista").querySelectorAll("[data-c]").forEach(el => el.addEventListener("click", () => {

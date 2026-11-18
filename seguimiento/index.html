@@ -84,6 +84,7 @@ async function cargar() {
       ${r.o_patente ? `<div class="q-auto">${r.o_foto_vehiculo ? `<img src="${esc(fotoUrl(r.o_foto_vehiculo))}" alt="Foto del vehículo">` : ""}
         <div><small class="muted">Vehículo${r.o_categoria ? " · <b>" + esc(CATEGORIA[r.o_categoria] || r.o_categoria) + "</b>" : ""}</small><b>${esc(r.o_vehiculo || (r.o_categoria ? CATEGORIA[r.o_categoria] || "" : ""))}</b>${r.o_color ? `<span class="small">Color: <b>${esc(r.o_color)}</b></span>` : ""}<span class="small muted">${esc([r.o_anio, r.o_capacidad ? r.o_capacidad + " pasajeros" : ""].filter(Boolean).join(" · "))}</span><span class="patente">${esc(r.o_patente)}</span></div></div>` : ""}
     </div>` : ""}
+    <div id="ocupado" class="retiro" hidden></div>
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.o_fecha_hora))}</dd>
       <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
@@ -110,6 +111,7 @@ async function cargar() {
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
   mensajes(); pintarRetiro(); cargarEspera(); cargarParadas();
+  if (["confirmada", "asignada"].includes(r.o_estado) && r.o_conductor) revisarOcupado(r);
   if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
 }
 
@@ -231,6 +233,38 @@ async function origenCoords() {
     const j = await res.json(); if (!j[0]) return null;
     const c = [Number(j[0].lat), Number(j[0].lon)]; try { sessionStorage.setItem(k, JSON.stringify(c)); } catch (_) {} return c;
   } catch (_) { return null; }
+}
+// ---- Su conductor está terminando otro traslado: zona aproximada y hora estimada de llegada (sin datos del otro pasajero)
+async function revisarOcupado(r) {
+  const box = $("ocupado"); if (!box) return;
+  const { data } = await sb.rpc("ver_conductor_ocupado", { p_token: token });
+  const o = data && data[0];
+  if (!o) { box.hidden = true; return; }
+  const hm = d => new Date(d).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" });
+  let zona = "", min = null;
+  if (o.o_lat != null) {
+    try {
+      const f = ((await (await fetch(`https://photon.komoot.io/reverse?lat=${o.o_lat}&lon=${o.o_lng}&limit=1`)).json()).features || [])[0];
+      if (f) zona = f.properties.district || f.properties.city || f.properties.county || "";
+    } catch (_) {}
+    if (o.o_origen_lat != null) {
+      try {
+        const x = ((await (await fetch(`https://router.project-osrm.org/route/v1/driving/${o.o_lng},${o.o_lat};${o.o_origen_lng},${o.o_origen_lat}?overview=false`)).json()).routes || [])[0];
+        if (x) min = Math.max(5, Math.ceil(x.duration * 1.25 / 60));
+      } catch (_) {}
+      if (min == null) { const rad = v => v * Math.PI / 180, dLa = rad(o.o_origen_lat - o.o_lat), dLo = rad(o.o_origen_lng - o.o_lng);
+        const km = 2 * 6371 * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(rad(o.o_lat)) * Math.cos(rad(o.o_origen_lat)) * Math.sin(dLo / 2) ** 2));
+        min = Math.max(5, Math.ceil(km * 1.35 / 25 * 60)); }
+    }
+  }
+  const llegada = min != null ? new Date(new Date(o.o_libre).getTime() + min * 60000) : null;
+  const reservada = new Date(r.o_fecha_hora);
+  const tarde = llegada && llegada > reservada.getTime() + 5 * 60000;
+  box.hidden = false;
+  box.innerHTML = `<b>🚕 Su conductor está terminando otro traslado${zona ? ` (en ${esc(zona)})` : ""}</b>
+    <p class="small" style="margin:4px 0 0">Termina cerca de las <b>${esc(hm(o.o_libre))}</b>${llegada ? ` y llegaría a buscarlo alrededor de las <b>${esc(hm(llegada))}</b>` : ""}<br>
+    ${tarde ? `Podría llegar unos <b>${Math.round((llegada - reservada) / 60000)} minutos</b> después de la hora reservada (${esc(hm(reservada))}). Si necesita coordinar, escríbanos por WhatsApp al +56 9 2227 5399.` : llegada ? "Está a tiempo para su retiro." : ""}</p>
+    <p class="small muted" style="margin:4px 0 0">Hora estimada; se actualiza sola. Cuando su conductor salga hacia usted, verá su ubicación en el mapa.</p>`;
 }
 async function eta(lat, lng) {
   const el = $("eta"); if (!el) return;

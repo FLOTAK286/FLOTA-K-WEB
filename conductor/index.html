@@ -190,6 +190,7 @@ body.drv { overscroll-behavior-y: contain; }
       <div class="actions"><a class="btn sm" href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">Descargar app</a><button class="btn ghost sm" id="install-x" type="button">Ahora no</button></div>
     </div>
     <div class="gps" id="gps" style="margin-top:12px"><span class="dot"></span><span id="gps-txt">Ubicación: iniciando…</span><button class="btn ghost sm" id="gps-btn" type="button" hidden>Activar ubicación</button></div>
+    <div class="panel" id="otro" style="margin-top:10px;padding:10px 12px"></div>
     <div class="panel install" id="ubic-aviso" hidden style="margin-top:10px"></div>
     <div class="panel install" id="permisos" hidden style="margin-top:10px"></div>
     <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
@@ -214,6 +215,7 @@ body.drv { overscroll-behavior-y: contain; }
 <script src="/assets/chat.js"></script>
 <script src="/assets/espera.js"></script>
 <script src="/assets/autos.js"></script>
+<script src="/assets/lugar.js"></script>
 <script>
 const { sb, esc, clp, pill, errText, SERVICIOS } = FK;
 const $ = id => document.getElementById(id);
@@ -265,7 +267,7 @@ $("reload").addEventListener("click", () => cargar());
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
-  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil, ubicacion_aceptada_en").eq("id", session.user.id).maybeSingle();
+  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil, ubicacion_aceptada_en, otro_servicio_hasta, otro_servicio_destino").eq("id", session.user.id).maybeSingle();
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; window.__fkListo = true; return; }
   yo = data; window.__fkListo = true;
   const { data: vs } = await sb.from("vehiculos").select("*");
@@ -279,7 +281,7 @@ async function iniciar(session) {
   revisarDocs(); setInterval(revisarDocs, 6 * 3600e3);
   $("who").textContent = (yo.movil ? "Móvil " + yo.movil + " · " : "") + yo.nombre.split(" ")[0] + (mio ? ` · ${mio.patente}` : "");
   $("userbar").hidden = false; $("app").hidden = false;
-  pintarConexion();
+  pintarConexion(); pintarOtro();
   cargar(); revisarCentral(); conectarEnVivo();
   revisarBolsa(); setInterval(() => { if (!document.hidden) revisarBolsa(); }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && yo) revisarBolsa(); });
@@ -936,6 +938,60 @@ async function pintarGanancias() {
       `\n\nTotal: ${clp(tot)} (${P.length} servicios) · Gastos incluidos: ${clp(gas)}` + (hayCom ? `\nComisión Flota-K: ${clp(com)} · Le corresponde: ${clp(neto)}` : "");
     location.href = "mailto:?subject=" + encodeURIComponent("Liquidación " + perTxt + " · Flota-K") + "&body=" + encodeURIComponent(t);
   };
+}
+
+// ---- "Estoy en otro servicio" (Cabify, particular, etc.): el próximo pasajero lo ve en su seguimiento con la llegada estimada
+let otroLug = null, otroForm = false;
+function pintarOtro() {
+  const box = $("otro"); if (!box || !yo) return;
+  const activo = yo.otro_servicio_hasta && new Date(yo.otro_servicio_hasta) > Date.now() - 10 * 60000;
+  if (activo && !otroForm) {
+    box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <span class="small">🚕 <b>En otro servicio</b> hasta las <b>${esc(hora(yo.otro_servicio_hasta))}</b>${yo.otro_servicio_destino ? " · hacia " + esc(yo.otro_servicio_destino.split(",")[0]) : ""}<br><span class="muted">Su próximo pasajero lo ve en el seguimiento.</span></span>
+      <span class="actions" style="margin:0"><button class="btn ghost sm" type="button" id="otro-edit">Cambiar</button><button class="btn sm" type="button" id="otro-fin">✓ Terminé</button></span></div>`;
+    $("otro-edit").onclick = () => { otroForm = true; pintarOtro(); };
+    $("otro-fin").onclick = async () => {
+      const { error } = await sb.rpc("conductor_fin_otro_servicio"); if (error) return alert(errText(error));
+      yo.otro_servicio_hasta = null; yo.otro_servicio_destino = null; pintarOtro();
+    };
+    return;
+  }
+  if (!otroForm) {
+    box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <span class="small muted">¿Está en otro viaje (Cabify, particular u otro) antes de su próximo servicio?</span>
+      <button class="btn ghost sm" type="button" id="otro-abrir">🚕 Estoy en otro servicio</button></div>`;
+    $("otro-abrir").onclick = () => { otroForm = true; pintarOtro(); };
+    return;
+  }
+  box.innerHTML = `<b>🚕 Estoy en otro servicio</b>
+    <p class="small muted" style="margin:2px 0 6px">Su próximo pasajero verá en el seguimiento que está terminando otro traslado y a qué hora llegaría. No se muestra nada del otro pasajero.</p>
+    <div class="f lugar-f"><label for="otro-dest">¿Hacia dónde va? (dónde termina)</label><input id="otro-dest" maxlength="300" placeholder="Dirección, comuna o lugar"></div>
+    <div class="f"><label for="otro-hora">¿A qué hora termina aprox.?</label><input id="otro-hora" type="time"></div>
+    <p class="small muted" id="otro-calc" style="margin:4px 0 0"></p>
+    <div class="actions"><button class="btn sm" type="button" id="otro-ok">Guardar</button><button class="btn ghost sm" type="button" id="otro-x">Volver</button></div>
+    <div id="otro-msg" class="msg" hidden></div>`;
+  otroLug = FKLugar.montar($("otro-dest"), { alCambiar: calcularOtro });
+  if (yo.otro_servicio_hasta) $("otro-hora").value = FK.isoALocal(yo.otro_servicio_hasta).slice(11, 16);
+  if (yo.otro_servicio_destino) $("otro-dest").value = yo.otro_servicio_destino;
+  $("otro-x").onclick = () => { otroForm = false; pintarOtro(); };
+  $("otro-ok").onclick = async () => {
+    const p = otroLug.get(), h = $("otro-hora").value;
+    if (!h) return msg("otro-msg", "Indique a qué hora termina aprox.", "err");
+    const hoy = FK.isoALocal(new Date().toISOString()).slice(0, 10);
+    let hasta = new Date(FK.chileLocalToISO(hoy + "T" + h));
+    if (hasta < Date.now() - 5 * 60000) hasta = new Date(hasta.getTime() + 864e5); // ya pasó hoy: es mañana (viaje de madrugada)
+    const { error } = await sb.rpc("conductor_otro_servicio", { p_destino: $("otro-dest").value.trim() || null, p_lat: p ? p.lat : null, p_lng: p ? p.lng : null, p_hasta: hasta.toISOString() });
+    if (error) return msg("otro-msg", errText(error), "err");
+    yo.otro_servicio_hasta = hasta.toISOString(); yo.otro_servicio_destino = $("otro-dest").value.trim() || null; otroForm = false; pintarOtro();
+  };
+}
+// Sugiere la hora de término según la ruta desde donde está ahora hasta el destino del otro viaje
+async function calcularOtro() {
+  const p = otroLug && otroLug.get(); if (!p || !ultimaPos) return;
+  const r = await FKLugar.ruta({ lat: ultimaPos.coords.latitude, lng: ultimaPos.coords.longitude }, p); if (!r || !$("otro-hora")) return;
+  const fin = new Date(Date.now() + r.min * 60000); fin.setMinutes(Math.ceil(fin.getMinutes() / 5) * 5, 0, 0);
+  $("otro-hora").value = FK.isoALocal(fin.toISOString()).slice(11, 16);
+  $("otro-calc").textContent = `Desde donde está: ${String(r.km).replace(".", ",")} km, ~${r.min} min${r.aprox ? " (aprox.)" : ""}. Ajuste la hora si es necesario.`;
 }
 
 // ---- Conectado / desconectado: desconectado no recibe servicios nuevos ni comparte ubicación (salvo un servicio en curso)
