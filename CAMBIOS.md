@@ -1,5 +1,10 @@
 # Cambios
 
+## 18 nov 2026 · Gastos y resultado en Reportes
+- Panel → Reportes (solo admin): sección **"Gastos y resultado"**: agregar gasto (fecha, tipo, monto, móvil o "Empresa (general)", detalle, "se repite todos los meses"); ingresos (finalizados) − gastos = resultado y margen; gastos por tipo; **resultado por móvil** (ingresos de sus servicios − sus gastos); lista con "Anular"; botón "Cargar los gastos fijos de este mes" (copia los fijos del mes anterior que falten); Excel de gastos.
+- Base de datos (etapa 45, ya aplicada): tabla `gastos` (18 tipos, `fijo`, anular en vez de borrar), solo administrador.
+- Seguimiento: el aviso "Su conductor está terminando otro traslado" sube al principio, con borde dorado.
+
 ## 18 nov 2026 · "Estoy en otro servicio"
 - App del conductor (Inicio): botón **"🚕 Estoy en otro servicio"**: hacia dónde va (con autocompletar) y a qué hora termina (se sugiere según la ruta desde donde está). Mientras dure: "En otro servicio hasta HH:MM" con "Cambiar" y "✓ Terminé". Carga `assets/lugar.js`.
 - Seguimiento: en reservas confirmadas o asignadas que empiezan dentro de 3 horas, si el conductor está en otro servicio (marcado a mano o un servicio de Flota-K en curso), muestra "🚕 Su conductor está terminando otro traslado (en <comuna>)", la hora en que termina y la llegada estimada (OSRM +25 %), y si podría llegar después de la hora reservada. Sin datos del otro pasajero: solo la zona (punto redondeado a ~1 km).

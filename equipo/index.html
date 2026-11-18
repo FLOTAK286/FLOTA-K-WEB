@@ -302,6 +302,27 @@ details.paso > summary { cursor: pointer; }
         <div class="f"><label for="rp-per">Período</label><select id="rp-per"><option value="mes">Este mes</option><option value="mesant">Mes anterior</option><option value="30">Últimos 30 días</option><option value="anio">Este año</option></select></div>
         <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
       </div>
+      <h2 style="margin:10px 0 0">Gastos y resultado</h2>
+      <p class="muted small" style="margin:0">Registre los gastos de la empresa (generales o de un móvil): combustible, peajes y TAG, cuota del auto, seguros, mantención, etc. El resultado es ingresos de servicios finalizados menos gastos del período.</p>
+      <details id="gs-det" class="confirm" style="margin-top:8px"><summary><b>+ Agregar gasto</b></summary>
+        <form id="gs-form" novalidate style="display:grid;gap:8px;margin-top:8px">
+          <div class="row3">
+            <div class="f"><label for="gs-fecha">Fecha</label><input id="gs-fecha" type="date" required></div>
+            <div class="f"><label for="gs-cat">Tipo de gasto</label><select id="gs-cat"></select></div>
+            <div class="f"><label for="gs-monto">Monto ($)</label><input id="gs-monto" type="number" min="1" step="1" inputmode="numeric" required></div>
+          </div>
+          <div class="row2">
+            <div class="f"><label for="gs-veh">¿De qué móvil?</label><select id="gs-veh"></select></div>
+            <div class="f"><label for="gs-desc">Detalle (opcional)</label><input id="gs-desc" maxlength="500" placeholder="Ej: TAG de octubre, cuota 12 de 36, cambio de aceite"></div>
+          </div>
+          <label class="chk" style="display:flex;gap:8px;align-items:flex-start;font-weight:400"><input type="checkbox" id="gs-fijo" style="width:auto;margin-top:4px"> Se repite todos los meses (ej.: cuota del auto, seguro). Podrá cargarlo el próximo mes con un botón.</label>
+          <div class="actions"><button class="btn" type="submit">Guardar gasto</button></div>
+          <div id="gs-msg" class="msg" hidden></div>
+        </form>
+      </details>
+      <div id="gs-body"><p class="muted">Cargando…</p></div>
+      <div class="actions"><button class="btn ghost sm" type="button" id="gs-fijos">📋 Cargar los gastos fijos de este mes</button><button class="btn ghost sm" type="button" id="gs-xlsx">Descargar gastos (Excel)</button></div>
+      <h2 style="margin:10px 0 0">Servicios</h2>
       <div id="rp-body"><p class="muted">Cargando…</p></div>
       <h2 style="margin:10px 0 0">Cierres diarios · vehículos propios de Flota-K</h2>
       <p class="muted small" style="margin:0">Lo que registra cada conductor al terminar el día (odómetro, Cabify, otras apps y gastos) más lo de Flota-K, que se suma solo. Costo de referencia: $410 por km (incluye combustible y mantención).</p>
@@ -1683,6 +1704,7 @@ async function cargarReportes() {
   const ok = filas.filter(r => r.estado !== "cancelada"), fin = ok.filter(r => r.estado === "finalizada");
   pintarCierres(desde, hasta, filas);
   rpFilas = ok;
+  cargarGastos(desde, hasta, txt, fin);
   const suma = a => a.reduce((s, r) => s + (r.total || 0), 0);
   const ingreso = suma(fin), porCobrar = suma(ok.filter(r => !r.pagado)), cobrado = suma(ok.filter(r => r.pagado));
   const deriv = fin.filter(r => r.derivado_a), margenDeriv = deriv.reduce((s, r) => s + (r.total - (r.costo_partner || 0)), 0);
@@ -1718,6 +1740,100 @@ async function cargarReportes() {
     ${""}<p class="muted small">Ingresos y ticket consideran servicios finalizados. Canal, tipo, conductor y clientes consideran todo servicio no cancelado del período (valor registrado). El costo operativo usa $410 por km recorrido con taxímetro.</p>`;
 }
 $("rp-per").addEventListener("change", cargarReportes);
+
+// ---- Gastos de la empresa (generales o por móvil) y resultado del período
+const CAT_GASTO = { combustible: "Combustible", peajes_tag: "Peajes y TAG", cuota_auto: "Cuota del auto (crédito o leasing)", mantencion: "Mantención y reparaciones",
+  neumaticos: "Neumáticos", seguro: "Seguro", permiso_circulacion: "Permiso de circulación", revision_tecnica: "Revisión técnica", estacionamiento: "Estacionamiento",
+  lavado: "Lavado", sueldos: "Sueldos y honorarios", partners: "Pago a conductores o red", oficina: "Oficina y arriendo", telefonia: "Teléfono e internet",
+  publicidad: "Publicidad y marketing", contabilidad: "Contabilidad", impuestos: "Impuestos y patentes", otros: "Otros" };
+let gsLista = [], gsRango = null;
+const etiquetaVeh = v => { if (!v) return "Empresa (general)"; const c = conductores.find(x => x.id === v.conductor_habitual); return `${v.patente}${c && c.movil ? " · móvil " + c.movil : ""}${c ? " · " + c.nombre.split(" ")[0] : ""}`; };
+function prepararFormGasto() {
+  if (!$("gs-cat").options.length) $("gs-cat").innerHTML = Object.entries(CAT_GASTO).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join("");
+  const sel = $("gs-veh").value;
+  $("gs-veh").innerHTML = '<option value="">Empresa (general)</option>' + vehiculos.map(v => `<option value="${v.id}" ${v.id === sel ? "selected" : ""}>${esc(etiquetaVeh(v))}</option>`).join("");
+  if (!$("gs-fecha").value) $("gs-fecha").value = hoyChile();
+}
+async function cargarGastos(desde, hasta, txt, fin) {
+  prepararFormGasto();
+  const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+  const d0 = dia(desde), d1 = dia(new Date(new Date(hasta).getTime() - 1000).toISOString());
+  gsRango = { desde, hasta, txt, fin, d0, d1 };
+  const { data, error } = await sb.from("gastos").select("*").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null).order("fecha", { ascending: false }).order("creado_en", { ascending: false });
+  if (error) { $("gs-body").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  gsLista = data || [];
+  const ingreso = (fin || []).reduce((a, r) => a + (r.total || 0), 0), gasto = gsLista.reduce((a, g) => a + g.monto, 0), res = ingreso - gasto;
+  // Por categoría
+  const porCat = {}; gsLista.forEach(g => porCat[g.categoria] = (porCat[g.categoria] || 0) + g.monto);
+  const cats = Object.entries(porCat).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...cats.map(c => c[1]));
+  // Por móvil: ingresos de sus servicios finalizados menos sus gastos (los generales van aparte)
+  const movs = new Map();
+  const fila = id => { if (!movs.has(id)) movs.set(id, { id, ing: 0, n: 0, gas: 0 }); return movs.get(id); };
+  (fin || []).forEach(r => { const f = fila(r.vehiculo_id || ""); f.ing += r.total || 0; f.n++; });
+  gsLista.forEach(g => { fila(g.vehiculo_id || "").gas += g.monto; });
+  const tabla = [...movs.values()].sort((a, b) => (a.id === "") - (b.id === "") || (b.ing - b.gas) - (a.ing - a.gas));
+  $("gs-body").innerHTML = `
+    <div class="rp-kpis">
+      <div class="pay"><small class="muted">Ingresos (finalizados)</small><b>${clp(ingreso)}</b><span class="small muted">${(fin || []).length} servicio(s) · ${esc(txt)}</span></div>
+      <div class="pay"><small class="muted">Gastos</small><b>${clp(gasto)}</b><span class="small muted">${gsLista.length} registro(s)</span></div>
+      <div class="pay"><small class="muted">Resultado</small><b class="${res < 0 ? "warn" : ""}">${clp(res)}</b><span class="small muted">${ingreso ? "margen " + Math.round(res / ingreso * 100) + " %" : "ingresos − gastos"}</span></div>
+    </div>
+    <div class="rp-grid">
+      <div class="rp-caja"><h3>Gastos por tipo</h3>${cats.length ? cats.map(([k, t]) => `<div class="rp-bar"><span class="rp-n">${esc(CAT_GASTO[k] || k)}</span><span class="rp-track"><span style="width:${Math.max(2, t / mx * 100)}%"></span></span><span class="rp-v">${clp(t)}</span></div>`).join("") : '<p class="muted small">Sin gastos en este período.</p>'}</div>
+      <div class="rp-caja"><h3>Resultado por móvil</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Móvil</th><th>Ingresos</th><th>Gastos</th><th>Resultado</th></tr></thead><tbody>
+        ${tabla.length ? tabla.map(f => `<tr><td>${esc(f.id ? etiquetaVeh(vehiculos.find(v => v.id === f.id) || { patente: "Vehículo" }) : "Empresa (general) / sin vehículo")}</td><td>${clp(f.ing)} <span class="muted small">(${f.n})</span></td><td>${clp(f.gas)}</td><td class="${f.ing - f.gas < 0 ? "warn" : ""}"><b>${clp(f.ing - f.gas)}</b></td></tr>`).join("") : '<tr><td colspan="4" class="muted">Sin datos.</td></tr>'}
+      </tbody></table></div></div>
+    </div>
+    ${gsLista.length ? `<details style="margin-top:6px"><summary class="small"><b>Ver los ${gsLista.length} gasto(s) del período</b></summary><div class="tblwrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>Móvil</th><th>Detalle</th><th>Monto</th><th></th></tr></thead><tbody>
+      ${gsLista.map(g => `<tr><td class="nowrap">${esc(new Date(g.fecha + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short" }))}</td><td>${esc(CAT_GASTO[g.categoria] || g.categoria)}${g.fijo ? ' <span class="muted small">(fijo)</span>' : ""}</td><td>${esc(g.vehiculo_id ? etiquetaVeh(vehiculos.find(v => v.id === g.vehiculo_id) || { patente: "Vehículo" }) : "Empresa")}</td><td class="small">${esc(g.descripcion || "")}</td><td class="nowrap"><b>${clp(g.monto)}</b></td><td><button class="linkbtn" type="button" data-gsanular="${esc(g.id)}">Anular</button></td></tr>`).join("")}
+    </tbody></table></div></details>` : ""}`;
+  $("gs-body").querySelectorAll("[data-gsanular]").forEach(b => b.onclick = async () => {
+    const g = gsLista.find(x => x.id === b.dataset.gsanular);
+    if (!confirm(`¿Anular el gasto de ${clp(g.monto)} (${CAT_GASTO[g.categoria]})? Queda registrado como anulado y deja de contar en los reportes.`)) return;
+    const { error } = await sb.from("gastos").update({ anulado_en: new Date().toISOString(), anulado_por: yo.id }).eq("id", g.id);
+    if (error) return alert(errText(error));
+    cargarGastos(gsRango.desde, gsRango.hasta, gsRango.txt, gsRango.fin);
+  });
+}
+$("gs-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const monto = Math.round(Number($("gs-monto").value));
+  if (!$("gs-fecha").value) return msg("gs-msg", "Indique la fecha.", "err");
+  if (!(monto > 0)) return msg("gs-msg", "Indique el monto.", "err");
+  const fila = { empresa_id: yo.empresa_id, fecha: $("gs-fecha").value, categoria: $("gs-cat").value, monto, descripcion: $("gs-desc").value.trim() || null,
+    vehiculo_id: $("gs-veh").value || null, fijo: $("gs-fijo").checked, creado_por: yo.id };
+  const { error } = await sb.from("gastos").insert(fila);
+  if (error) return msg("gs-msg", errText(error), "err");
+  msg("gs-msg", `Gasto de ${clp(monto)} guardado (${CAT_GASTO[fila.categoria]}${fila.vehiculo_id ? " · " + etiquetaVeh(vehiculos.find(v => v.id === fila.vehiculo_id)) : " · empresa"}).`, "ok");
+  $("gs-monto").value = ""; $("gs-desc").value = ""; $("gs-fijo").checked = false; $("gs-monto").focus();
+  if (gsRango) cargarGastos(gsRango.desde, gsRango.hasta, gsRango.txt, gsRango.fin);
+});
+// Gastos fijos: copia al mes actual los gastos "se repite" del mes anterior que aún no están cargados este mes
+$("gs-fijos").addEventListener("click", async () => {
+  const hoy = hoyChile(), [y, m] = hoy.split("-").map(Number);
+  const ini = `${y}-${String(m).padStart(2, "0")}-01`, antY = m === 1 ? y - 1 : y, antM = m === 1 ? 12 : m - 1;
+  const iniAnt = `${antY}-${String(antM).padStart(2, "0")}-01`;
+  const [{ data: ant }, { data: este }] = await Promise.all([
+    sb.from("gastos").select("*").eq("fijo", true).is("anulado_en", null).gte("fecha", iniAnt).lt("fecha", ini),
+    sb.from("gastos").select("categoria, vehiculo_id, descripcion, monto").eq("fijo", true).is("anulado_en", null).gte("fecha", ini)]);
+  const clave = g => [g.categoria, g.vehiculo_id || "", g.descripcion || "", g.monto].join("|"), ya = new Set((este || []).map(clave));
+  const nuevos = (ant || []).filter(g => !ya.has(clave(g)));
+  if (!nuevos.length) return alert((ant || []).length ? "Los gastos fijos del mes anterior ya están cargados este mes." : "No hay gastos marcados como fijos en el mes anterior.");
+  const diasMes = new Date(y, m, 0).getDate();
+  const filas = nuevos.map(g => ({ empresa_id: yo.empresa_id, fecha: `${y}-${String(m).padStart(2, "0")}-${String(Math.min(Number(g.fecha.slice(8, 10)), diasMes)).padStart(2, "0")}`,
+    categoria: g.categoria, monto: g.monto, descripcion: g.descripcion, vehiculo_id: g.vehiculo_id, fijo: true, creado_por: yo.id }));
+  if (!confirm(`Se cargarán ${filas.length} gasto(s) fijo(s) en este mes por ${clp(filas.reduce((a, g) => a + g.monto, 0))}:\n\n${filas.map(g => `· ${CAT_GASTO[g.categoria]} ${clp(g.monto)}${g.descripcion ? " (" + g.descripcion + ")" : ""}`).join("\n")}\n\n¿Continuar? (si un monto cambió, anúlelo y cárguelo de nuevo)`)) return;
+  const { error } = await sb.from("gastos").insert(filas);
+  if (error) return alert(errText(error));
+  if ($("rp-per").value !== "mes") { $("rp-per").value = "mes"; cargarReportes(); } else cargarGastos(gsRango.desde, gsRango.hasta, gsRango.txt, gsRango.fin);
+});
+$("gs-xlsx").addEventListener("click", () => {
+  if (!window.XLSX) return;
+  if (!gsLista.length) return alert("No hay gastos en este período.");
+  const aoa = [["Fecha", "Tipo", "Móvil", "Detalle", "Monto", "Fijo mensual"],
+    ...gsLista.map(g => [g.fecha, CAT_GASTO[g.categoria] || g.categoria, g.vehiculo_id ? etiquetaVeh(vehiculos.find(v => v.id === g.vehiculo_id) || { patente: "" }) : "Empresa (general)", g.descripcion || "", g.monto, g.fijo ? "Sí" : "No"])];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Gastos"); XLSX.writeFile(wb, `Flota-K_gastos_${hoyChile()}.xlsx`);
+});
 // Cierres diarios (solo vehículos propios)
 let rpCierres = [];
 async function pintarCierres(desde, hasta, filas) {

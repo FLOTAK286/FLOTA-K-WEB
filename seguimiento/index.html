@@ -76,6 +76,7 @@ async function cargar() {
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
       <h2>Reserva ${esc(r.o_codigo)}</h2>${pill(r.o_estado)}
     </div>
+    <div id="ocupado" class="retiro" hidden style="border-color:var(--gold, #d4a64a);border-width:2px"></div>
     ${r.o_estado === "en_camino" ? '<p class="eta" id="eta" hidden></p>' : ""}
     ${enCurso ? `<div id="ub-box"><h3 style="margin:0 0 6px">Ubicación de su conductor</h3><div id="mapa" class="mapa"></div><p class="muted small" id="ub-txt" style="margin-top:6px">Buscando la ubicación del conductor…</p></div>` : ""}
     ${r.o_conductor && r.o_estado !== "cancelada" ? `<div class="quien">
@@ -84,7 +85,6 @@ async function cargar() {
       ${r.o_patente ? `<div class="q-auto">${r.o_foto_vehiculo ? `<img src="${esc(fotoUrl(r.o_foto_vehiculo))}" alt="Foto del vehículo">` : ""}
         <div><small class="muted">Vehículo${r.o_categoria ? " · <b>" + esc(CATEGORIA[r.o_categoria] || r.o_categoria) + "</b>" : ""}</small><b>${esc(r.o_vehiculo || (r.o_categoria ? CATEGORIA[r.o_categoria] || "" : ""))}</b>${r.o_color ? `<span class="small">Color: <b>${esc(r.o_color)}</b></span>` : ""}<span class="small muted">${esc([r.o_anio, r.o_capacidad ? r.o_capacidad + " pasajeros" : ""].filter(Boolean).join(" · "))}</span><span class="patente">${esc(r.o_patente)}</span></div></div>` : ""}
     </div>` : ""}
-    <div id="ocupado" class="retiro" hidden></div>
     <dl class="kv">
       <dt>Fecha y hora</dt><dd>${esc(fecha(r.o_fecha_hora))}</dd>
       <dt>Origen</dt><dd>${esc(r.o_origen)}</dd>
