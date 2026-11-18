@@ -305,11 +305,14 @@ details.paso > summary { cursor: pointer; }
       <h2 style="margin:10px 0 0">Gastos, otros ingresos y resultado</h2>
       <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente) y los ingresos de otras plataformas (Cabify, Servimóvil, etc.) con su comisión. Resultado = servicios Flota-K finalizados + otros ingresos netos + lo que corresponda de los cierres diarios − gastos del período.</p>
       <div id="sc-box" class="rp-caja" style="margin-top:8px"></div>
+      <div id="pp-box" class="rp-caja" style="margin-top:8px"></div>
       <details class="rp-caja" style="margin-top:8px" id="rc-det"><summary><b>⚙ ¿De dónde salen los números?</b> <span class="small muted" id="rc-res"></span></summary>
-        <p class="small muted" style="margin:6px 0">Para no contar dos veces, cada dato se toma de una sola fuente. Lo otro se muestra solo como referencia.</p>
+        <p class="small muted" style="margin:6px 0">Para no contar dos veces. <b>"Se descuenta"</b>: la compra (p. ej. $780.000 de bencina) se registra en Gastos y lo que anotan los conductores se va descontando de ella; no suma otra vez. <b>"Se suma"</b>: lo del cierre cuenta como gasto adicional.</p>
         <div class="row2">
-          <div class="f"><label for="rc-gastos">Combustible, peajes y otros gastos del día</label><select id="rc-gastos"><option value="manual">Lo que yo ingreso en Gastos (boletas, estado de cuenta)</option><option value="cierres">El cierre diario de los conductores</option></select></div>
-          <div class="f"><label for="rc-apps">Ingresos de Cabify y otras apps</label><select id="rc-apps"><option value="cierres">El cierre diario de los conductores</option><option value="manual">Lo que yo ingreso en "Otros ingresos"</option></select></div>
+          <div class="f"><label for="rc-combustible">⛽ Combustible que anota el conductor en su cierre</label><select id="rc-combustible" data-rc="combustible"><option value="descuenta">Se descuenta de lo que compró la empresa</option><option value="suma">Se suma como gasto nuevo</option></select></div>
+          <div class="f"><label for="rc-peajes">🛣 Peajes que anota el conductor en su cierre</label><select id="rc-peajes" data-rc="peajes"><option value="descuenta">Se descuenta de lo que pagó la empresa</option><option value="suma">Se suma como gasto nuevo</option></select></div>
+          <div class="f"><label for="rc-otros">Otros gastos que anota el conductor en su cierre</label><select id="rc-otros" data-rc="otros"><option value="descuenta">Se descuenta de lo que pagó la empresa</option><option value="suma">Se suma como gasto nuevo</option></select></div>
+          <div class="f"><label for="rc-apps">Ingresos de Cabify y otras apps</label><select id="rc-apps" data-rc="ingresos_apps"><option value="cierres">Del cierre diario de los conductores</option><option value="manual">De lo que yo ingreso en "Otros ingresos"</option></select></div>
         </div>
         <div id="rc-msg" class="msg" hidden></div>
       </details>
@@ -1832,6 +1835,7 @@ async function cargarGastos(desde, hasta, txt, fin) {
     sb.from("ingresos_externos").select("*").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null).order("fecha", { ascending: false }).order("creado_en", { ascending: false }),
     sb.from("cierres_diarios").select("vehiculo_id, fecha, cabify_ingreso, cabify_viajes, cabify_peajes, otras_ingreso, combustible, otros_gastos").gte("fecha", d0).lte("fecha", d1)]);
   pintarSaldo();
+  pintarPresupuestos(cds || [], data || []);
   if (error || e2) { $("gs-body").innerHTML = `<p class="msg err">${esc(errText(error || e2))}</p>`; return; }
   gsLista = data || []; oiLista = ois || [];
   const nomF = id => (fuentes.find(f => f.id === id) || {}).nombre || "Otra";
@@ -1843,8 +1847,13 @@ async function cargarGastos(desde, hasta, txt, fin) {
   const cfg = await configReportes();
   const cierres = cds || [], n0 = v => Number(v) || 0;
   const cdIngTot = cierres.reduce((a, c) => a + n0(c.cabify_ingreso) + n0(c.otras_ingreso), 0), cdGasTot = cierres.reduce((a, c) => a + n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes), 0);
-  const usaIngCd = cfg.ingresos_apps === "cierres", usaGasCd = cfg.gastos === "cierres";
-  const cdIng = usaIngCd ? cdIngTot : 0, cdGas = usaGasCd ? cdGasTot : 0;
+  const usaIngCd = cfg.ingresos_apps === "cierres";
+  const consumo = (k, veh) => cierres.filter(c => veh === undefined || (c.vehiculo_id || "") === veh).reduce((a, c) => a + n0(c[CONC_CIERRE[k].campo]), 0);
+  const sumaK = Object.keys(CONC_CIERRE).filter(k => cfg[k] === "suma"), descK = Object.keys(CONC_CIERRE).filter(k => cfg[k] !== "suma");
+  const cdIng = usaIngCd ? cdIngTot : 0, cdGas = sumaK.reduce((a, k) => a + consumo(k), 0);
+  // Compras de la empresa vs lo que consumieron los conductores (conceptos que "se descuentan")
+  const compras = descK.map(k => { const cat = CONC_CIERRE[k].cat, comprado = gsLista.filter(g => g.categoria === cat).reduce((a, g) => a + g.monto, 0), usado = consumo(k);
+    return { k, comprado, usado, disp: comprado - usado }; }).filter(x => x.comprado || x.usado);
   const ingreso = ingFK + oiNeto + cdIng, res = ingreso - gasto - cdGas;
   const barras = (titulo, pares, vacio) => { const mx = Math.max(1, ...pares.map(p => p[1]));
     return `<div class="rp-caja"><h3>${titulo}</h3>${pares.length ? pares.map(([n, t]) => `<div class="rp-bar"><span class="rp-n">${esc(n)}</span><span class="rp-track"><span style="width:${Math.max(2, t / mx * 100)}%"></span></span><span class="rp-v">${clp(t)}</span></div>`).join("") : `<p class="muted small">${vacio}</p>`}</div>`; };
@@ -1853,20 +1862,29 @@ async function cargarGastos(desde, hasta, txt, fin) {
   const movs = new Map(), fila = id => { if (!movs.has(id)) movs.set(id, { id, fk: 0, n: 0, otros: 0, gas: 0 }); return movs.get(id); };
   (fin || []).forEach(r => { const f = fila(r.vehiculo_id || ""); f.fk += r.total || 0; f.n++; });
   oiLista.forEach(x => { fila(x.vehiculo_id || "").otros += x.neto; });
-  cierres.forEach(c => { const f = fila(c.vehiculo_id || ""); if (usaIngCd) f.otros += n0(c.cabify_ingreso) + n0(c.otras_ingreso); if (usaGasCd) f.gas += n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes); });
+  cierres.forEach(c => { const f = fila(c.vehiculo_id || "");
+    if (usaIngCd) f.otros += n0(c.cabify_ingreso) + n0(c.otras_ingreso);
+    sumaK.forEach(k => f.gas += n0(c[CONC_CIERRE[k].campo]));
+    // "Se descuenta": el consumo pasa de la compra general a la patente que lo usó (el total no cambia)
+    descK.forEach(k => { const v = n0(c[CONC_CIERRE[k].campo]); if (v && c.vehiculo_id) { f.gas += v; fila("").gas -= v; } }); });
   gsLista.forEach(g => { fila(g.vehiculo_id || "").gas += g.monto; });
   const tabla = [...movs.values()].sort((a, b) => (a.id === "") - (b.id === "") || (b.fk + b.otros - b.gas) - (a.fk + a.otros - a.gas));
   $("gs-body").innerHTML = `
     <div class="rp-kpis">
       <div class="pay"><small class="muted">Servicios Flota-K</small><b>${clp(ingFK)}</b><span class="small muted">${(fin || []).length} finalizado(s) · ${esc(txt)}</span></div>
       <div class="pay"><small class="muted">Otros ingresos (neto)</small><b>${clp(oiNeto)}</b><span class="small muted">bruto ${clp(oiBruto)} · comisiones ${clp(oiCom)}</span></div>
-      <div class="pay"><small class="muted">Cierres diarios (${cierres.length})</small><b>${clp(cdIng)}</b><span class="small muted">${usaIngCd ? "ingresos de apps que suman" : `ingresos de apps: ${clp(cdIngTot)} solo referencia`} · ${usaGasCd ? `gastos que suman ${clp(cdGasTot)}` : `gastos anotados ${clp(cdGasTot)} (solo referencia)`}</span></div>
+      <div class="pay"><small class="muted">Cierres diarios (${cierres.length})</small><b>${clp(cdIng)}</b><span class="small muted">${usaIngCd ? "ingresos de apps que suman" : `ingresos de apps: ${clp(cdIngTot)} solo referencia`} · gastos anotados ${clp(cdGasTot)}${cdGas ? ` (suman ${clp(cdGas)})` : " (se descuentan de lo comprado)"}</span></div>
       <div class="pay"><small class="muted">Gastos</small><b>${clp(gasto + cdGas)}</b><span class="small muted">fijos ${clp(gFijo)} · variables ${clp(gasto - gFijo)}${cdGas ? " · de cierres " + clp(cdGas) : ""}</span></div>
       <div class="pay"><small class="muted">Resultado</small><b class="${res < 0 ? "warn" : ""}">${clp(res)}</b><span class="small muted">${ingreso ? "margen " + Math.round(res / ingreso * 100) + " %" : "ingresos − gastos"}</span></div>
     </div>
+    ${compras.length ? `<div class="rp-caja" style="margin:12px 0"><h3>Compras de la empresa y consumo de los conductores</h3>
+      ${compras.map(x => { const pct = x.comprado ? Math.min(100, Math.round(x.usado / x.comprado * 100)) : 100;
+        return `<div class="small"><b>${esc(CONC_CIERRE[x.k].nom)}</b>: comprado <b>${clp(x.comprado)}</b> · consumido según cierres <b>${clp(x.usado)}</b> · ${x.disp >= 0 ? `disponible <b>${clp(x.disp)}</b>` : `<b class="warn">el consumo supera lo comprado en ${clp(-x.disp)}</b>`}
+          <div class="barra ${pct >= 90 ? "alta" : ""}" style="margin-top:4px"><i style="width:${pct}%"></i></div></div>`; }).join("")}
+      <p class="small muted" style="margin:0">Lo consumido no suma otra vez al gasto: se toma de la compra. En "Resultado por patente", el consumo pasa a la patente que lo usó.</p></div>` : ""}
     <div class="rp-grid">
       ${barras("Gastos por concepto", sumar(gsLista.map(g => ({ k: CAT_GASTO[g.categoria] || g.categoria, v: g.monto }))
-        .concat(usaGasCd ? cierres.flatMap(c => [{ k: CAT_GASTO.combustible, v: n0(c.combustible) }, { k: CAT_GASTO.peajes_tag, v: n0(c.cabify_peajes) }, { k: CAT_GASTO.otros, v: n0(c.otros_gastos) }]) : []).filter(x => x.v), x => x.k, x => x.v), "Sin gastos en este período.")}
+        .concat(cierres.flatMap(c => sumaK.map(k => ({ k: CAT_GASTO[CONC_CIERRE[k].cat], v: n0(c[CONC_CIERRE[k].campo]) })))).filter(x => x.v), x => x.k, x => x.v), "Sin gastos en este período.")}
       ${barras("Otros ingresos por plataforma (neto)", sumar(oiLista.map(x => ({ k: nomF(x.fuente_id), v: x.neto }))
         .concat(usaIngCd ? cierres.flatMap(c => [{ k: "Cabify (cierres diarios)", v: n0(c.cabify_ingreso) }, { k: "Otras apps (cierres diarios)", v: n0(c.otras_ingreso) }]) : []).filter(x => x.v), x => x.k, x => x.v), "Sin otros ingresos en este período.")}
     </div>
@@ -1898,32 +1916,86 @@ async function cargarGastos(desde, hasta, txt, fin) {
     if (error) return alert(errText(error)); recargar();
   });
 }
-// ---- Fuente oficial de cada dato (se guarda en la empresa)
+// ---- Cómo se cuentan los gastos del cierre diario: "se descuenta" de lo que compró la empresa o "se suma" (se guarda en la empresa)
+const CONC_CIERRE = { combustible: { campo: "combustible", cat: "combustible", nom: "⛽ Combustible" }, peajes: { campo: "cabify_peajes", cat: "peajes_tag", nom: "🛣 Peajes y TAG" }, otros: { campo: "otros_gastos", cat: "otros", nom: "Otros gastos" } };
 let rcCfg = null;
 async function configReportes() {
   if (!rcCfg) {
     const { data } = await sb.from("empresas").select("reportes_config").eq("id", yo.empresa_id).maybeSingle();
-    rcCfg = Object.assign({ gastos: "manual", ingresos_apps: "cierres" }, (data && data.reportes_config) || {});
+    rcCfg = Object.assign({ combustible: "descuenta", peajes: "descuenta", otros: "descuenta", ingresos_apps: "cierres" }, (data && data.reportes_config) || {});
   }
-  $("rc-gastos").value = rcCfg.gastos; $("rc-apps").value = rcCfg.ingresos_apps;
-  $("rc-res").textContent = `· gastos: ${rcCfg.gastos === "manual" ? "lo que usted ingresa" : "cierres diarios"} · apps: ${rcCfg.ingresos_apps === "cierres" ? "cierres diarios" : "lo que usted ingresa"}`;
+  document.querySelectorAll("[data-rc]").forEach(x => x.value = rcCfg[x.dataset.rc]);
+  $("rc-res").textContent = `· combustible: ${rcCfg.combustible === "suma" ? "suma" : "descuenta"} · peajes: ${rcCfg.peajes === "suma" ? "suma" : "descuenta"} · otros: ${rcCfg.otros === "suma" ? "suma" : "descuenta"} · apps: ${rcCfg.ingresos_apps === "cierres" ? "cierres" : "manual"}`;
   return rcCfg;
 }
-["rc-gastos", "rc-apps"].forEach(id => $(id).addEventListener("change", async () => {
-  const nuevo = { gastos: $("rc-gastos").value, ingresos_apps: $("rc-apps").value };
+document.querySelectorAll("[data-rc]").forEach(x => x.addEventListener("change", async () => {
+  const nuevo = {}; document.querySelectorAll("[data-rc]").forEach(y => nuevo[y.dataset.rc] = y.value);
   const { error } = await sb.from("empresas").update({ reportes_config: nuevo }).eq("id", yo.empresa_id);
   if (error) return msg("rc-msg", errText(error), "err");
   rcCfg = nuevo; msg("rc-msg", "Guardado. Los números se recalcularon.", "ok");
   if (gsRango) cargarGastos(gsRango.desde, gsRango.hasta, gsRango.txt, gsRango.fin);
 }));
+// ---- Presupuestos mensuales por concepto (y opcionalmente por patente)
+async function pintarPresupuestos(cierres, gastosMes) {
+  const box = $("pp-box"); if (!box) return;
+  const per = $("rp-per").value, mensual = per === "mes" || per === "mesant";
+  await configReportes();
+  const { data, error } = await sb.from("presupuestos").select("*").eq("activo", true).order("creado_en");
+  if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const cfg = rcCfg || {}, n0 = v => Number(v) || 0;
+  const conc = cat => Object.keys(CONC_CIERRE).find(k => CONC_CIERRE[k].cat === cat);
+  // Usado: si el concepto "se descuenta", lo que anotan los conductores en sus cierres; si no, lo registrado + lo que suman los cierres
+  const usado = p => {
+    const k = conc(p.categoria), deVeh = x => !p.vehiculo_id || x.vehiculo_id === p.vehiculo_id;
+    const cd = k ? cierres.filter(deVeh).reduce((a, c) => a + n0(c[CONC_CIERRE[k].campo]), 0) : 0;
+    const man = gastosMes.filter(g => g.categoria === p.categoria && deVeh(g)).reduce((a, g) => a + g.monto, 0);
+    return k && cfg[k] !== "suma" ? { total: cd, det: `según cierres de los conductores${man ? ` · la empresa pagó ${clp(man)}` : ""}` } : { total: man + cd, det: k && cd ? `registrado ${clp(man)} · cierres ${clp(cd)}` : "registrado en Gastos" };
+  };
+  const lista = data || [];
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">🎯 Presupuestos del mes</h3><button class="btn ghost sm" type="button" id="pp-abrir">+ Presupuesto</button></div>
+    ${!mensual && lista.length ? '<p class="small muted" style="margin:0">Elija "Este mes" o "Mes anterior" en Período para ver cuánto se ha usado.</p>' : ""}
+    ${lista.length ? lista.map(p => { const u = usado(p), pct = Math.round(u.total / p.monto_mensual * 100);
+      return `<div class="small" style="margin-top:6px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span><b>${esc(CAT_GASTO[p.categoria] || p.categoria)}</b>${p.vehiculo_id ? " · " + esc(vehPorId(p.vehiculo_id).patente) : " · toda la empresa"}</span>
+        <span>${mensual ? `${clp(u.total)} de ` : ""}<input type="number" min="1" step="1000" value="${p.monto_mensual}" data-ppmonto="${p.id}" style="width:120px;padding:2px 6px" aria-label="Presupuesto mensual"> <button class="linkbtn" type="button" data-ppquitar="${p.id}">Quitar</button></span></div>
+        ${mensual ? `<div class="barra ${pct >= 80 ? "alta" : ""}" style="margin-top:4px"><i style="width:${Math.min(100, pct)}%"></i></div>
+        <span class="${pct > 100 ? "warn" : "muted"}">${pct > 100 ? `⚠ Se pasó en ${clp(u.total - p.monto_mensual)} (${pct} %)` : pct >= 80 ? `⚠ Va en ${pct} %: quedan ${clp(p.monto_mensual - u.total)}` : `${pct} % usado · quedan ${clp(p.monto_mensual - u.total)}`} · ${esc(u.det)}</span>` : ""}</div>`; }).join("")
+      : '<p class="small muted" style="margin:0">Fije un tope mensual por concepto (por ejemplo, peajes $350.000) y vea cómo avanza con lo que anotan los conductores.</p>'}
+    <form id="pp-form" hidden novalidate style="display:grid;gap:8px;margin-top:8px">
+      <div class="row3"><div class="f"><label for="pp-cat">Concepto</label><select id="pp-cat">${Object.entries(CAT_GASTO).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join("")}</select></div>
+        <div class="f"><label for="pp-veh">Patente</label><select id="pp-veh">${opcionesVeh("").replace("Empresa (general)", "Toda la empresa")}</select></div>
+        <div class="f"><label for="pp-monto">Tope mensual ($)</label><input id="pp-monto" type="number" min="1" step="1000" inputmode="numeric"></div></div>
+      <div class="actions"><button class="btn sm" type="submit">Guardar presupuesto</button><button class="btn ghost sm" type="button" id="pp-x">Volver</button></div>
+      <div id="pp-msg" class="msg" hidden></div>
+    </form>`;
+  $("pp-abrir").onclick = () => { $("pp-form").hidden = false; $("pp-abrir").hidden = true; $("pp-cat").value = "peajes_tag"; };
+  $("pp-x").onclick = () => { $("pp-form").hidden = true; $("pp-abrir").hidden = false; };
+  $("pp-form").onsubmit = async ev => {
+    ev.preventDefault();
+    const m = Math.round(Number($("pp-monto").value)); if (!(m > 0)) return msg("pp-msg", "Indique el tope mensual.", "err");
+    const { error } = await sb.from("presupuestos").insert({ empresa_id: yo.empresa_id, categoria: $("pp-cat").value, vehiculo_id: $("pp-veh").value || null, monto_mensual: m, creado_por: yo.id });
+    if (error) return msg("pp-msg", errText(error), "err");
+    pintarPresupuestos(cierres, gastosMes);
+  };
+  box.querySelectorAll("[data-ppmonto]").forEach(i => i.onchange = async () => {
+    const m = Math.round(Number(i.value)); if (!(m > 0)) return;
+    const { error } = await sb.from("presupuestos").update({ monto_mensual: m }).eq("id", i.dataset.ppmonto);
+    if (error) return alert(errText(error)); pintarPresupuestos(cierres, gastosMes);
+  });
+  box.querySelectorAll("[data-ppquitar]").forEach(b => b.onclick = async () => {
+    if (!confirm("¿Quitar este presupuesto? (no borra ningún gasto)")) return;
+    const { error } = await sb.from("presupuestos").update({ activo: false }).eq("id", b.dataset.ppquitar);
+    if (error) return alert(errText(error)); pintarPresupuestos(cierres, gastosMes);
+  });
+}
 // Aviso al ingresar a mano algo que ya viene del cierre diario (para no contarlo dos veces)
 function avisoDoble() {
   const f = (fuentes.find(x => x.id === $("oi-fuente").value) || {}).nombre || "", cat = $("gs-cat").value;
   const dobleIng = rcCfg && rcCfg.ingresos_apps === "cierres" && /cabify/i.test(f);
-  const dobleGas = rcCfg && rcCfg.gastos === "cierres" && ["combustible", "peajes_tag"].includes(cat);
+  const conc = Object.keys(CONC_CIERRE).find(k => CONC_CIERRE[k].cat === cat);
+  const dobleGas = rcCfg && conc && rcCfg[conc] === "suma";
   if (dobleIng) msg("oi-msg", "Ojo: los ingresos de Cabify se están tomando del cierre diario de los conductores. Si lo ingresa aquí también, se contará dos veces (cámbielo en «¿De dónde salen los números?»).", "err");
   else if ($("oi-msg").classList.contains("err")) $("oi-msg").hidden = true;
-  if (dobleGas) msg("gs-msg", "Ojo: el combustible y los peajes se están tomando del cierre diario de los conductores. Si lo ingresa aquí también, se contará dos veces.", "err");
+  if (dobleGas) msg("gs-msg", "Ojo: este concepto lo están sumando los conductores en su cierre diario. Si lo ingresa aquí también, se contará dos veces (o cámbielo a «Se descuenta» en «¿De dónde salen los números?»).", "err");
   else if ($("gs-msg").classList.contains("err")) $("gs-msg").hidden = true;
 }
 $("oi-fuente").addEventListener("change", avisoDoble); $("gs-cat").addEventListener("change", avisoDoble);
@@ -2054,10 +2126,32 @@ async function pintarCierres(desde, hasta, filas) {
       <div class="pay"><small class="muted">Ganancia</small><b>${clp(T("gan"))}</b><span class="small muted">ingreso ${pk(T("ing"), km)}/km · ganancia ${pk(T("gan"), km)}/km</span></div>
       <div class="pay"><small class="muted">Con costo de referencia $410/km</small><b class="${T("ref") < 0 ? "warn" : ""}">${clp(T("ref"))}</b><span class="small muted">${pk(T("ref"), km)}/km</span></div>
     </div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>Día</th><th>Vehículo</th><th>Conductor</th><th>Km</th><th>Flota-K</th><th>Cabify</th><th>Otras</th><th>Gastos</th><th>Ganancia</th><th>Costo/km</th><th>Ganancia/km</th><th>Ref. $410/km</th></tr></thead><tbody>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Día</th><th>Vehículo</th><th>Conductor</th><th>Km</th><th>Flota-K</th><th>Cabify</th><th>Otras</th><th>Gastos</th><th>Ganancia</th><th>Costo/km</th><th>Ganancia/km</th><th>Ref. $410/km</th><th></th></tr></thead><tbody>
     ${rpCierres.map(x => `<tr><td>${esc(new Date(x.c.fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" }))}</td><td>${esc(x.patente)}</td><td>${esc(x.cond)}</td><td>${x.c.km_recorridos}</td>
       <td>${clp(x.ingFK)} <span class="muted small">(${x.nFK})</span></td><td>${clp(x.c.cabify_ingreso)} <span class="muted small">(${x.c.cabify_viajes})</span></td><td>${clp(x.c.otras_ingreso)}</td><td>${clp(x.costos)}</td><td><b>${clp(x.gan)}</b></td>
-      <td>${pk(x.costos, x.c.km_recorridos)}</td><td>${pk(x.gan, x.c.km_recorridos)}</td><td class="${x.ref < 0 ? "warn" : ""}">${clp(x.ref)}</td></tr>`).join("")}</tbody></table></div>`;
+      <td>${pk(x.costos, x.c.km_recorridos)}</td><td>${pk(x.gan, x.c.km_recorridos)}</td><td class="${x.ref < 0 ? "warn" : ""}">${clp(x.ref)}</td>
+      <td class="nowrap"><button class="linkbtn" type="button" data-cedit="${x.c.id}">✏ Corregir</button>${x.c.editado_en ? ` <span class="small muted" title="Corregido por el administrador el ${esc(fecha(x.c.editado_en))}">(corregido)</span>` : ""}</td></tr>`).join("")}</tbody></table></div>
+    <div id="ce-box"></div>`;
+  $("rp-cierres").querySelectorAll("[data-cedit]").forEach(b => b.onclick = () => editarCierre(rpCierres.find(x => String(x.c.id) === b.dataset.cedit)));
+}
+// El administrador corrige un cierre (queda registrado quién, cuándo y lo que había puesto el conductor)
+function editarCierre(x) {
+  if (!x) return; const c = x.c, box = $("ce-box");
+  const campos = [["km_recorridos", "Km recorridos"], ["cabify_ingreso", "Ingreso Cabify"], ["cabify_viajes", "Viajes Cabify"], ["cabify_peajes", "Peajes Cabify"],
+    ["otras_ingreso", "Ingreso otras apps"], ["combustible", "Combustible"], ["otros_gastos", "Otros gastos"]];
+  box.innerHTML = `<form class="confirm" id="ce-form" novalidate style="margin-top:8px"><b>Corregir cierre · ${esc(x.patente)} · ${esc(new Date(c.fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }))} · ${esc(x.cond)}</b>
+    <div class="row3">${campos.map(([k, t]) => `<div class="f"><label for="ce-${k}">${t}</label><input id="ce-${k}" type="number" min="0" step="1" value="${c[k] ?? 0}">${c.original && c.original[k] != null && Number(c.original[k]) !== Number(c[k]) ? `<span class="small muted">el conductor puso ${k.includes("viajes") || k.includes("km") ? c.original[k] : clp(c.original[k])}</span>` : ""}</div>`).join("")}</div>
+    <div class="actions"><button class="btn sm" type="submit">Guardar corrección</button><button class="btn ghost sm" type="button" id="ce-x">Cancelar</button></div>
+    <p class="small muted" style="margin:0">Queda registrado que lo corrigió usted y se guardan los valores originales del conductor.</p><div id="ce-msg" class="msg" hidden></div></form>`;
+  box.scrollIntoView({ behavior: "smooth", block: "center" });
+  $("ce-x").onclick = () => box.innerHTML = "";
+  $("ce-form").onsubmit = async ev => {
+    ev.preventDefault();
+    const cambio = {}; for (const [k] of campos) { const v = Math.round(Number($("ce-" + k).value)); if (!(v >= 0)) return msg("ce-msg", "Revise los valores (no pueden ser negativos).", "err"); cambio[k] = v; }
+    const { error } = await sb.from("cierres_diarios").update(cambio).eq("id", c.id);
+    if (error) return msg("ce-msg", errText(error), "err");
+    box.innerHTML = ""; cargarReportes();
+  };
 }
 $("rp-cierres-xlsx").addEventListener("click", () => {
   if (!window.XLSX || !rpCierres.length) return;
