@@ -1,5 +1,9 @@
 # Cambios
 
+## 18 nov 2026 · El cliente cambia la hora de su reserva
+- Portal (/empresa) y app del pasajero (/app): botón **"🕒 Cambiar hora"** en los viajes que aún se pueden cancelar (hasta 2 horas antes, como dicen los Términos). `FK.cambiarHoraUI` y `FK.isoALocal` en assets/app.js. Cachés `fk-app-v10` y `fk-empresa-v4`.
+- Base de datos (etapas 43a y 43, ya aplicadas): `convenio_cambiar_hora` y `pasajero_cambiar_hora` (mismas reglas de acceso que cancelar) con `cambiar_hora_cliente` (nueva hora al menos 2 h desde ahora, nota en el historial). Aviso nuevo para Operaciones "🕒 Cliente cambió la hora" (tipo `cambio_hora`); el conductor asignado recibe "✏️ Servicio modificado".
+
 ## 18 nov 2026 · Cambiar la fecha u hora de una reserva
 - Panel, detalle de la reserva: botón **"✏ Cambiar fecha u hora"** (no en reservas a bordo, finalizadas o canceladas). Hora de Chile (`FK.chileLocalToISO`), avisa si la hora ya pasó y si el conductor asignado queda con servicios cruzados. Al guardar, el conductor recibe "✏️ Servicio modificado" (etapa 38) y aparece el botón **"📲 Avisar al pasajero por WhatsApp"** con el mensaje del cambio (nueva y anterior hora, origen, destino y seguimiento).
 

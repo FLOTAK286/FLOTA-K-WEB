@@ -522,12 +522,13 @@ async function cargarViajes() {
       <div class="top small"><span class="code">${esc(r.o_codigo)}${veTodo() || r.o_tipo === "particular" ? " · " + esc(r.o_pasajero) : ""}${r.o_centro_costo ? " · " + esc(r.o_centro_costo) : ""}</span><span>${r.o_valor != null ? clp(r.o_valor) : '<span class="muted">Valor por confirmar</span>'}</span></div>
       ${r.o_conductor ? `<div class="small">🚘 ${esc(r.o_conductor)}</div>` : ""}
       ${r.o_aviso ? `<div class="aviso small">💰 ${esc(r.o_aviso)}</div>` : ""}
-      <div class="actions"><a class="btn ghost sm" href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener">Ver seguimiento</a>${r.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-c="${esc(r.o_id)}">Cancelar</button>` : ""}</div>
+      <div class="actions"><a class="btn ghost sm" href="/seguimiento/?t=${esc(r.o_token)}" target="_blank" rel="noopener">Ver seguimiento</a>${r.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-h="${esc(r.o_id)}" data-fh="${esc(r.o_fecha_hora)}">🕒 Cambiar hora</button><button class="btn ghost sm" type="button" data-c="${esc(r.o_id)}">Cancelar</button>` : ""}</div>
     </div>`;
   const chips = hayPart ? `<div class="chips" id="v-filtro">${[["todos", "Todos"], ["empresa", "🏢 Empresa"], ["particular", "👤 Particulares"]].map(([k, t]) => `<button type="button" class="chip ${filtroV === k ? "on" : ""}" data-f="${k}">${t}</button>`).join("")}</div>` : "";
   box.innerHTML = chips + `<h3 style="margin:0">Próximos</h3>${prox.length ? `<div class="vg">${prox.map(card).join("")}</div>` : '<p class="muted">No hay viajes agendados.</p>'}
     ${ant.length ? `<h3 style="margin:10px 0 0">Anteriores (últimos 60 días)</h3><div class="vg">${ant.map(card).join("")}</div>` : ""}`;
   box.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filtroV = b.dataset.f; cargarViajes(); });
+  box.querySelectorAll("[data-h]").forEach(b => b.onclick = () => FK.cambiarHoraUI(b, b.dataset.h, b.dataset.fh, "convenio_cambiar_hora", cargarViajes));
   box.querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
     const motivo = prompt("¿Seguro que desea cancelar este traslado? Si quiere, indique el motivo:");
     if (motivo === null) return;

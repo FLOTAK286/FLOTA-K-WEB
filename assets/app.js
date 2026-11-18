@@ -117,5 +117,34 @@
     if (!w) location.href = url;
   }
 
-  window.FK = { enlaceTipo, abrirExterno, usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
+  // ISO → "AAAA-MM-DDTHH:MM" en hora de Chile (para un campo datetime-local)
+  function isoALocal(iso) {
+    const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
+    const g = t => (p.find(x => x.type === t) || {}).value;
+    return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
+  }
+  // Cambiar la hora de una reserva desde el portal o la app: abre un recuadro bajo el botón y llama a la función indicada
+  function cambiarHoraUI(boton, idReserva, isoActual, rpc, alListo) {
+    const prev = boton.parentElement.querySelector(".fk-hora"); if (prev) { prev.remove(); return; }
+    const box = document.createElement("div");
+    box.className = "fk-hora"; box.style.cssText = "display:grid;gap:6px;margin-top:8px;width:100%";
+    box.innerHTML = `<label class="small" style="font-weight:600">Nueva fecha y hora (hora de Chile)</label>
+      <input type="datetime-local" value="${isoALocal(isoActual)}">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button">Guardar nueva hora</button><button class="btn ghost sm" type="button">Volver</button></div>
+      <p class="small muted" style="margin:0">Se puede cambiar hasta 2 horas antes del retiro. Avisamos a Flota-K y a su conductor.</p>
+      <p class="msg" hidden></p>`;
+    boton.parentElement.appendChild(box);
+    const [inp] = box.getElementsByTagName("input"), [ok, no] = box.getElementsByTagName("button"), m = box.querySelector(".msg");
+    no.onclick = () => box.remove();
+    ok.onclick = async () => {
+      if (!inp.value) return;
+      ok.disabled = true; m.hidden = false; m.className = "msg"; m.textContent = "Guardando…";
+      const { error } = await sb.rpc(rpc, { p_reserva: idReserva, p_fecha_hora: chileLocalToISO(inp.value) });
+      ok.disabled = false;
+      if (error) { m.className = "msg err"; m.textContent = errText(error); return; }
+      m.className = "msg ok"; m.textContent = "✅ Nueva hora: " + fecha(chileLocalToISO(inp.value)) + " · Flota-K y su conductor ya recibieron el cambio";
+      setTimeout(() => alListo && alListo(), 1500);
+    };
+  }
+  window.FK = { isoALocal, cambiarHoraUI, enlaceTipo, abrirExterno, usuarioACorreo, usuarioVisible, DOMINIO_USUARIOS, vueloCodigo, vueloFR24, VUELO_PUDAHUEL, sb, todo, ESTADOS, ROLES, SERVICIOS, esc, clp, fecha, pill, errText, chileLocalToISO, enviarEnlace, entrarConGoogle, empresa: C.empresa };
 })();

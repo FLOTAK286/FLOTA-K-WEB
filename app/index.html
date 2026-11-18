@@ -631,7 +631,7 @@ function tarjeta(v) {
     ${v.o_calificado ? '<div class="small muted">⭐ Gracias por calificar este viaje.</div>' : ""}
     <div class="acc">
       ${v.o_estado === "cancelada" ? "" : `<a class="btn ${vivo ? "" : "ghost"} sm" href="/seguimiento/?t=${esc(v.o_token)}">${vivo ? "📍 Ver a mi conductor en vivo" : "Ver detalle"}</a>`}
-      ${v.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-cancelar="${esc(v.o_id)}">Cancelar</button>` : ""}
+      ${v.o_puede_cancelar ? `<button class="btn ghost sm" type="button" data-hora="${esc(v.o_id)}" data-fh="${esc(v.o_fecha_hora)}">🕒 Cambiar hora</button><button class="btn ghost sm" type="button" data-cancelar="${esc(v.o_id)}">Cancelar</button>` : ""}
       ${["finalizada", "cancelada"].includes(v.o_estado) ? `<button class="btn ghost sm" type="button" data-repetir="${esc(v.o_id)}">↻ Repetir</button>` : ""}
     </div>
   </div>`;
@@ -670,6 +670,8 @@ $("lista").addEventListener("click", async e => {
     if (n === 5 && FK_CONFIG.resenaGoogle && confirm("¡Gracias por las 5 estrellas! ¿Nos ayuda con una reseña en Google? Toma un minuto.")) FK.abrirExterno(FK_CONFIG.resenaGoogle);
     return cargarViajes(true);
   }
+  const h = e.target.closest("[data-hora]");
+  if (h) return FK.cambiarHoraUI(h, h.dataset.hora, h.dataset.fh, "pasajero_cambiar_hora", () => cargarViajes());
   const c = e.target.closest("[data-cancelar]");
   if (c) {
     const motivo = prompt("¿Seguro que desea cancelar este traslado? Si quiere, indique el motivo:");
