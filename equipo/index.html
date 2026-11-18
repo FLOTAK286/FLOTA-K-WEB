@@ -754,7 +754,9 @@ function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
     recordatorio: `Hola ${nombre}, le recordamos ${alSolicitante ? `el traslado de ${r.nombre_pasajero}` : "su traslado"} con Flota-K para mañana.\n\n${datos}\n\nSi necesita cambiar algo, responda este mensaje.\nSiga el traslado aquí: ${link}\n\nComprometidos con su traslado. Flota-K`,
     encamino: `Hola ${nombre}, ${quien} va en camino${cond ? ` (móvil ${cond})` : ""}.${vTxt}\n\nVea su ubicación en el mapa aquí: ${link}\n\nFlota-K`,
     enlugar: `Hola ${nombre}, ${quien} ya está en el punto de retiro: ${r.origen}.${vTxt}\n\nSi necesita ubicarlo, escríbale desde aquí: ${link}\n\nFlota-K`,
-    gracias: `Hola ${nombre}, gracias por viajar con Flota-K. Nos ayudaría mucho que califique ${alSolicitante ? `el traslado de ${r.nombre_pasajero}` : "su traslado"} aquí: ${link}\n\nPara su próximo viaje, reserve en fk-servicios.com o responda este mensaje.\n\nComprometidos con su traslado. Flota-K`
+    gracias: `Hola ${nombre}, gracias por viajar con Flota-K. Nos ayudaría mucho que califique ${alSolicitante ? `el traslado de ${r.nombre_pasajero}` : "su traslado"} aquí: ${link}` +
+      (window.FK_CONFIG && FK_CONFIG.resenaGoogle ? `\n\nSi quedó conforme, una reseña en Google nos ayuda muchísimo a que otros pasajeros nos encuentren (toma un minuto): ${FK_CONFIG.resenaGoogle}` : "") +
+      `\n\nPara su próximo viaje, reserve en fk-servicios.com o responda este mensaje.\n\nComprometidos con su traslado. Flota-K`
   };
   if (otros[tipo]) return FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(otros[tipo]));
   const t = `Hola ${nombre}, ${alSolicitante ? `el traslado de ${r.nombre_pasajero} está confirmado` : "su traslado con Flota-K está confirmado"}.\n\n` +

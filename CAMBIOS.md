@@ -1,5 +1,10 @@
 # Cambios
 
+## 18 nov 2026 · Más confianza para Google
+- Portada: sección **"Quiénes somos"** (#nosotros) con razón social FK Servicios SpA, RUT 77.573.708-5, dirección Santa Elena 1486, of. 1406, Santiago, contacto y enlace a los Términos; el pie también muestra RUT y dirección.
+- Datos estructurados (portada e /en): `legalName`, `taxID` y `address` en la ficha `TaxiService`, para que Google identifique a la empresa.
+- Panel: el mensaje "Gracias + calificar" agrega el pedido de reseña en Google (`FK_CONFIG.resenaGoogle`).
+
 ## 18 nov 2026 · Términos y condiciones
 - Nueva página **/terminos/** (versión 1.0, vigente desde el 18-11-2026), redactada con las reglas del dueño: espera $180/min sobre 15 min en domicilio; cancelación sin costo con 2 h o más, $5.000 con menos de 2 h y 60 % fuera de Américo Vespucio en comunas periféricas (caso a caso); no presentación $5.000 (60 % en la periferia); limpieza mín. $30.000; reembolsos según el banco o 10 días hábiles si los hace Flota-K; objetos olvidados 30 días (retiro en oficina, encargo pagado o entrega sin costo según la operación); reclamos en 10 días hábiles; pago anticipado y cargos adicionales a la tarjeta registrada. Respeta la Ley 19.496 (sin cláusulas abusivas) y la Ley 19.628. Pendiente: revisión de un abogado.
 - Enlaces: pie de la portada, /empresas y /en; pantallas de ingreso de /app y /empresa ("Al ingresar acepta los Términos y condiciones"); sitemap.
