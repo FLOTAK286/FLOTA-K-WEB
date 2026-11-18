@@ -1129,7 +1129,9 @@ async function abrir(id) {
   $("det-body").innerHTML = `
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2>${esc(r.codigo)}</h2>${pill(r.estado)}</div>
     <dl class="kv">
-      <dt>Fecha y hora</dt><dd>${esc(fecha(r.fecha_hora))}</dd>
+      <dt>Fecha y hora</dt><dd><b id="d-fh-ver">${esc(fecha(r.fecha_hora))}</b>${["finalizada", "cancelada", "a_bordo"].includes(r.estado) ? "" : ` <button class="btn ghost sm" type="button" id="d-fh-edit">✏ Cambiar fecha u hora</button>
+        <div id="d-fh-box" hidden style="margin-top:6px"><div class="actions"><input id="d-fh" type="datetime-local" aria-label="Nueva fecha y hora (hora de Chile)"><button class="btn sm" type="button" id="d-fh-save">Guardar nueva hora</button><button class="btn ghost sm" type="button" id="d-fh-x">Volver</button></div>
+        <p class="small muted" style="margin:4px 0 0">Hora de Chile. Si hay conductor asignado, le llega el aviso "Servicio modificado".</p></div>`}<div id="d-fh-msg" class="msg" hidden></div></dd>
       ${r.en_bolsa ? `<dt>Reservas</dt><dd><b>📢 Publicada en Reservas para conductores</b>${r.bolsa_desde ? " desde " + esc(fecha(r.bolsa_desde)) : ""}${r.bono_bolsa ? ` · 🎁 bono ${clp(r.bono_bolsa)}` : ""}: el primer conductor que la tome se la queda.</dd>` : ""}
       ${!r.en_bolsa && r.bono_bolsa ? `<dt>Bono</dt><dd>🎁 ${clp(r.bono_bolsa)} para el conductor (tomado desde Reservas)</dd>` : ""}
       ${r.km_ida ? `<dt>Recorrido</dt><dd>${String(r.km_ida).replace(".", ",")} km · duración estimada ${esc(r.duracion_min || "—")} min</dd>` : ""}
@@ -1281,6 +1283,43 @@ async function abrir(id) {
     if (error) return msg("d-msg", errText(error), "err");
     $("det").close(); refrescar();
   };
+  // ---- Cambiar la fecha u hora de la reserva
+  const isoALocal = iso => {
+    const p = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
+    const g = t => (p.find(x => x.type === t) || {}).value;
+    return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
+  };
+  if ($("d-fh-edit")) {
+    $("d-fh-edit").onclick = () => { $("d-fh").value = isoALocal(r.fecha_hora); $("d-fh-box").hidden = false; $("d-fh-edit").hidden = true; $("d-fh").focus(); };
+    $("d-fh-x").onclick = () => { $("d-fh-box").hidden = true; $("d-fh-edit").hidden = false; $("d-fh-msg").hidden = true; };
+    $("d-fh-save").onclick = async () => {
+      const v = $("d-fh").value; if (!v) return msg("d-fh-msg", "Elija la nueva fecha y hora.", "err");
+      const nueva = FK.chileLocalToISO(v), antes = r.fecha_hora;
+      if (new Date(nueva).getTime() === new Date(antes).getTime()) return msg("d-fh-msg", "Es la misma hora que ya tenía.", "err");
+      if (new Date(nueva) < Date.now() - 5 * 60000 && !confirm("La nueva hora ya pasó. ¿Guardar igual?")) return;
+      // Si hay conductor asignado: revisar que no se cruce con otros servicios suyos
+      if (r.conductor_id) {
+        const dur = (r.duracion_min || 90) + 15, t = new Date(nueva).getTime();
+        const { data: otros } = await sb.from("reservas").select("id, codigo, fecha_hora, duracion_min, nombre_pasajero").eq("conductor_id", r.conductor_id).neq("id", r.id)
+          .not("estado", "in", "(cancelada,finalizada)").is("eliminada_en", null)
+          .gte("fecha_hora", new Date(t - 6 * 3600e3).toISOString()).lte("fecha_hora", new Date(t + 6 * 3600e3).toISOString());
+        const ch = (otros || []).filter(x => { const a = new Date(x.fecha_hora).getTime(); return a < t + dur * 60000 && t < a + ((x.duracion_min || 90) + 15) * 60000; });
+        if (ch.length && !confirm(`Con la nueva hora, el conductor asignado se cruza con:\n${ch.map(x => `${hora(x.fecha_hora)} · ${x.codigo} · ${x.nombre_pasajero}`).join("\n")}\n\n¿Guardar igual?`)) return;
+      }
+      msg("d-fh-msg", "Guardando…");
+      const { error } = await sb.from("reservas").update({ fecha_hora: nueva }).eq("id", r.id);
+      if (error) return msg("d-fh-msg", errText(error), "err");
+      r.fecha_hora = nueva;
+      $("d-fh-ver").textContent = fecha(nueva); $("d-fh-box").hidden = true; $("d-fh-edit").hidden = false;
+      const nom = (r.nombre_pasajero || "").split(" ")[0];
+      const t = `Hola${nom ? " " + nom : ""}, le confirmamos el cambio de horario de su traslado con Flota-K.\n\nCódigo: ${r.codigo}\nNueva fecha y hora: ${fecha(nueva)}\n(antes: ${fecha(antes)})\nDesde: ${r.origen}\nHacia: ${r.destino}\n\nSiga su traslado aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nSi hay algún problema con este horario, responda este mensaje.\nComprometidos con su traslado. Flota-K`;
+      let d = (r.telefono || "").replace(/\D/g, ""); if (d.length === 9 && d[0] === "9") d = "56" + d; if (d.length === 8) d = "569" + d;
+      $("d-fh-msg").className = "msg ok"; $("d-fh-msg").hidden = false;
+      $("d-fh-msg").innerHTML = `✅ Nueva hora: <b>${esc(fecha(nueva))}</b>${r.conductor_id ? " · el conductor recibe el aviso" : ""} <button class="btn sm" type="button" id="d-fh-wa">📲 Avisar al pasajero por WhatsApp</button>`;
+      $("d-fh-wa").onclick = () => FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(t));
+      refrescar();
+    };
+  }
   $("d-save").onclick = async () => {
     msg("d-msg", "Guardando…");
     const precio = $("d-precio").value === "" ? null : Number($("d-precio").value);

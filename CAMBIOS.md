@@ -1,5 +1,8 @@
 # Cambios
 
+## 18 nov 2026 · Cambiar la fecha u hora de una reserva
+- Panel, detalle de la reserva: botón **"✏ Cambiar fecha u hora"** (no en reservas a bordo, finalizadas o canceladas). Hora de Chile (`FK.chileLocalToISO`), avisa si la hora ya pasó y si el conductor asignado queda con servicios cruzados. Al guardar, el conductor recibe "✏️ Servicio modificado" (etapa 38) y aparece el botón **"📲 Avisar al pasajero por WhatsApp"** con el mensaje del cambio (nueva y anterior hora, origen, destino y seguimiento).
+
 ## 18 nov 2026 · Más confianza para Google
 - Portada: sección **"Quiénes somos"** (#nosotros) con razón social FK Servicios SpA, RUT 77.573.708-5, dirección Santa Elena 1486, of. 1406, Santiago, contacto y enlace a los Términos; el pie también muestra RUT y dirección.
 - Datos estructurados (portada e /en): `legalName`, `taxID` y `address` en la ficha `TaxiService`, para que Google identifique a la empresa.
