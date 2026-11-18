@@ -368,11 +368,11 @@ details.paso > summary { cursor: pointer; }
 
     <div data-pane="cuentas" class="panel" style="margin-top:14px" hidden>
       <h2>Cuentas de clientes</h2>
-      <p class="muted">Usuario y contraseña para que el cliente entre al <b>portal de empresas</b> (<a href="/empresa/" target="_blank" rel="noopener" style="color:var(--gold)">fk-servicios.com/empresa</a>): agenda, ve sus viajes y su gasto. No se envía ningún correo: usted le pasa los datos por WhatsApp.</p>
+      <p class="muted">Usuario y contraseña para que el cliente entre al portal (<a href="/empresa/" target="_blank" rel="noopener" style="color:var(--gold)">fk-servicios.com/empresa</a>) a agendar y ver sus viajes. <b>Cliente particular:</b> agenda a su nombre y paga él mismo. <b>Empresa con convenio:</b> además ve el gasto y, si es encargado, administra personas, presupuesto y facturación. No se envía ningún correo: usted le pasa los datos por WhatsApp.</p>
       <form id="cc-form" class="confirm" novalidate>
         <b>+ Crear cuenta de cliente</b>
         <div class="row3">
-          <div class="f"><label for="cc-emp">Empresa con convenio</label><select id="cc-emp"></select></div>
+          <div class="f"><label for="cc-emp">Cliente particular o empresa</label><select id="cc-emp"></select></div>
           <div class="f"><label for="cc-nom">Nombre</label><input id="cc-nom" maxlength="200" placeholder="Nombre y apellido"></div>
           <div class="f"><label for="cc-rol">Rol en el portal</label><select id="cc-rol"><option value="encargado">Encargado de convenio (administra personas, presupuesto y facturación)</option><option value="directivo">Directivo / dueño (ve todos los viajes de la empresa)</option><option value="pasajero">Pasajero autorizado (agenda y ve sus viajes)</option></select></div>
         </div>
@@ -1651,7 +1651,7 @@ async function cargarReportes() {
     const top = lista.slice(0, max), mx = Math.max(1, ...top.map(x => x.t));
     return `<div class="rp-caja"><h3>${titulo}</h3>${top.length ? top.map(x => `<div class="rp-bar"><span class="rp-n">${esc(x.nombre)}</span><span class="rp-track"><span style="width:${Math.max(2, x.t / mx * 100)}%"></span></span><span class="rp-v">${clp(x.t)} <span class="muted small">(${x.n})</span></span></div>`).join("") : '<p class="muted small">Sin datos.</p>'}</div>`;
   };
-  const canales = { convenio: "Portal de empresas", app: "App del pasajero", web: "Página web", whatsapp: "WhatsApp", telefono: "Teléfono", correo: "Correo", convenio: "Convenio empresa", otro: "Otro" };
+  const canales = { convenio: "Portal de empresas", portal: "Portal de clientes (particular)", app: "App del pasajero", web: "Página web", whatsapp: "WhatsApp", telefono: "Teléfono", correo: "Correo", convenio: "Convenio empresa", otro: "Otro" };
   const cliNom = {}; ok.forEach(r => cliNom[r.cliente_id] = cliNom[r.cliente_id] || r.nombre_pasajero);
   const porDia = agrupar(fin, r => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(r.fecha_hora))).sort((a, b) => a.k.localeCompare(b.k));
   const mxd = Math.max(1, ...porDia.map(x => x.t));
@@ -2378,9 +2378,17 @@ async function pintarPortal(e) {
 function datosAcceso(nombre, correo, rol, clave, empresa, soloClave, boxId) {
   const box = $(boxId || "pu-datos"); if (!box) return;
   const url = location.origin + "/empresa/";
+  if (!empresa) {
+    const tp = !clave ? `${nombre} ya tenía cuenta en Flota-K y entra con su contraseña de siempre en ${url}`
+      : `Hola ${nombre.split(" ")[0]}, ${soloClave ? "su nueva contraseña provisoria de Flota-K es: " + clave + "\n\n" : "ya tiene su cuenta de cliente en Flota-K. Desde ahí puede agendar sus traslados y ver sus viajes.\n\n"}Entre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.\n\nComprometidos con su traslado. Flota-K`;
+    return mostrarAcceso(box, tp, soloClave);
+  }
   const t = !clave ? `${nombre} ya tenía cuenta en Flota-K: ahora también tiene acceso al portal de ${empresa} y entra con su contraseña de siempre en ${url}`
     : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de empresas de Flota-K es: ${clave}\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiarla.`
     : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de empresas de Flota-K para ${empresa}, como ${ROL_CONV[rol]}.\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.` + (rol === "encargado" ? " Luego complete los datos de facturación de la empresa para poder agendar." : "");
+  mostrarAcceso(box, t, soloClave);
+}
+function mostrarAcceso(box, t, soloClave) {
   box.hidden = false;
   box.innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Acceso listo"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
     <div class="actions"><button class="btn sm" type="button" data-da="wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" data-da="cp">⧉ Copiar</button></div>`;
@@ -2391,10 +2399,12 @@ function datosAcceso(nombre, correo, rol, clave, empresa, soloClave, boxId) {
 
 // ---- Nueva reserva
 // ---- Empresas con convenio (cuentas corporativas)
-let cuentas = [];
+let cuentas = [], cuentaPart = null;
 async function cargarCuentas() {
   const { data } = await sb.from("cuentas_corporativas").select("*").order("razon_social");
-  cuentas = data || [];
+  // La cuenta interna "Clientes particulares" no es un convenio: no aparece en las listas de empresas
+  cuentaPart = (data || []).find(c => c.es_particulares) || null;
+  cuentas = (data || []).filter(c => !c.es_particulares);
   llenarConvenios($("n-conv") && $("n-conv").value);
 }
 // Lista de convenios activos para elegir en una reserva
@@ -2861,10 +2871,11 @@ let ccUsuarios = [];
 async function cargarCuentasClientes() {
   await cargarCuentas();
   const sel = $("cc-emp").value;
-  $("cc-emp").innerHTML = '<option value="">— Elegir empresa —</option>' + cuentas.filter(c => c.activa !== false)
-    .map(c => `<option value="${esc(c.id)}" ${c.id === sel ? "selected" : ""}>${esc(c.razon_social)}</option>`).join("");
+  $("cc-emp").innerHTML = '<option value="">— Elegir —</option>' + `<option value="particular" ${sel === "particular" ? "selected" : ""}>👤 Cliente particular (sin empresa)</option>` + cuentas.filter(c => c.activa !== false)
+    .map(c => `<option value="${esc(c.id)}" ${c.id === sel ? "selected" : ""}>🏢 ${esc(c.razon_social)}</option>`).join("");
+  verRolCuenta();
   if (!$("cc-clave").value) $("cc-clave").value = claveProvisoria();
-  const res = await Promise.all(cuentas.map(c => sb.rpc("convenio_admin_ver", { p_cuenta: c.id }).then(({ data }) => ((data && data.usuarios) || []).map(u => ({ ...u, cuenta: c })))));
+  const res = await Promise.all(cuentas.concat(cuentaPart ? [cuentaPart] : []).map(c => sb.rpc("convenio_admin_ver", { p_cuenta: c.id }).then(({ data }) => ((data && data.usuarios) || []).map(u => ({ ...u, cuenta: c })))));
   ccUsuarios = res.flat().sort((a, b) => (a.cuenta.razon_social || "").localeCompare(b.cuenta.razon_social || "") || (a.nombre || "").localeCompare(b.nombre || ""));
   pintarCuentasClientes();
 }
@@ -2872,9 +2883,9 @@ function pintarCuentasClientes() {
   const q = norm($("cc-buscar").value.trim());
   const us = ccUsuarios.filter(u => !q || norm([u.nombre, u.correo, u.telefono, u.cuenta.razon_social].join(" ")).includes(q));
   $("cc-lista").innerHTML = us.length ? us.map(u => `<tr>
-      <td>${esc(u.cuenta.razon_social)}</td>
+      <td>${u.cuenta.es_particulares ? "👤 <b>Particular</b>" : "🏢 " + esc(u.cuenta.razon_social)}</td>
       <td><b>${esc(u.nombre)}</b><br><span class="muted small">${esc(FK.usuarioVisible(u.correo))}${u.telefono ? " · " + esc(u.telefono) : ""}</span></td>
-      <td class="small">${esc(ROL_CONV[u.rol] || u.rol)}</td>
+      <td class="small">${u.cuenta.es_particulares ? "Cliente particular" : esc(ROL_CONV[u.rol] || u.rol)}</td>
       <td class="small">${u.activo ? (u.clave_cambiada ? "✅ Activo" : "🔑 Falta cambiar la clave provisoria") : '<span class="muted">Sin acceso</span>'}</td>
       <td class="nowrap small"><button class="linkbtn" type="button" data-ccclave="${esc(u.id)}">🔑 Nueva clave</button> · <button class="linkbtn" type="button" data-ccact="${esc(u.id)}" data-v="${u.activo ? "0" : "1"}">${u.activo ? "Quitar acceso" : "Dar acceso"}</button> · <a class="linkbtn" href="/empresa/?como=${esc(u.id)}" target="_blank" rel="noopener">👁 Ver como</a></td></tr>`).join("")
     : `<tr><td colspan="5" class="muted">${ccUsuarios.length ? "Nada coincide con la búsqueda." : "Aún no hay cuentas de clientes. Cree la primera arriba."}</td></tr>`;
@@ -2884,7 +2895,7 @@ function pintarCuentasClientes() {
     const { data: r, error } = await sb.functions.invoke("crear-usuario-convenio", { body: { cuenta: u.cuenta.id, accion: "clave", id: u.id, clave } });
     const err = error ? await errFuncion(error) : r && r.error;
     if (err) return msg("cc-msg", err, "err");
-    $("cc-msg").hidden = true; datosAcceso(u.nombre, u.correo, u.rol, clave, u.cuenta.razon_social, true, "cc-datos"); cargarCuentasClientes();
+    $("cc-msg").hidden = true; datosAcceso(u.nombre, u.correo, u.rol, clave, u.cuenta.es_particulares ? null : u.cuenta.razon_social, true, "cc-datos"); cargarCuentasClientes();
   });
   $("cc-lista").querySelectorAll("[data-ccact]").forEach(b => b.onclick = async () => {
     const u = ccUsuarios.find(x => x.id === b.dataset.ccact);
@@ -2895,11 +2906,19 @@ function pintarCuentasClientes() {
   });
 }
 $("cc-buscar").addEventListener("input", pintarCuentasClientes);
+// Cliente particular: siempre "pasajero" (agenda a su nombre y ve sus viajes)
+function verRolCuenta() { const p = $("cc-emp").value === "particular"; $("cc-rol").closest(".f").hidden = p; if (p) $("cc-rol").value = "pasajero"; }
+$("cc-emp").addEventListener("change", verRolCuenta);
 $("cc-form").addEventListener("submit", async ev => {
   ev.preventDefault();
-  const cuenta = $("cc-emp").value, c = cuentas.find(x => x.id === cuenta);
+  const elegido = $("cc-emp").value, particular = elegido === "particular";
+  let cuenta = elegido, c = cuentas.find(x => x.id === cuenta);
+  if (particular) {
+    if (!cuentaPart) { const { data: id, error } = await sb.rpc("cuenta_particulares"); if (error) return msg("cc-msg", errText(error), "err"); await cargarCuentas(); if (!cuentaPart) cuentaPart = { id, razon_social: "Clientes particulares", es_particulares: true }; }
+    cuenta = cuentaPart.id; c = cuentaPart;
+  }
   const nombre = $("cc-nom").value.trim(), correo = FK.usuarioACorreo($("cc-mail").value), telefono = $("cc-tel").value.trim(), rol = $("cc-rol").value, clave = $("cc-clave").value.trim();
-  if (!c) return msg("cc-msg", "Elija la empresa.", "err");
+  if (!c) return msg("cc-msg", "Elija la empresa o «Cliente particular».", "err");
   if (nombre.length < 2) return msg("cc-msg", "Escriba el nombre.", "err");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return msg("cc-msg", "Escriba un correo o un usuario válido.", "err");
   if (clave.length < 8) return msg("cc-msg", "La contraseña provisoria debe tener al menos 8 caracteres.", "err");
@@ -2908,8 +2927,8 @@ $("cc-form").addEventListener("submit", async ev => {
   const err = error ? await errFuncion(error) : r && r.error;
   if (err) return msg("cc-msg", err, "err");
   $("cc-msg").hidden = true;
-  datosAcceso(nombre, correo, rol, r.existia ? null : clave, c.razon_social, false, "cc-datos");
-  $("cc-form").reset(); $("cc-emp").value = cuenta; $("cc-clave").value = claveProvisoria();
+  datosAcceso(nombre, correo, rol, r.existia ? null : clave, particular ? null : c.razon_social, false, "cc-datos");
+  $("cc-form").reset(); $("cc-emp").value = elegido; $("cc-clave").value = claveProvisoria(); verRolCuenta();
   cargarCuentasClientes();
 });
 

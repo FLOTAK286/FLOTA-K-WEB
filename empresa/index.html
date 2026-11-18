@@ -101,13 +101,13 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="/empresa/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EMPRESAS</small></a>
+<header class="top"><div class="wrap"><a class="brand" href="/empresa/">FLOTA<span>·K</span> <small id="h-marca" style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">EMPRESAS</small></a>
   <div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="pw-open" type="button" title="Cambiar contraseña"><span class="ub-ic">🔑</span><span class="ub-tx">Contraseña</span></button><button class="btn ghost sm" id="salir" type="button" title="Salir"><span class="ub-ic">⏻</span><span class="ub-tx">Salir</span></button></div></div></header>
 
 <main class="pe app">
   <!-- Ingreso -->
   <section class="panel" id="login" hidden>
-    <h2>Portal de empresas</h2>
+    <h2>Portal de clientes y empresas</h2>
     <p class="muted" style="margin:0">Ingrese con el correo o el usuario y la contraseña que le entregamos.</p>
     <form id="login-f" class="f" novalidate>
       <label for="l-mail">Correo o usuario</label><input id="l-mail" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required>
@@ -115,12 +115,12 @@
       <div class="actions" style="margin-top:8px"><button class="btn" type="submit">Entrar</button></div>
     </form>
     <div id="login-msg" class="msg" hidden></div>
-    <p class="small muted" style="margin:0"><button class="linkbtn" type="button" id="olvido">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. Si entra con usuario (sin correo), pídale una contraseña provisoria al encargado de convenio de su empresa o escríbanos por WhatsApp al +56 9 2227 5399.</p>
+    <p class="small muted" style="margin:0"><button class="linkbtn" type="button" id="olvido">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. Si entra con usuario (sin correo), pídale una contraseña provisoria al encargado de convenio de su empresa o, si es cliente particular, escríbanos por WhatsApp al +56 9 2227 5399.</p>
   </section>
 
   <!-- Sin acceso -->
   <section class="panel" id="sinacceso" hidden>
-    <h2>Su usuario no tiene acceso al portal de empresas</h2>
+    <h2>Su usuario no tiene acceso al portal</h2>
     <p class="muted" style="margin:0">Si cree que es un error, pídale acceso al encargado de convenio de su empresa o escríbanos por WhatsApp al +56 9 2227 5399.</p>
   </section>
 
@@ -359,11 +359,14 @@ function barra(gasto, tope) {
 function pintar() {
   mostrar("app");
   const e = D.empresa;
-  $("h-rol").textContent = ROL[D.yo.rol];
+  $("h-rol").textContent = D.particular ? "Cliente particular" : ROL[D.yo.rol];
   document.body.classList.add("en-app");
   document.body.classList.toggle("rol-encargado", enc()); document.body.classList.toggle("rol-pasajero", !enc());
   $("t-viajes").textContent = veTodo() ? "Viajes" : "Mis viajes";
-  $("h-emp").textContent = e.razon_social || "Su empresa";
+  $("h-emp").textContent = D.particular ? D.yo.nombre : (e.razon_social || "Su empresa");
+  // Cliente particular: agenda a su nombre, sin servicios habituales, facturación ni presupuesto
+  $("modo").hidden = !!D.particular;
+  $("h-marca").textContent = D.particular ? "CLIENTES" : "EMPRESAS";
   document.querySelectorAll(".enc").forEach(x => x.hidden = !enc());
   // Presupuesto en el encabezado
   const partes = [];
@@ -506,7 +509,7 @@ async function cargarViajes() {
   let { data, error } = await sb.rpc("convenio_reservas");
   if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   const ahora = Date.now();
-  const hayPart = data.some(r => r.o_tipo === "particular");
+  const hayPart = !D.particular && data.some(r => r.o_tipo === "particular");
   if (!hayPart) filtroV = "todos";
   data = data.filter(r => filtroV === "todos" || r.o_tipo === filtroV);
   const prox = data.filter(r => !["finalizada", "cancelada"].includes(r.o_estado) && new Date(r.o_fecha_hora) > ahora - 6 * 3600e3).sort((a, b) => new Date(a.o_fecha_hora) - new Date(b.o_fecha_hora));
