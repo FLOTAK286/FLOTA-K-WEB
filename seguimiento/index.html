@@ -111,7 +111,7 @@ async function cargar() {
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
   mensajes(); pintarRetiro(); cargarEspera(); cargarParadas();
-  if (["confirmada", "asignada"].includes(r.o_estado) && r.o_conductor) revisarOcupado(r);
+  if (["confirmada", "asignada", "en_camino"].includes(r.o_estado) && r.o_conductor) revisarOcupado(r);
   if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
 }
 
@@ -235,11 +235,15 @@ async function origenCoords() {
   } catch (_) { return null; }
 }
 // ---- Su conductor está terminando otro traslado: zona aproximada y hora estimada de llegada (sin datos del otro pasajero)
+let ocupadoActivo = false, ultOcupado = 0;
 async function revisarOcupado(r) {
   const box = $("ocupado"); if (!box) return;
+  ultOcupado = Date.now();
   const { data } = await sb.rpc("ver_conductor_ocupado", { p_token: token });
   const o = data && data[0];
+  ocupadoActivo = !!o;
   if (!o) { box.hidden = true; return; }
+  if ($("eta")) $("eta").hidden = true; // la llegada directa desde su ubicación no aplica mientras termina otro viaje
   const hm = d => new Date(d).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" });
   let zona = "", min = null;
   if (o.o_lat != null) {
@@ -267,7 +271,7 @@ async function revisarOcupado(r) {
     <p class="small muted" style="margin:4px 0 0">Hora estimada; se actualiza sola. Cuando su conductor salga hacia usted, verá su ubicación en el mapa.</p>`;
 }
 async function eta(lat, lng) {
-  const el = $("eta"); if (!el) return;
+  const el = $("eta"); if (!el || ocupadoActivo) return;
   const o = await origenCoords(); if (!o) return;
   const rad = x => x * Math.PI / 180, dLat = rad(o[0] - lat), dLng = rad(o[1] - lng);
   const km = 2 * 6371 * Math.asin(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat)) * Math.cos(rad(o[0])) * Math.sin(dLng / 2) ** 2));
@@ -285,6 +289,7 @@ async function ubicar() {
   if (!pin) pin = L.marker([u.o_lat, u.o_lng], { icon: FKMapa.icono("K", viejo), title: "Su conductor" }).addTo(mapa);
   else { pin.setLatLng([u.o_lat, u.o_lng]); pin.setIcon(FKMapa.icono("K", viejo)); }
   if (!centrado) { mapa.setView([u.o_lat, u.o_lng], 15); centrado = true; }
+  if (reserva && reserva.o_estado === "en_camino" && Date.now() - ultOcupado > 60000) revisarOcupado(reserva);
   eta(u.o_lat, u.o_lng);
   txt.textContent = `Última ubicación ${FKMapa.hace(u.o_actualizado)}` + (viejo ? ". El conductor puede estar sin señal o con la app en segundo plano; se actualizará apenas vuelva." : ".");
 }

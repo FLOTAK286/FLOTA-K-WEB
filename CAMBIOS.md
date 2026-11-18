@@ -4,6 +4,7 @@
 - App del conductor (Inicio): botón **"🚕 Estoy en otro servicio"**: hacia dónde va (con autocompletar) y a qué hora termina (se sugiere según la ruta desde donde está). Mientras dure: "En otro servicio hasta HH:MM" con "Cambiar" y "✓ Terminé". Carga `assets/lugar.js`.
 - Seguimiento: en reservas confirmadas o asignadas que empiezan dentro de 3 horas, si el conductor está en otro servicio (marcado a mano o un servicio de Flota-K en curso), muestra "🚕 Su conductor está terminando otro traslado (en <comuna>)", la hora en que termina y la llegada estimada (OSRM +25 %), y si podría llegar después de la hora reservada. Sin datos del otro pasajero: solo la zona (punto redondeado a ~1 km).
 - Panel, Mapa en vivo: el conductor aparece "En otro servicio hasta HH:MM · hacia …".
+- Etapa 44b: también con la reserva "en camino" (el conductor la marcó así mientras seguía en otro viaje); en ese caso se oculta la llegada calculada desde su ubicación.
 - Base de datos (etapa 44, ya aplicada): columnas `otro_servicio_*` en `perfiles`, `conductor_otro_servicio`, `conductor_fin_otro_servicio` y `ver_conductor_ocupado` (con el enlace de seguimiento).
 
 ## 18 nov 2026 · El cliente cambia la hora de su reserva
