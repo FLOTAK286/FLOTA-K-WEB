@@ -1,5 +1,12 @@
 # Cambios
 
+## 18 nov 2026 · App del conductor 2.1: suena con la app cerrada
+- Problema: con la app cerrada, la ubicación seguía llegando, pero un servicio asignado no sonaba hasta abrir la app (el aviso dependía de la pantalla).
+- Base de datos (etapa 38, ya aplicada): `avisos_conductor` y disparador `reservas_zz_avisar_conductor` (servicio nuevo, quitado, cancelado o modificado; no avisa al conductor de lo que hizo él mismo). `conductor_latido` reemplaza a `conductor_ubicacion_dispositivo` en la app 2.1: guarda la ubicación y entrega los avisos pendientes (cada 15 s en servicio, 30 s conectado, 60 s desconectado; la ubicación desconectado se sigue guardando cada 5 min).
+- Android: el servicio de ubicación muestra los avisos como notificación con sonido y vibración (canal "Servicios de la central") cuando la app no está a la vista. Pide el permiso de notificaciones (Android 13+) y lo agrega al recuadro de ajustes.
+- Sin Firebase: el aviso llega en 30-60 segundos. La app 2.0 sigue funcionando (sin estos avisos).
+- Las tres apps ya se firman con la llave de Flota-K (secretos en GitHub): las actualizaciones se instalan encima.
+
 ## 17 nov 2026 · App del conductor 2.0: ubicación con la app cerrada (rama `app-siempre-conectada`, sin publicar)
 - Android: servicio propio (`UbicacionService`) que envía la ubicación aunque el conductor cierre la app o reinicie el teléfono (`ArranqueReceiver`), hasta que cierre sesión. Cada 15 s en servicio, 60 s conectado, 5 min desconectado (lo indica el servidor). Notificación fija "Compartiendo su ubicación con la central".
 - Puente `FlotaKNativo` (página ↔ Android): iniciar/detener, pedir "Permitir todo el tiempo", batería "Sin restricciones" y desactivar "Pausar actividad si no se usa". La pantalla del conductor muestra un recuadro "Ajustes para que la app no se corte" con un botón por ajuste pendiente.

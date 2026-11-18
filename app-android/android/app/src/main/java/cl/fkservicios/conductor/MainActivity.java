@@ -11,4 +11,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FlotaKNativoPlugin.class);
         super.onCreate(savedInstanceState);
     }
+
+    // Con la app a la vista, los avisos los muestra la pantalla; cerrada o en segundo plano, el servicio
+    @Override
+    public void onResume() { super.onResume(); UbicacionService.appVisible = true; }
+
+    @Override
+    public void onPause() { UbicacionService.appVisible = false; super.onPause(); }
 }

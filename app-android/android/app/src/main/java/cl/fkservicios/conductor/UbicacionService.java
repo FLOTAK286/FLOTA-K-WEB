@@ -32,21 +32,28 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 /**
  * Envía la ubicación del conductor a Flota-K aunque la app esté cerrada.
  * Sigue funcionando hasta que el conductor cierre sesión (la llave del teléfono se anula y el servidor responde 0).
- * El servidor indica cada cuántos segundos enviar: 15 en servicio, 60 conectado, 300 desconectado.
+ * El servidor indica cada cuántos segundos enviar: 15 en servicio, 30 conectado, 60 desconectado.
+ * En cada envío el servidor entrega los avisos pendientes (servicio nuevo, quitado, cancelado o modificado):
+ * si la app no está a la vista, suenan como notificación aunque la app esté cerrada.
  */
 public class UbicacionService extends Service {
     static final String PREFS = "flotak_ubicacion";
     static final String CANAL = "flotak_ubicacion";
     static final int NOTIF_ID = 4321;
+    static final String CANAL_AVISOS = "flotak_servicios";
+    static volatile boolean appVisible = false;
 
     private FusedLocationProviderClient cliente;
     private LocationCallback callback;
     private HandlerThread hilo;
     private Handler red;
-    private volatile int cadaSeg = 60;
+    private volatile int cadaSeg = 30;
     private volatile long ultimoEnvio = 0;
     private volatile boolean enviando = false;
 
@@ -127,7 +134,7 @@ public class UbicacionService extends Service {
                         llave.replaceAll("[^0-9a-f]", ""), l.getLatitude(), l.getLongitude(), Math.round(l.getAccuracy()),
                         l.hasBearing() ? String.valueOf(Math.round(l.getBearing())) : "null",
                         l.hasSpeed() ? String.valueOf(Math.round(l.getSpeed() * 3.6f)) : "null");
-                HttpURLConnection c = (HttpURLConnection) new URL(url + "/rest/v1/rpc/conductor_ubicacion_dispositivo").openConnection();
+                HttpURLConnection c = (HttpURLConnection) new URL(url + "/rest/v1/rpc/conductor_latido").openConnection();
                 c.setConnectTimeout(15000); c.setReadTimeout(15000);
                 c.setRequestMethod("POST"); c.setDoOutput(true);
                 c.setRequestProperty("Content-Type", "application/json");
@@ -137,8 +144,10 @@ public class UbicacionService extends Service {
                 int st = c.getResponseCode();
                 if (st >= 200 && st < 300) {
                     try (InputStream is = c.getInputStream()) {
-                        String r = leer(is).trim();
-                        prox = Integer.parseInt(r.replaceAll("[^0-9]", ""));
+                        JSONObject r = new JSONObject(leer(is).trim());
+                        prox = r.optInt("cada", cadaSeg);
+                        JSONArray av = r.optJSONArray("avisos");
+                        if (av != null) for (int i = Math.max(0, av.length() - 5); i < av.length(); i++) avisar(av.getJSONObject(i));
                     } catch (Exception ignored) { prox = cadaSeg; }
                     ultimoEnvio = System.currentTimeMillis();
                     p.edit().putLong("ultimo_envio", ultimoEnvio).apply();
@@ -155,6 +164,39 @@ public class UbicacionService extends Service {
                 new Handler(Looper.getMainLooper()).post(this::pedirUbicaciones);
             }
         });
+    }
+
+    // Notificación con sonido y vibración (servicio nuevo, quitado, cancelado o modificado)
+    private void avisar(JSONObject a) {
+        if (appVisible) return; // la pantalla abierta ya avisa con su propio sonido
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CANAL_AVISOS) == null) {
+            NotificationChannel ch = new NotificationChannel(CANAL_AVISOS, "Servicios de la central", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("Servicio nuevo, cancelado, cambiado o quitado, aunque la app esté cerrada.");
+            ch.enableVibration(true);
+            ch.setVibrationPattern(new long[]{0, 400, 200, 400, 200, 400});
+            ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            nm.createNotificationChannel(ch);
+        }
+        Intent abrir = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (abrir != null) abrir.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        int id = 5000 + (int) (a.optLong("id", System.currentTimeMillis()) % 100000);
+        PendingIntent pi = PendingIntent.getActivity(this, id, abrir, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+        String texto = a.optString("texto", "");
+        Notification n = new NotificationCompat.Builder(this, CANAL_AVISOS)
+                .setSmallIcon(R.drawable.ic_tracking)
+                .setContentTitle(a.optString("titulo", "Flota-K"))
+                .setContentText(texto)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(texto))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setDefaults(NotificationCompat.DEFAULT_SOUND)
+                .setVibrate(new long[]{0, 400, 200, 400, 200, 400})
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .build();
+        try { nm.notify(id, n); } catch (Exception ignored) { /* sin permiso de notificaciones */ }
     }
 
     private static String leer(InputStream is) throws java.io.IOException {

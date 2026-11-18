@@ -194,7 +194,7 @@ body.drv { overscroll-behavior-y: contain; }
     <div class="panel install" id="permisos" hidden style="margin-top:10px"></div>
     <details class="small muted" style="margin-top:6px" id="waze-web"><summary>¿Y si uso Waze o Cabify?</summary>
       <p style="margin:6px 0 0">Desde el navegador, la ubicación se envía solo mientras esta pantalla está abierta. Para que se siga enviando con Waze, Cabify u otra app abierta, instale la <b>app Android de Flota-K</b>: <a href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">descargar app Android</a>.</p></details>
-    <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze u otra app, e incluso con la app cerrada, hasta que cierre sesión. Mientras tanto verá una notificación fija de Flota-K.</p>
+    <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze u otra app, e incluso con la app cerrada, hasta que cierre sesión. Mientras tanto verá una notificación fija de Flota-K. Si la central le asigna, cambia o cancela un servicio, el teléfono suena aunque la app esté cerrada (app 2.1 o más nueva).</p>
     <div id="inicio-mapa" class="mapa drv-mapa" hidden></div>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
     <div class="act-fila"><p class="muted small" id="updated" style="margin:0"></p><button class="btn ghost sm" id="refrescar" type="button">⟳ Actualizar</button></div>
@@ -1378,6 +1378,10 @@ async function iniciarServicioNativo() {
       try { localStorage.setItem(LLAVE_DISP, data); } catch (_) {}
       est = await FKN.iniciarUbicacion({ url: window.FK_CONFIG.url, anon: window.FK_CONFIG.anonKey, llave: data });
     }
+    // Notificaciones: sin ellas no suenan los servicios nuevos con la app cerrada (Android 13 o más nuevo)
+    if (est.notificaciones === false && FKN.pedirNotificaciones && !sessionStorage.getItem("fk_pidio_avisos")) {
+      try { sessionStorage.setItem("fk_pidio_avisos", "1"); est = await FKN.pedirNotificaciones(); } catch (_) {}
+    }
     nativoListo = true; estNativo = est; pintarPermisos(est); estadoNativoUI();
   } catch (e) {
     gpsEstado("err", "No se pudo iniciar la ubicación: " + (e && e.message ? errText(e) : e), true);
@@ -1402,6 +1406,7 @@ async function estadoNativoUI() {
 function pintarPermisos(est) {
   const box = $("permisos"); if (!FKN || !est) return;
   const filas = [
+    [est.notificaciones !== false, "<b>Notificaciones</b> permitidas (para que suene un servicio nuevo)", "pedirNotificaciones", "Si se abren los ajustes, active «Permitir notificaciones»."],
     [est.todoElTiempo, "Ubicación: <b>Permitir todo el tiempo</b>", "pedirUbicacion", est.android >= 30 ? "Se abren los ajustes: toque Permisos → Ubicación → «Permitir todo el tiempo»." : ""],
     [est.bateriaLibre, "Batería: <b>Sin restricciones</b>", "pedirBateria", "Si se abre una lista, busque Flota-K y elija «Sin restricciones» o «No optimizar»."],
     [est.appsSinUsarDesactivado, "Desactivar <b>«Pausar actividad si no se usa»</b>", "abrirAppsSinUsar", "Apague el interruptor «Pausar actividad de la app si no se usa» (o «Quitar permisos si no se usa»)."]

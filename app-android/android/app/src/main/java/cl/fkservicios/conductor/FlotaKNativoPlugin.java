@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
@@ -29,7 +30,8 @@ import com.getcapacitor.annotation.PermissionCallback;
     name = "FlotaKNativo",
     permissions = {
         @Permission(alias = "ubicacion", strings = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }),
-        @Permission(alias = "fondo", strings = { "android.permission.ACCESS_BACKGROUND_LOCATION" })
+        @Permission(alias = "fondo", strings = { "android.permission.ACCESS_BACKGROUND_LOCATION" }),
+        @Permission(alias = "avisos", strings = { "android.permission.POST_NOTIFICATIONS" })
     }
 )
 public class FlotaKNativoPlugin extends Plugin {
@@ -85,6 +87,38 @@ public class FlotaKNativoPlugin extends Plugin {
 
     @PermissionCallback
     private void trasFondo(PluginCall call) { call.resolve(estadoObj()); }
+
+    // Notificaciones (Android 13 o más nuevo las pide; si ya se negaron, se abren los ajustes)
+    @PluginMethod
+    public void pedirNotificaciones(PluginCall call) {
+        if (notificaciones()) { call.resolve(estadoObj()); return; }
+        if (Build.VERSION.SDK_INT >= 33 && getPermissionState("avisos") != PermissionState.DENIED) {
+            requestPermissionForAlias("avisos", call, "trasAvisos");
+            return;
+        }
+        try {
+            Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+        } catch (Exception e) { abrirAjustes(); }
+        call.resolve(estadoObj());
+    }
+
+    @PermissionCallback
+    private void trasAvisos(PluginCall call) {
+        if (!notificaciones()) {
+            try {
+                Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+            } catch (Exception ignored) {}
+        }
+        call.resolve(estadoObj());
+    }
+
+    private boolean notificaciones() {
+        try { return NotificationManagerCompat.from(getContext()).areNotificationsEnabled(); } catch (Exception e) { return true; }
+    }
 
     // Batería sin restricciones (que Android no "duerma" la app)
     @PluginMethod
@@ -154,6 +188,7 @@ public class FlotaKNativoPlugin extends Plugin {
         o.put("ubicacion", tieneUbicacion());
         o.put("todoElTiempo", tieneFondo());
         o.put("bateriaLibre", bateriaLibre());
+        o.put("notificaciones", notificaciones());
         o.put("appsSinUsarDesactivado", appsSinUsarDesactivado());
         o.put("ultimoEnvio", getContext().getSharedPreferences(UbicacionService.PREFS, Context.MODE_PRIVATE).getLong("ultimo_envio", 0));
         o.put("android", Build.VERSION.SDK_INT);
