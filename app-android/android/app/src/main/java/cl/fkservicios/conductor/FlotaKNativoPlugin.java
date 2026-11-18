@@ -49,6 +49,26 @@ public class FlotaKNativoPlugin extends Plugin {
         call.resolve(estadoObj());
     }
 
+    // App Operaciones: { url, anon, llave } guarda la configuración y arranca los avisos con la app cerrada
+    @PluginMethod
+    public void iniciarAvisosEquipo(PluginCall call) {
+        String url = call.getString("url"), anon = call.getString("anon"), llave = call.getString("llave");
+        if (url == null || anon == null || llave == null || llave.length() != 64) { call.reject("Datos incompletos"); return; }
+        Context c = getContext();
+        c.getSharedPreferences(AvisosEquipoService.PREFS, Context.MODE_PRIVATE).edit()
+            .putString("url", url).putString("anon", anon).putString("llave", llave).putBoolean("activo", true).apply();
+        try { AvisosEquipoService.iniciar(c); } catch (Exception e) { call.reject("No se pudo iniciar: " + e.getMessage()); return; }
+        call.resolve(estadoObj());
+    }
+
+    @PluginMethod
+    public void detenerAvisosEquipo(PluginCall call) {
+        Context c = getContext();
+        c.getSharedPreferences(AvisosEquipoService.PREFS, Context.MODE_PRIVATE).edit().putBoolean("activo", false).remove("llave").apply();
+        c.stopService(new Intent(c, AvisosEquipoService.class));
+        call.resolve();
+    }
+
     // Cerrar sesión: deja de enviar y borra la llave del teléfono
     @PluginMethod
     public void detenerUbicacion(PluginCall call) {
@@ -192,6 +212,8 @@ public class FlotaKNativoPlugin extends Plugin {
         o.put("appsSinUsarDesactivado", appsSinUsarDesactivado());
         o.put("ultimoEnvio", getContext().getSharedPreferences(UbicacionService.PREFS, Context.MODE_PRIVATE).getLong("ultimo_envio", 0));
         o.put("android", Build.VERSION.SDK_INT);
+        o.put("equipoActivo", AvisosEquipoService.activo(getContext()));
+        o.put("equipoUltimo", getContext().getSharedPreferences(AvisosEquipoService.PREFS, Context.MODE_PRIVATE).getLong("ultimo_envio", 0));
         return o;
     }
 }

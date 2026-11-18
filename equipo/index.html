@@ -65,6 +65,7 @@ details.paso > summary { cursor: pointer; }
       <p class="small muted" id="eq-instalar-txt" style="margin:0">Queda en la pantalla de inicio de su teléfono o computador: abre directo el despacho y, manteniendo presionado el ícono, "Nueva reserva".</p>
       <div class="actions"><button class="btn sm" type="button" id="eq-instalar-si" hidden>Instalar</button><button class="btn ghost sm" type="button" id="eq-instalar-no">Ahora no</button></div>
     </div>
+    <div class="panel" id="eq-avisos" hidden style="margin-bottom:12px;border-color:var(--gold)"></div>
     <div class="gsearch"><input id="gbuscar" type="search" placeholder="🔎 Buscar reserva o cliente: código, nombre, teléfono, dirección" autocomplete="off" aria-label="Buscar en todo el panel"><div id="gres" class="gres" hidden></div></div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="despacho" aria-selected="true">Despacho</button>
@@ -384,6 +385,7 @@ details.paso > summary { cursor: pointer; }
   <div id="pw-msg" class="msg" hidden></div>
 </form></dialog>
 
+<script src="/assets/vendor/capacitor-core-6.2.3.js"></script>
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
@@ -492,7 +494,7 @@ $("pw-form").addEventListener("submit", async e => {
   setTimeout(() => $("pw").close(), 1500);
 });
 $("google").addEventListener("click", async () => { const { error } = await FK.entrarConGoogle(back); if (error) msg("login-msg", errText(error), "err"); });
-const salir = async () => { await sb.auth.signOut(); location.href = back; };
+const salir = async () => { await detenerAvisosEquipo(); await sb.auth.signOut(); location.href = back; };
 $("logout").addEventListener("click", salir); $("logout2").addEventListener("click", salir);
 
 async function iniciar(session) {
@@ -530,7 +532,65 @@ async function iniciar(session) {
   const ir = location.hash.slice(1);
   if (["nueva", "reservas", "agenda", "mapa", "central"].includes(ir)) document.querySelector(`.tabs button[data-tab="${ir}"]`)?.click();
   avisoInstalar();
+  iniciarAvisosEquipo();
 }
+
+// ---- App Android Flota-K Operaciones: avisos con sonido aunque la app esté cerrada
+// (reserva nueva agendada por otra persona, cancelada por el cliente, conductor que no puede o que tomó una reserva).
+// La app registra el teléfono y recibe una llave que solo sirve para preguntar por avisos; cerrar sesión la anula.
+const FKN_EQ = (() => { try { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.isPluginAvailable && C.isPluginAvailable("FlotaKNativo") ? C.registerPlugin("FlotaKNativo") : null; } catch (_) { return null; } })();
+const LLAVE_EQ = "fk_llave_equipo";
+let revisandoEq = false;
+async function iniciarAvisosEquipo() {
+  if (!FKN_EQ || revisandoEq || !yo) return;
+  revisandoEq = true;
+  try {
+    let est = await FKN_EQ.estado();
+    if (est.equipoActivo === undefined) return; // app antigua, sin avisos con la app cerrada
+    let llave = null; try { llave = localStorage.getItem(LLAVE_EQ); } catch (_) {}
+    if (!(est.equipoActivo && llave)) {
+      const { data, error } = await sb.rpc("equipo_registrar_dispositivo", { p_plataforma: "android " + (est.android || "") });
+      if (error) throw error;
+      llave = data; try { localStorage.setItem(LLAVE_EQ, data); } catch (_) {}
+    }
+    est = await FKN_EQ.iniciarAvisosEquipo({ url: window.FK_CONFIG.url, anon: window.FK_CONFIG.anonKey, llave });
+    if (est.notificaciones === false && !sessionStorage.getItem("fk_eq_pidio_avisos")) {
+      try { sessionStorage.setItem("fk_eq_pidio_avisos", "1"); est = await FKN_EQ.pedirNotificaciones(); } catch (_) {}
+    }
+    pintarAvisosEquipo(est);
+  } catch (e) { console.warn("Avisos con la app cerrada:", e); }
+  finally { revisandoEq = false; }
+}
+async function detenerAvisosEquipo() {
+  if (!FKN_EQ) return;
+  let llave = null; try { llave = localStorage.getItem(LLAVE_EQ); } catch (_) {}
+  try { if (llave) await sb.rpc("equipo_cerrar_dispositivo", { p_llave: llave }); } catch (_) {}
+  try { await FKN_EQ.detenerAvisosEquipo(); } catch (_) {}
+  try { localStorage.removeItem(LLAVE_EQ); } catch (_) {}
+}
+// Ajustes del teléfono para que los avisos suenen con la app cerrada
+function pintarAvisosEquipo(est) {
+  const box = $("eq-avisos"); if (!box || !est) return;
+  const filas = [
+    [est.notificaciones !== false, "<b>Notificaciones</b> permitidas", "pedirNotificaciones", "Si se abren los ajustes, active «Permitir notificaciones»."],
+    [est.bateriaLibre, "Batería: <b>Sin restricciones</b>", "pedirBateria", "Si se abre una lista, busque Flota-K Operaciones y elija «Sin restricciones» o «No optimizar»."],
+    [est.appsSinUsarDesactivado, "Desactivar <b>«Pausar actividad si no se usa»</b>", "abrirAppsSinUsar", "Apague el interruptor «Pausar actividad de la app si no se usa»."]
+  ];
+  if (filas.every(f => f[0])) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<b>🔔 Ajustes para recibir avisos con la app cerrada</b>
+    <p class="small muted" style="margin:4px 0">Así el teléfono suena cuando alguien agenda una reserva, un cliente cancela o un conductor no puede.</p>` +
+    filas.map(f => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:6px">
+      <span class="small">${f[0] ? "✅" : "⚠️"} ${f[1]}${!f[0] && f[3] ? `<br><span class="muted">${f[3]}</span>` : ""}</span>
+      ${f[0] ? "" : `<button class="btn ghost sm" type="button" data-perm="${f[2]}">Activar</button>`}</div>`).join("");
+  box.querySelectorAll("[data-perm]").forEach(b => b.addEventListener("click", async () => {
+    try { pintarAvisosEquipo(await FKN_EQ[b.dataset.perm]()); } catch (_) {}
+  }));
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !FKN_EQ || !yo) return;
+  FKN_EQ.estado().then(est => { if (est.equipoActivo === false) iniciarAvisosEquipo(); else pintarAvisosEquipo(est); }).catch(() => {});
+});
 
 // ---- App instalable "Flota-K Operaciones" (teléfono o computador)
 let eqPrompt = null;

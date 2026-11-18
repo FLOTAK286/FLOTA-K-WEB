@@ -1,5 +1,11 @@
 # Cambios
 
+## 18 nov 2026 · App Flota-K Operaciones 2.2: suena con la app cerrada
+- Base de datos (etapa 39, ya aplicada): `avisos_equipo` y disparador `reservas_zz_avisar_equipo`: reserva nueva (agendada por otra persona: equipo, empresa con convenio, web), cancelada por alguien fuera del equipo, conductor que no puede y conductor que tomó una reserva publicada. `dispositivos_equipo` con llave de dispositivo: `equipo_registrar_dispositivo`, `equipo_latido` (cada 60 s, sin los avisos que generó la misma persona) y `equipo_cerrar_dispositivo` (al salir).
+- Android: `AvisosEquipoService` (servicio en primer plano de uso especial, con el procesador despierto lo justo para preguntar cada minuto) muestra los avisos con sonido y vibración cuando la app no está a la vista; se reinicia al encender el teléfono.
+- /equipo: carga el puente de Capacitor; en la app Android registra el teléfono, arranca los avisos y muestra "Ajustes para recibir avisos con la app cerrada" (notificaciones, batería, apps sin usar). "Salir" detiene los avisos y anula la llave.
+- Versión 2.2 para las tres apps (mismo proyecto Android). La app del conductor no cambia su funcionamiento.
+
 ## 18 nov 2026 · App del conductor 2.1: suena con la app cerrada
 - Problema: con la app cerrada, la ubicación seguía llegando, pero un servicio asignado no sonaba hasta abrir la app (el aviso dependía de la pantalla).
 - Base de datos (etapa 38, ya aplicada): `avisos_conductor` y disparador `reservas_zz_avisar_conductor` (servicio nuevo, quitado, cancelado o modificado; no avisa al conductor de lo que hizo él mismo). `conductor_latido` reemplaza a `conductor_ubicacion_dispositivo` en la app 2.1: guarda la ubicación y entrega los avisos pendientes (cada 15 s en servicio, 30 s conectado, 60 s desconectado; la ubicación desconectado se sigue guardando cada 5 min).

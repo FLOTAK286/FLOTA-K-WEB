@@ -40,7 +40,18 @@
             android:stopWithTask="false"
             android:foregroundServiceType="location" />
 
-        <!-- Al encender el teléfono o actualizar la app, retoma el envío de ubicación -->
+        <!-- App Operaciones: avisos de reservas con la app cerrada (hasta que se cierre sesión) -->
+        <service
+            android:name=".AvisosEquipoService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Avisos de reservas nuevas y cambios para el equipo de despacho" />
+        </service>
+
+        <!-- Al encender el teléfono o actualizar la app, retoma el envío de ubicación y los avisos -->
         <receiver android:name=".ArranqueReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -57,6 +68,7 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
