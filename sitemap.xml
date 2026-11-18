@@ -16,4 +16,5 @@
 <url><loc>https://fk-servicios.com/aeropuerto/puente-alto/</loc></url>
 <url><loc>https://fk-servicios.com/aeropuerto/vina-del-mar-valparaiso/</loc></url>
   <url><loc>https://fk-servicios.com/empresas/</loc></url>
+  <url><loc>https://fk-servicios.com/terminos/</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>

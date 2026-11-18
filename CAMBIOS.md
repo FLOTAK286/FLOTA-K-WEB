@@ -1,5 +1,9 @@
 # Cambios
 
+## 18 nov 2026 · Términos y condiciones
+- Nueva página **/terminos/** (versión 1.0, vigente desde el 18-11-2026), redactada con las reglas del dueño: espera $180/min sobre 15 min en domicilio; cancelación sin costo con 2 h o más, $5.000 con menos de 2 h y 60 % fuera de Américo Vespucio en comunas periféricas (caso a caso); no presentación $5.000 (60 % en la periferia); limpieza mín. $30.000; reembolsos según el banco o 10 días hábiles si los hace Flota-K; objetos olvidados 30 días (retiro en oficina, encargo pagado o entrega sin costo según la operación); reclamos en 10 días hábiles; pago anticipado y cargos adicionales a la tarjeta registrada. Respeta la Ley 19.496 (sin cláusulas abusivas) y la Ley 19.628. Pendiente: revisión de un abogado.
+- Enlaces: pie de la portada, /empresas y /en; pantallas de ingreso de /app y /empresa ("Al ingresar acepta los Términos y condiciones"); sitemap.
+
 ## 18 nov 2026 · Solo reservan los clientes con cuenta entregada por Flota-K
 - Para asegurar el pago, el dueño decidió que por ahora las cuentas de pasajeros las entrega Flota-K (pestaña "Cuentas de clientes").
 - /app: "Crear cuenta" pasa a ser **"Solicitar cuenta"** (botón a WhatsApp con mensaje listo). Caché `fk-app-v8`. Las cuentas creadas por Flota-K (particulares o de empresas) entran a /app y a /empresa con el mismo usuario.
