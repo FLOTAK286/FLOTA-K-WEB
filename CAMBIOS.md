@@ -1,5 +1,16 @@
 # Cambios
 
+## 18 nov 2026 · App del pasajero con cuenta (rama `app-pasajero`, sin publicar)
+- **/app con cuenta obligatoria:** Ingresar (correo o usuario + contraseña, recuperar contraseña) o Crear cuenta (nombre, teléfono, correo, contraseña). Edge Function `registro-pasajero`: crea la cuenta sin confirmar y envía el correo de confirmación (SMTP Gmail); máx. 5 registros por IP y 40 en total por hora (`registro_intentos`). El historial con el mismo correo se vincula solo con el correo ya confirmado.
+- **Reservar (reserva activa, la confirma el equipo):** al aeropuerto (con opción ida y vuelta), desde el aeropuerto y otro trayecto; direcciones guardadas con un toque; pasajeros y maletas con − / +; reservar para otra persona (queda como solicitante).
+- **Cotizador punto a punto:** ruta real (OSRM) × taxímetro ejecutivo de la empresa (bajada $2.400 + $180 cada 200 m, mínimo $12.000, redondeado a $500; van × factor del tarifario). Sector Oriente ↔ costa con su tarifa fija; más de 120 km: "a cotizar". La reserva queda con nota "Valor estimado por la app, por confirmar".
+- **Mis viajes** (desde la base de datos, cualquier teléfono): próximos y anteriores con valor, conductor, móvil, auto y patente; aviso "Su conductor va en camino" con enlace al mapa en vivo; cancelar hasta 2 h antes; calificar con estrellas (y reseña de Google con 5); repetir un viaje.
+- **Mi cuenta:** datos, direcciones guardadas (hasta 15), contacto, cambiar contraseña, cerrar sesión.
+- Las reservas de la app (canal `app`) son siempre particulares: `asignar_cuenta_corporativa` ya no las carga a un convenio.
+- Portada: los enlaces del correo de pasajeros de la app (signup o `origen = app_pasajero`) vuelven a /app; el resto sigue a /equipo.
+- Base de datos (etapa 40, ya aplicada): `pasajero_favoritos`, `registro_intentos`, `pasajero_cliente`, `pasajero_inicio`, `pasajero_actualizar_perfil`, `pasajero_guardar_favorito`, `pasajero_borrar_favorito`, `pasajero_reservar`, `pasajero_viajes`, `pasajero_cancelar`, `registro_permitido`.
+- Caché de la app del pasajero `fk-app-v7`.
+
 ## 18 nov 2026 · App Flota-K Operaciones 2.2: suena con la app cerrada
 - Base de datos (etapa 39, ya aplicada): `avisos_equipo` y disparador `reservas_zz_avisar_equipo`: reserva nueva (agendada por otra persona: equipo, empresa con convenio, web), cancelada por alguien fuera del equipo, conductor que no puede y conductor que tomó una reserva publicada. `dispositivos_equipo` con llave de dispositivo: `equipo_registrar_dispositivo`, `equipo_latido` (cada 60 s, sin los avisos que generó la misma persona) y `equipo_cerrar_dispositivo` (al salir).
 - Android: `AvisosEquipoService` (servicio en primer plano de uso especial, con el procesador despierto lo justo para preguntar cada minuto) muestra los avisos con sonido y vibración cuando la app no está a la vista; se reinicia al encender el teléfono.

@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <script>/* Enlace de acceso del correo que cayó en la portada: se reenvía al panel del equipo. */
-if (/access_token=|error_code=|[#&]type=(magiclink|recovery|signup|invite)/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search)) location.replace("/equipo/" + location.search + location.hash);</script>
+if (/access_token=|error_code=|[#&]type=(magiclink|recovery|signup|invite)/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search)) {
+  /* Pasajeros de la app (cuenta creada en /app) vuelven a la app; el resto, al panel del equipo. */
+  var fkDestino = "/equipo/";
+  try { var fkTok = (location.hash.match(/access_token=([^&]+)/) || [])[1]; var fkPl = fkTok && JSON.parse(atob(fkTok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if ((fkPl && fkPl.user_metadata && fkPl.user_metadata.origen === "app_pasajero") || /[#&]type=signup/.test(location.hash)) fkDestino = "/app/"; } catch (e) {}
+  location.replace(fkDestino + location.search + location.hash);
+}</script>
 <link rel="icon" type="image/png" href="/assets/img/icono-192.png">
 <link rel="apple-touch-icon" href="/assets/img/icono-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
