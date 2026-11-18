@@ -94,7 +94,7 @@
           <li>Sus direcciones guardadas y todo su historial en un solo lugar.</li>
         </ul>
       </div>
-      <div class="auth-tabs" role="tablist"><button type="button" class="on" data-a="entrar">Ingresar</button><button type="button" data-a="crear">Crear cuenta</button></div>
+      <div class="auth-tabs" role="tablist"><button type="button" class="on" data-a="entrar">Ingresar</button><button type="button" data-a="solicitar">Solicitar cuenta</button></div>
 
       <form id="f-entrar" class="panel" novalidate>
         <div class="f"><label for="e-mail">Correo o usuario</label><input id="e-mail" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
@@ -114,6 +114,14 @@
         <button class="btn" type="submit" id="c-btn">Crear mi cuenta</button>
         <p class="small muted" style="margin:0">Le enviaremos un correo para confirmar su dirección. Usamos sus datos solo para coordinar sus traslados.</p>
       </form>
+
+      <!-- Por ahora las cuentas de pasajeros las crea Flota-K (para asegurar el pago): no hay registro libre -->
+      <div id="f-solicitar" class="panel" hidden>
+        <b>¿Aún no tiene cuenta?</b>
+        <p class="small" style="margin:0">Por ahora las cuentas las entrega Flota-K. Escríbanos por WhatsApp con su nombre y le enviamos su usuario y contraseña para reservar desde aquí.</p>
+        <a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quisiera%20una%20cuenta%20para%20reservar%20mis%20traslados.%20Mi%20nombre%20es%3A%20" target="_blank" rel="noopener">📲 Pedir mi cuenta por WhatsApp</a>
+        <p class="small muted" style="margin:0">¿Ya tiene usuario? Toque «Ingresar».</p>
+      </div>
 
       <div id="revise" class="panel ok-box" hidden>
         <div style="font-size:2.4rem">📩</div>
@@ -315,7 +323,7 @@ let viajes = [];       // última lista de viajes
 // ================= INGRESO Y REGISTRO =================
 function modoAuth(a) {
   document.querySelectorAll(".auth-tabs button").forEach(b => b.classList.toggle("on", b.dataset.a === a));
-  $("f-entrar").hidden = a !== "entrar"; $("f-crear").hidden = a !== "crear"; $("revise").hidden = true;
+  $("f-entrar").hidden = a !== "entrar"; $("f-crear").hidden = true; $("f-solicitar").hidden = a !== "solicitar"; $("revise").hidden = true;
 }
 document.querySelectorAll(".auth-tabs button").forEach(b => b.onclick = () => modoAuth(b.dataset.a));
 
@@ -762,7 +770,7 @@ sb.auth.onAuthStateChange((ev, s) => {
 });
 sb.auth.getSession().then(({ data }) => {
   if (data.session) { if (!iniciado) { iniciado = true; iniciar(); } }
-  else { mostrarAuth(); if (location.hash === "#crear") modoAuth("crear"); }
+  else { mostrarAuth(); if (location.hash === "#crear") modoAuth("solicitar"); }
 });
 </script>
 </body>

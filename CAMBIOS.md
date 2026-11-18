@@ -1,5 +1,10 @@
 # Cambios
 
+## 18 nov 2026 · Solo reservan los clientes con cuenta entregada por Flota-K
+- Para asegurar el pago, el dueño decidió que por ahora las cuentas de pasajeros las entrega Flota-K (pestaña "Cuentas de clientes").
+- /app: "Crear cuenta" pasa a ser **"Solicitar cuenta"** (botón a WhatsApp con mensaje listo). Caché `fk-app-v8`. Las cuentas creadas por Flota-K (particulares o de empresas) entran a /app y a /empresa con el mismo usuario.
+- Base de datos (etapa 42, ya aplicada): `registro_permitido` siempre responde no (la Edge Function `registro-pasajero` ya no crea cuentas) y el disparador `reservas_app_autorizada` rechaza reservas del canal `app` de personas sin acceso activo en `convenio_usuarios`.
+
 ## 18 nov 2026 · Cuentas de clientes (empresas y particulares), roles más claros y vehículo en el seguimiento
 - Panel, nueva pestaña **Cuentas de clientes** (solo admin): todas las personas con acceso al portal de empresas en una lista con buscador (empresa, rol, estado, nueva clave, quitar/dar acceso, ver como) y formulario para crear una cuenta eligiendo la empresa (`crear-usuario-convenio`). `datosAcceso` acepta el recuadro donde mostrar los datos.
 - Equipo y roles: columna **"🚗 También conduce"** (rol principal + casilla) con explicación; los conductores siempre conducen. Paola Quichiz (admin) quedó sin "conduce" (lo había marcado la etapa 2 a todos los administradores).
