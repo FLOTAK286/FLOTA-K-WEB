@@ -5,7 +5,7 @@
 - **Otros ingresos** (Cabify, Servimóvil, Uber, DiDi, particular, otra; se pueden agregar plataformas): monto bruto, % de comisión (por defecto según la plataforma; Servimóvil 23 %, editable en "⚙ Comisiones por plataforma"), viajes, patente; la comisión y el neto los calcula la base de datos. Se pueden anular.
 - Resultado = servicios Flota-K finalizados + otros ingresos netos − gastos; KPIs con gastos fijos/variables y comisiones; otros ingresos por plataforma; **resultado por patente** (Flota-K + otros − gastos). Excel con hojas "Gastos" y "Otros ingresos".
 - Base de datos (etapa 46, ya aplicada): `fuentes_ingreso` y `ingresos_externos` (solo administrador).
-- **Cierres diarios** de los conductores suman al resultado: Cabify y otras apps como ingreso; combustible, peajes de Cabify y otros gastos como gasto; también por patente. Regla: Cabify u otras apps por una sola vía (cierre del conductor o ingreso manual).
+- **Cierres diarios** de los conductores en el resultado, sin contar dos veces: en **"⚙ ¿De dónde salen los números?"** (etapa 47b, `empresas.reportes_config`) se elige la fuente oficial de los gastos del día (por defecto: lo que ingresa el admin, p. ej. la boleta mensual de bencina) y de los ingresos de Cabify/otras apps (por defecto: el cierre del conductor). Lo que no es oficial se muestra como referencia y no suma. Aviso al ingresar a mano algo que ya viene de los cierres.
 - **🏦 Saldo en cuenta** (etapa 47, ya aplicada, tabla `saldos_cuenta`): "Actualizar saldo" con cuenta, fecha, saldo y nota; muestra el último saldo de cada cuenta y el total; historial con "Anular".
 
 ## 18 nov 2026 · Gastos y resultado en Reportes

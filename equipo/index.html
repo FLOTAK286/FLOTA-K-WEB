@@ -303,8 +303,16 @@ details.paso > summary { cursor: pointer; }
         <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
       </div>
       <h2 style="margin:10px 0 0">Gastos, otros ingresos y resultado</h2>
-      <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente) y los ingresos de otras plataformas (Cabify, Servimóvil, etc.) con su comisión. Resultado = servicios Flota-K finalizados + otros ingresos netos + cierres diarios de los conductores − gastos del período. <b>Cabify u otras apps se registran por una sola vía</b>: si el conductor hace su cierre diario, no los ingrese también aquí.</p>
+      <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente) y los ingresos de otras plataformas (Cabify, Servimóvil, etc.) con su comisión. Resultado = servicios Flota-K finalizados + otros ingresos netos + lo que corresponda de los cierres diarios − gastos del período.</p>
       <div id="sc-box" class="rp-caja" style="margin-top:8px"></div>
+      <details class="rp-caja" style="margin-top:8px" id="rc-det"><summary><b>⚙ ¿De dónde salen los números?</b> <span class="small muted" id="rc-res"></span></summary>
+        <p class="small muted" style="margin:6px 0">Para no contar dos veces, cada dato se toma de una sola fuente. Lo otro se muestra solo como referencia.</p>
+        <div class="row2">
+          <div class="f"><label for="rc-gastos">Combustible, peajes y otros gastos del día</label><select id="rc-gastos"><option value="manual">Lo que yo ingreso en Gastos (boletas, estado de cuenta)</option><option value="cierres">El cierre diario de los conductores</option></select></div>
+          <div class="f"><label for="rc-apps">Ingresos de Cabify y otras apps</label><select id="rc-apps"><option value="cierres">El cierre diario de los conductores</option><option value="manual">Lo que yo ingreso en "Otros ingresos"</option></select></div>
+        </div>
+        <div id="rc-msg" class="msg" hidden></div>
+      </details>
       <div class="rp-grid" style="margin-top:8px">
         <details id="gs-det" class="confirm"><summary><b>+ Agregar gasto</b></summary>
           <form id="gs-form" novalidate style="display:grid;gap:8px;margin-top:8px">
@@ -1831,8 +1839,12 @@ async function cargarGastos(desde, hasta, txt, fin) {
   const oiBruto = oiLista.reduce((a, x) => a + x.monto_bruto, 0), oiCom = oiLista.reduce((a, x) => a + x.comision, 0), oiNeto = oiBruto - oiCom;
   const gasto = gsLista.reduce((a, g) => a + g.monto, 0), gFijo = gsLista.filter(g => g.fijo).reduce((a, g) => a + g.monto, 0);
   // Cierres diarios de los conductores (vehículos propios): Cabify y otras apps suman como ingreso; combustible, peajes y otros, como gasto
+  // (según "¿De dónde salen los números?": cada dato de una sola fuente; lo demás es solo referencia)
+  const cfg = await configReportes();
   const cierres = cds || [], n0 = v => Number(v) || 0;
-  const cdIng = cierres.reduce((a, c) => a + n0(c.cabify_ingreso) + n0(c.otras_ingreso), 0), cdGas = cierres.reduce((a, c) => a + n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes), 0);
+  const cdIngTot = cierres.reduce((a, c) => a + n0(c.cabify_ingreso) + n0(c.otras_ingreso), 0), cdGasTot = cierres.reduce((a, c) => a + n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes), 0);
+  const usaIngCd = cfg.ingresos_apps === "cierres", usaGasCd = cfg.gastos === "cierres";
+  const cdIng = usaIngCd ? cdIngTot : 0, cdGas = usaGasCd ? cdGasTot : 0;
   const ingreso = ingFK + oiNeto + cdIng, res = ingreso - gasto - cdGas;
   const barras = (titulo, pares, vacio) => { const mx = Math.max(1, ...pares.map(p => p[1]));
     return `<div class="rp-caja"><h3>${titulo}</h3>${pares.length ? pares.map(([n, t]) => `<div class="rp-bar"><span class="rp-n">${esc(n)}</span><span class="rp-track"><span style="width:${Math.max(2, t / mx * 100)}%"></span></span><span class="rp-v">${clp(t)}</span></div>`).join("") : `<p class="muted small">${vacio}</p>`}</div>`; };
@@ -1841,22 +1853,22 @@ async function cargarGastos(desde, hasta, txt, fin) {
   const movs = new Map(), fila = id => { if (!movs.has(id)) movs.set(id, { id, fk: 0, n: 0, otros: 0, gas: 0 }); return movs.get(id); };
   (fin || []).forEach(r => { const f = fila(r.vehiculo_id || ""); f.fk += r.total || 0; f.n++; });
   oiLista.forEach(x => { fila(x.vehiculo_id || "").otros += x.neto; });
-  cierres.forEach(c => { const f = fila(c.vehiculo_id || ""); f.otros += n0(c.cabify_ingreso) + n0(c.otras_ingreso); f.gas += n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes); });
+  cierres.forEach(c => { const f = fila(c.vehiculo_id || ""); if (usaIngCd) f.otros += n0(c.cabify_ingreso) + n0(c.otras_ingreso); if (usaGasCd) f.gas += n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes); });
   gsLista.forEach(g => { fila(g.vehiculo_id || "").gas += g.monto; });
   const tabla = [...movs.values()].sort((a, b) => (a.id === "") - (b.id === "") || (b.fk + b.otros - b.gas) - (a.fk + a.otros - a.gas));
   $("gs-body").innerHTML = `
     <div class="rp-kpis">
       <div class="pay"><small class="muted">Servicios Flota-K</small><b>${clp(ingFK)}</b><span class="small muted">${(fin || []).length} finalizado(s) · ${esc(txt)}</span></div>
       <div class="pay"><small class="muted">Otros ingresos (neto)</small><b>${clp(oiNeto)}</b><span class="small muted">bruto ${clp(oiBruto)} · comisiones ${clp(oiCom)}</span></div>
-      <div class="pay"><small class="muted">Cierres diarios</small><b>${clp(cdIng)}</b><span class="small muted">${cierres.length} cierre(s) · gastos ${clp(cdGas)}</span></div>
+      <div class="pay"><small class="muted">Cierres diarios (${cierres.length})</small><b>${clp(cdIng)}</b><span class="small muted">${usaIngCd ? "ingresos de apps que suman" : `ingresos de apps: ${clp(cdIngTot)} solo referencia`} · ${usaGasCd ? `gastos que suman ${clp(cdGasTot)}` : `gastos anotados ${clp(cdGasTot)} (solo referencia)`}</span></div>
       <div class="pay"><small class="muted">Gastos</small><b>${clp(gasto + cdGas)}</b><span class="small muted">fijos ${clp(gFijo)} · variables ${clp(gasto - gFijo)}${cdGas ? " · de cierres " + clp(cdGas) : ""}</span></div>
       <div class="pay"><small class="muted">Resultado</small><b class="${res < 0 ? "warn" : ""}">${clp(res)}</b><span class="small muted">${ingreso ? "margen " + Math.round(res / ingreso * 100) + " %" : "ingresos − gastos"}</span></div>
     </div>
     <div class="rp-grid">
       ${barras("Gastos por concepto", sumar(gsLista.map(g => ({ k: CAT_GASTO[g.categoria] || g.categoria, v: g.monto }))
-        .concat(cierres.flatMap(c => [{ k: CAT_GASTO.combustible, v: n0(c.combustible) }, { k: CAT_GASTO.peajes_tag, v: n0(c.cabify_peajes) }, { k: CAT_GASTO.otros, v: n0(c.otros_gastos) }])).filter(x => x.v), x => x.k, x => x.v), "Sin gastos en este período.")}
+        .concat(usaGasCd ? cierres.flatMap(c => [{ k: CAT_GASTO.combustible, v: n0(c.combustible) }, { k: CAT_GASTO.peajes_tag, v: n0(c.cabify_peajes) }, { k: CAT_GASTO.otros, v: n0(c.otros_gastos) }]) : []).filter(x => x.v), x => x.k, x => x.v), "Sin gastos en este período.")}
       ${barras("Otros ingresos por plataforma (neto)", sumar(oiLista.map(x => ({ k: nomF(x.fuente_id), v: x.neto }))
-        .concat(cierres.flatMap(c => [{ k: "Cabify (cierres diarios)", v: n0(c.cabify_ingreso) }, { k: "Otras apps (cierres diarios)", v: n0(c.otras_ingreso) }])).filter(x => x.v), x => x.k, x => x.v), "Sin otros ingresos en este período.")}
+        .concat(usaIngCd ? cierres.flatMap(c => [{ k: "Cabify (cierres diarios)", v: n0(c.cabify_ingreso) }, { k: "Otras apps (cierres diarios)", v: n0(c.otras_ingreso) }]) : []).filter(x => x.v), x => x.k, x => x.v), "Sin otros ingresos en este período.")}
     </div>
     <div class="rp-caja" style="margin-top:12px"><h3>Resultado por patente</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Flota-K</th><th>Otros y cierres (neto)</th><th>Gastos</th><th>Resultado</th></tr></thead><tbody>
       ${tabla.length ? tabla.map(f => `<tr><td>${esc(f.id ? etiquetaVeh(vehPorId(f.id)) : "Empresa (general)")}</td><td>${clp(f.fk)} <span class="muted small">(${f.n})</span></td><td>${clp(f.otros)}</td><td>${clp(f.gas)}</td><td class="${f.fk + f.otros - f.gas < 0 ? "warn" : ""}"><b>${clp(f.fk + f.otros - f.gas)}</b></td></tr>`).join("") : '<tr><td colspan="5" class="muted">Sin datos.</td></tr>'}
@@ -1886,6 +1898,36 @@ async function cargarGastos(desde, hasta, txt, fin) {
     if (error) return alert(errText(error)); recargar();
   });
 }
+// ---- Fuente oficial de cada dato (se guarda en la empresa)
+let rcCfg = null;
+async function configReportes() {
+  if (!rcCfg) {
+    const { data } = await sb.from("empresas").select("reportes_config").eq("id", yo.empresa_id).maybeSingle();
+    rcCfg = Object.assign({ gastos: "manual", ingresos_apps: "cierres" }, (data && data.reportes_config) || {});
+  }
+  $("rc-gastos").value = rcCfg.gastos; $("rc-apps").value = rcCfg.ingresos_apps;
+  $("rc-res").textContent = `· gastos: ${rcCfg.gastos === "manual" ? "lo que usted ingresa" : "cierres diarios"} · apps: ${rcCfg.ingresos_apps === "cierres" ? "cierres diarios" : "lo que usted ingresa"}`;
+  return rcCfg;
+}
+["rc-gastos", "rc-apps"].forEach(id => $(id).addEventListener("change", async () => {
+  const nuevo = { gastos: $("rc-gastos").value, ingresos_apps: $("rc-apps").value };
+  const { error } = await sb.from("empresas").update({ reportes_config: nuevo }).eq("id", yo.empresa_id);
+  if (error) return msg("rc-msg", errText(error), "err");
+  rcCfg = nuevo; msg("rc-msg", "Guardado. Los números se recalcularon.", "ok");
+  if (gsRango) cargarGastos(gsRango.desde, gsRango.hasta, gsRango.txt, gsRango.fin);
+}));
+// Aviso al ingresar a mano algo que ya viene del cierre diario (para no contarlo dos veces)
+function avisoDoble() {
+  const f = (fuentes.find(x => x.id === $("oi-fuente").value) || {}).nombre || "", cat = $("gs-cat").value;
+  const dobleIng = rcCfg && rcCfg.ingresos_apps === "cierres" && /cabify/i.test(f);
+  const dobleGas = rcCfg && rcCfg.gastos === "cierres" && ["combustible", "peajes_tag"].includes(cat);
+  if (dobleIng) msg("oi-msg", "Ojo: los ingresos de Cabify se están tomando del cierre diario de los conductores. Si lo ingresa aquí también, se contará dos veces (cámbielo en «¿De dónde salen los números?»).", "err");
+  else if ($("oi-msg").classList.contains("err")) $("oi-msg").hidden = true;
+  if (dobleGas) msg("gs-msg", "Ojo: el combustible y los peajes se están tomando del cierre diario de los conductores. Si lo ingresa aquí también, se contará dos veces.", "err");
+  else if ($("gs-msg").classList.contains("err")) $("gs-msg").hidden = true;
+}
+$("oi-fuente").addEventListener("change", avisoDoble); $("gs-cat").addEventListener("change", avisoDoble);
+
 // ---- Saldo en la cuenta de la empresa (registrado a mano, con historial)
 let saldos = [];
 async function pintarSaldo() {
