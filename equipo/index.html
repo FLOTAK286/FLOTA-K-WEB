@@ -303,7 +303,8 @@ details.paso > summary { cursor: pointer; }
         <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
       </div>
       <h2 style="margin:10px 0 0">Gastos, otros ingresos y resultado</h2>
-      <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente) y los ingresos de otras plataformas (Cabify, Servimóvil, etc.) con su comisión. Resultado = servicios Flota-K finalizados + otros ingresos netos − gastos del período.</p>
+      <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente) y los ingresos de otras plataformas (Cabify, Servimóvil, etc.) con su comisión. Resultado = servicios Flota-K finalizados + otros ingresos netos + cierres diarios de los conductores − gastos del período. <b>Cabify u otras apps se registran por una sola vía</b>: si el conductor hace su cierre diario, no los ingrese también aquí.</p>
+      <div id="sc-box" class="rp-caja" style="margin-top:8px"></div>
       <div class="rp-grid" style="margin-top:8px">
         <details id="gs-det" class="confirm"><summary><b>+ Agregar gasto</b></summary>
           <form id="gs-form" novalidate style="display:grid;gap:8px;margin-top:8px">
@@ -1818,16 +1819,21 @@ async function cargarGastos(desde, hasta, txt, fin) {
   const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
   const d0 = dia(desde), d1 = dia(new Date(new Date(hasta).getTime() - 1000).toISOString());
   gsRango = { desde, hasta, txt, fin, d0, d1 };
-  const [{ data, error }, { data: ois, error: e2 }] = await Promise.all([
+  const [{ data, error }, { data: ois, error: e2 }, { data: cds }] = await Promise.all([
     sb.from("gastos").select("*").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null).order("fecha", { ascending: false }).order("creado_en", { ascending: false }),
-    sb.from("ingresos_externos").select("*").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null).order("fecha", { ascending: false }).order("creado_en", { ascending: false })]);
+    sb.from("ingresos_externos").select("*").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null).order("fecha", { ascending: false }).order("creado_en", { ascending: false }),
+    sb.from("cierres_diarios").select("vehiculo_id, fecha, cabify_ingreso, cabify_viajes, cabify_peajes, otras_ingreso, combustible, otros_gastos").gte("fecha", d0).lte("fecha", d1)]);
+  pintarSaldo();
   if (error || e2) { $("gs-body").innerHTML = `<p class="msg err">${esc(errText(error || e2))}</p>`; return; }
   gsLista = data || []; oiLista = ois || [];
   const nomF = id => (fuentes.find(f => f.id === id) || {}).nombre || "Otra";
   const ingFK = (fin || []).reduce((a, r) => a + (r.total || 0), 0);
   const oiBruto = oiLista.reduce((a, x) => a + x.monto_bruto, 0), oiCom = oiLista.reduce((a, x) => a + x.comision, 0), oiNeto = oiBruto - oiCom;
   const gasto = gsLista.reduce((a, g) => a + g.monto, 0), gFijo = gsLista.filter(g => g.fijo).reduce((a, g) => a + g.monto, 0);
-  const ingreso = ingFK + oiNeto, res = ingreso - gasto;
+  // Cierres diarios de los conductores (vehículos propios): Cabify y otras apps suman como ingreso; combustible, peajes y otros, como gasto
+  const cierres = cds || [], n0 = v => Number(v) || 0;
+  const cdIng = cierres.reduce((a, c) => a + n0(c.cabify_ingreso) + n0(c.otras_ingreso), 0), cdGas = cierres.reduce((a, c) => a + n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes), 0);
+  const ingreso = ingFK + oiNeto + cdIng, res = ingreso - gasto - cdGas;
   const barras = (titulo, pares, vacio) => { const mx = Math.max(1, ...pares.map(p => p[1]));
     return `<div class="rp-caja"><h3>${titulo}</h3>${pares.length ? pares.map(([n, t]) => `<div class="rp-bar"><span class="rp-n">${esc(n)}</span><span class="rp-track"><span style="width:${Math.max(2, t / mx * 100)}%"></span></span><span class="rp-v">${clp(t)}</span></div>`).join("") : `<p class="muted small">${vacio}</p>`}</div>`; };
   const sumar = (lista, k, v) => { const m = {}; lista.forEach(x => m[k(x)] = (m[k(x)] || 0) + v(x)); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
@@ -1835,20 +1841,24 @@ async function cargarGastos(desde, hasta, txt, fin) {
   const movs = new Map(), fila = id => { if (!movs.has(id)) movs.set(id, { id, fk: 0, n: 0, otros: 0, gas: 0 }); return movs.get(id); };
   (fin || []).forEach(r => { const f = fila(r.vehiculo_id || ""); f.fk += r.total || 0; f.n++; });
   oiLista.forEach(x => { fila(x.vehiculo_id || "").otros += x.neto; });
+  cierres.forEach(c => { const f = fila(c.vehiculo_id || ""); f.otros += n0(c.cabify_ingreso) + n0(c.otras_ingreso); f.gas += n0(c.combustible) + n0(c.otros_gastos) + n0(c.cabify_peajes); });
   gsLista.forEach(g => { fila(g.vehiculo_id || "").gas += g.monto; });
   const tabla = [...movs.values()].sort((a, b) => (a.id === "") - (b.id === "") || (b.fk + b.otros - b.gas) - (a.fk + a.otros - a.gas));
   $("gs-body").innerHTML = `
     <div class="rp-kpis">
       <div class="pay"><small class="muted">Servicios Flota-K</small><b>${clp(ingFK)}</b><span class="small muted">${(fin || []).length} finalizado(s) · ${esc(txt)}</span></div>
       <div class="pay"><small class="muted">Otros ingresos (neto)</small><b>${clp(oiNeto)}</b><span class="small muted">bruto ${clp(oiBruto)} · comisiones ${clp(oiCom)}</span></div>
-      <div class="pay"><small class="muted">Gastos</small><b>${clp(gasto)}</b><span class="small muted">fijos ${clp(gFijo)} · variables ${clp(gasto - gFijo)}</span></div>
+      <div class="pay"><small class="muted">Cierres diarios</small><b>${clp(cdIng)}</b><span class="small muted">${cierres.length} cierre(s) · gastos ${clp(cdGas)}</span></div>
+      <div class="pay"><small class="muted">Gastos</small><b>${clp(gasto + cdGas)}</b><span class="small muted">fijos ${clp(gFijo)} · variables ${clp(gasto - gFijo)}${cdGas ? " · de cierres " + clp(cdGas) : ""}</span></div>
       <div class="pay"><small class="muted">Resultado</small><b class="${res < 0 ? "warn" : ""}">${clp(res)}</b><span class="small muted">${ingreso ? "margen " + Math.round(res / ingreso * 100) + " %" : "ingresos − gastos"}</span></div>
     </div>
     <div class="rp-grid">
-      ${barras("Gastos por concepto", sumar(gsLista, g => CAT_GASTO[g.categoria] || g.categoria, g => g.monto), "Sin gastos en este período.")}
-      ${barras("Otros ingresos por plataforma (neto)", sumar(oiLista, x => nomF(x.fuente_id), x => x.neto), "Sin otros ingresos en este período.")}
+      ${barras("Gastos por concepto", sumar(gsLista.map(g => ({ k: CAT_GASTO[g.categoria] || g.categoria, v: g.monto }))
+        .concat(cierres.flatMap(c => [{ k: CAT_GASTO.combustible, v: n0(c.combustible) }, { k: CAT_GASTO.peajes_tag, v: n0(c.cabify_peajes) }, { k: CAT_GASTO.otros, v: n0(c.otros_gastos) }])).filter(x => x.v), x => x.k, x => x.v), "Sin gastos en este período.")}
+      ${barras("Otros ingresos por plataforma (neto)", sumar(oiLista.map(x => ({ k: nomF(x.fuente_id), v: x.neto }))
+        .concat(cierres.flatMap(c => [{ k: "Cabify (cierres diarios)", v: n0(c.cabify_ingreso) }, { k: "Otras apps (cierres diarios)", v: n0(c.otras_ingreso) }])).filter(x => x.v), x => x.k, x => x.v), "Sin otros ingresos en este período.")}
     </div>
-    <div class="rp-caja" style="margin-top:12px"><h3>Resultado por patente</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Flota-K</th><th>Otros (neto)</th><th>Gastos</th><th>Resultado</th></tr></thead><tbody>
+    <div class="rp-caja" style="margin-top:12px"><h3>Resultado por patente</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Patente</th><th>Flota-K</th><th>Otros y cierres (neto)</th><th>Gastos</th><th>Resultado</th></tr></thead><tbody>
       ${tabla.length ? tabla.map(f => `<tr><td>${esc(f.id ? etiquetaVeh(vehPorId(f.id)) : "Empresa (general)")}</td><td>${clp(f.fk)} <span class="muted small">(${f.n})</span></td><td>${clp(f.otros)}</td><td>${clp(f.gas)}</td><td class="${f.fk + f.otros - f.gas < 0 ? "warn" : ""}"><b>${clp(f.fk + f.otros - f.gas)}</b></td></tr>`).join("") : '<tr><td colspan="5" class="muted">Sin datos.</td></tr>'}
     </tbody></table></div></div>
     ${gsLista.length ? `<details style="margin-top:6px"><summary class="small"><b>Ver los ${gsLista.length} gasto(s) del período</b></summary><div class="tblwrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Concepto</th><th>Patente</th><th>Detalle</th><th>Monto</th><th>Fijo / variable</th><th></th></tr></thead><tbody>
@@ -1874,6 +1884,49 @@ async function cargarGastos(desde, hasta, txt, fin) {
     if (!confirm(`¿Anular el ingreso de ${clp(x.monto_bruto)} (${nomF(x.fuente_id)})? Queda registrado como anulado y deja de contar.`)) return;
     const { error } = await sb.from("ingresos_externos").update({ anulado_en: new Date().toISOString(), anulado_por: yo.id }).eq("id", x.id);
     if (error) return alert(errText(error)); recargar();
+  });
+}
+// ---- Saldo en la cuenta de la empresa (registrado a mano, con historial)
+let saldos = [];
+async function pintarSaldo() {
+  const box = $("sc-box"); if (!box) return;
+  const { data, error } = await sb.from("saldos_cuenta").select("*").is("anulado_en", null).order("fecha", { ascending: false }).order("creado_en", { ascending: false }).limit(200);
+  if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  saldos = data || [];
+  const ult = {}; saldos.forEach(x => { if (!ult[x.cuenta]) ult[x.cuenta] = x; });
+  const cuentasS = Object.values(ult), total = cuentasS.reduce((a, x) => a + Number(x.saldo), 0);
+  const fch = f => new Date(f + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <div><h3 style="margin:0">🏦 Saldo en cuenta</h3>${cuentasS.length ? `<b style="font-family:var(--font-display);font-size:1.6rem" class="${total < 0 ? "warn" : ""}">${clp(total)}</b>
+        <div class="small muted">${cuentasS.map(x => `${esc(x.cuenta)}: <b>${clp(Number(x.saldo))}</b> al ${esc(fch(x.fecha))}`).join(" · ")}</div>` : '<p class="small muted" style="margin:0">Aún no registra el saldo de la cuenta de la empresa.</p>'}</div>
+      <button class="btn sm" type="button" id="sc-abrir">Actualizar saldo</button></div>
+    <form id="sc-form" hidden novalidate style="display:grid;gap:8px;margin-top:8px">
+      <div class="row3"><div class="f"><label for="sc-cuenta">Cuenta</label><input id="sc-cuenta" list="sc-cuentas" maxlength="80" value="${esc((cuentasS[0] || {}).cuenta || "Cuenta corriente")}"><datalist id="sc-cuentas">${cuentasS.map(x => `<option value="${esc(x.cuenta)}">`).join("")}</datalist></div>
+        <div class="f"><label for="sc-fecha">Al día</label><input id="sc-fecha" type="date" value="${hoyChile()}"></div>
+        <div class="f"><label for="sc-saldo">Saldo ($)</label><input id="sc-saldo" type="number" step="1" inputmode="numeric" placeholder="Puede ser negativo"></div></div>
+      <div class="f"><label for="sc-nota">Nota (opcional)</label><input id="sc-nota" maxlength="300" placeholder="Ej: después de pagar la cuota del auto"></div>
+      <div class="actions"><button class="btn sm" type="submit">Guardar saldo</button><button class="btn ghost sm" type="button" id="sc-x">Volver</button></div>
+      <div id="sc-msg" class="msg" hidden></div>
+    </form>
+    ${saldos.length ? `<details><summary class="small"><b>Historial de saldos</b></summary><div class="tblwrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Cuenta</th><th>Saldo</th><th>Nota</th><th></th></tr></thead><tbody>
+      ${saldos.map(x => `<tr><td class="nowrap">${esc(fch(x.fecha))}</td><td>${esc(x.cuenta)}</td><td class="nowrap"><b>${clp(Number(x.saldo))}</b></td><td class="small">${esc(x.nota || "")}</td><td><button class="linkbtn" type="button" data-scanular="${esc(x.id)}">Anular</button></td></tr>`).join("")}
+    </tbody></table></div></details>` : ""}`;
+  $("sc-abrir").onclick = () => { $("sc-form").hidden = false; $("sc-abrir").hidden = true; $("sc-saldo").focus(); };
+  $("sc-x").onclick = () => { $("sc-form").hidden = true; $("sc-abrir").hidden = false; };
+  $("sc-form").onsubmit = async ev => {
+    ev.preventDefault();
+    const v = $("sc-saldo").value;
+    if (v === "" || isNaN(Number(v))) return msg("sc-msg", "Escriba el saldo.", "err");
+    if (!$("sc-fecha").value) return msg("sc-msg", "Indique la fecha.", "err");
+    const { error } = await sb.from("saldos_cuenta").insert({ empresa_id: yo.empresa_id, cuenta: $("sc-cuenta").value.trim() || "Cuenta corriente", fecha: $("sc-fecha").value,
+      saldo: Math.round(Number(v)), nota: $("sc-nota").value.trim() || null, creado_por: yo.id });
+    if (error) return msg("sc-msg", errText(error), "err");
+    pintarSaldo();
+  };
+  box.querySelectorAll("[data-scanular]").forEach(b => b.onclick = async () => {
+    if (!confirm("¿Anular este registro de saldo? Deja de mostrarse, pero queda guardado como anulado.")) return;
+    const { error } = await sb.from("saldos_cuenta").update({ anulado_en: new Date().toISOString(), anulado_por: yo.id }).eq("id", b.dataset.scanular);
+    if (error) return alert(errText(error)); pintarSaldo();
   });
 }
 $("gs-form").addEventListener("submit", async e => {
