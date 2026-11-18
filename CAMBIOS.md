@@ -4,6 +4,7 @@
 - Problema: con la app cerrada, la ubicación seguía llegando, pero un servicio asignado no sonaba hasta abrir la app (el aviso dependía de la pantalla).
 - Base de datos (etapa 38, ya aplicada): `avisos_conductor` y disparador `reservas_zz_avisar_conductor` (servicio nuevo, quitado, cancelado o modificado; no avisa al conductor de lo que hizo él mismo). `conductor_latido` reemplaza a `conductor_ubicacion_dispositivo` en la app 2.1: guarda la ubicación y entrega los avisos pendientes (cada 15 s en servicio, 30 s conectado, 60 s desconectado; la ubicación desconectado se sigue guardando cada 5 min).
 - Android: el servicio de ubicación muestra los avisos como notificación con sonido y vibración (canal "Servicios de la central") cuando la app no está a la vista. Pide el permiso de notificaciones (Android 13+) y lo agrega al recuadro de ajustes.
+- Etapa 38b: el aviso no llegaba si quien asignaba era el mismo conductor con rol de equipo (el dueño es admin y conductor). Ahora solo se omite cuando lo hace un conductor sin rol de equipo.
 - Sin Firebase: el aviso llega en 30-60 segundos. La app 2.0 sigue funcionando (sin estos avisos).
 - Las tres apps ya se firman con la llave de Flota-K (secretos en GitHub): las actualizaciones se instalan encima.
 
