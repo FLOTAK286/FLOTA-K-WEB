@@ -1,5 +1,11 @@
 # Cambios
 
+## 18 nov 2026 · Cuentas de clientes, roles más claros y vehículo en el seguimiento
+- Panel, nueva pestaña **Cuentas de clientes** (solo admin): todas las personas con acceso al portal de empresas en una lista con buscador (empresa, rol, estado, nueva clave, quitar/dar acceso, ver como) y formulario para crear una cuenta eligiendo la empresa (`crear-usuario-convenio`). `datosAcceso` acepta el recuadro donde mostrar los datos.
+- Equipo y roles: columna **"🚗 También conduce"** (rol principal + casilla) con explicación; los conductores siempre conducen. Paola Quichiz (admin) quedó sin "conduce" (lo había marcado la etapa 2 a todos los administradores).
+- Flota: botón **"✏️ Editar datos"** en cada vehículo (marca, modelo, año, color, patente, categoría, capacidad, conductor y foto). Antes solo se podían poner al crearlo.
+- Seguimiento (etapa 40, ya aplicada): `ver_reserva_publica_v3` agrega categoría y capacidad; se muestra "Vehículo · Taxi ejecutivo", marca y modelo, **Color**, año y pasajeros. Los mensajes de WhatsApp del panel incluyen categoría y color.
+
 ## 18 nov 2026 · App del pasajero con cuenta (rama `app-pasajero`, sin publicar)
 - **/app con cuenta obligatoria:** Ingresar (correo o usuario + contraseña, recuperar contraseña) o Crear cuenta (nombre, teléfono, correo, contraseña). Edge Function `registro-pasajero`: crea la cuenta sin confirmar y envía el correo de confirmación (SMTP Gmail); máx. 5 registros por IP y 40 en total por hora (`registro_intentos`). El historial con el mismo correo se vincula solo con el correo ya confirmado.
 - **Reservar (reserva activa, la confirma el equipo):** al aeropuerto (con opción ida y vuelta), desde el aeropuerto y otro trayecto; direcciones guardadas con un toque; pasajeros y maletas con − / +; reservar para otra persona (queda como solicitante).

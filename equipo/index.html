@@ -78,6 +78,7 @@ details.paso > summary { cursor: pointer; }
       <button role="tab" data-tab="flota" aria-selected="false" id="tab-flota" hidden>Flota</button>
       <button role="tab" data-tab="reportes" aria-selected="false" id="tab-reportes" hidden>Reportes</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
+      <button role="tab" data-tab="cuentas" aria-selected="false" id="tab-cuentas" hidden>Cuentas de clientes</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
     <nav class="mnav" aria-label="Menú rápido">
@@ -262,7 +263,7 @@ details.paso > summary { cursor: pointer; }
       <div id="fl-conds" class="fl-grid"></div>
       <h2 style="margin:10px 0 0">Vehículos</h2>
       <form id="vf" class="confirm" novalidate>
-        <b>Agregar vehículo</b>
+        <b id="vf-tit">Agregar vehículo</b>
         <div class="row3">
           <div class="f"><label for="v-marca">Marca</label><input id="v-marca" list="dl-marcas" autocomplete="off" placeholder="Ej.: Volkswagen" maxlength="60"></div>
           <div class="f"><label for="v-modelo">Modelo</label><input id="v-modelo" list="dl-modelos" autocomplete="off" placeholder="Elija la marca primero" maxlength="60"></div>
@@ -278,7 +279,7 @@ details.paso > summary { cursor: pointer; }
           <div class="f"><label for="v-cond">Conductor fijo (obligatorio)</label><select id="v-cond" required></select></div>
           <div class="f"><label for="v-foto">Foto (opcional)</label><input id="v-foto" type="file" accept="image/*"></div>
         </div>
-        <div class="actions"><button class="btn" type="submit">Agregar vehículo</button></div>
+        <div class="actions"><button class="btn" type="submit" id="vf-ok">Agregar vehículo</button><button class="btn ghost" type="button" id="vf-cancel" hidden>Cancelar edición</button></div>
         <datalist id="dl-marcas"></datalist><datalist id="dl-modelos"></datalist><datalist id="dl-colores"></datalist>
       </form>
       <div id="v-msg" class="msg" hidden></div>
@@ -344,7 +345,8 @@ details.paso > summary { cursor: pointer; }
       </form>
       <div id="i-msg" class="msg" hidden></div>
       <div id="i-datos" class="pay" hidden></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol</th><th>Conduce</th><th>Estado</th><th></th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
+      <p class="small muted" style="margin:6px 0 0"><b>Más de un rol:</b> elija el rol principal y marque <b>🚗 También conduce</b> si además maneja (por ejemplo, un administrador que también es conductor). Quien tenga la casilla marcada aparece en la lista de conductores y puede recibir servicios; si no maneja, déjela sin marcar.</p>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Nombre</th><th>Rol principal</th><th>🚗 También conduce</th><th>Estado</th><th></th><th></th></tr></thead><tbody id="miembros"></tbody></table></div>
       <h3 style="margin:8px 0 0">Invitaciones pendientes</h3>
       <div id="pend" class="muted">—</div>
       <h3 style="margin:8px 0 0">Publicación automática en Reservas para conductores</h3>
@@ -362,6 +364,30 @@ details.paso > summary { cursor: pointer; }
       <div id="t-msg" class="msg" hidden></div>
       <p class="small muted">Vehículos, fotos y documentos de conductores y autos: pestaña <b>Flota</b>.</p>
       <p class="muted small">Qué puede hacer cada rol: <b>Administrador</b> todo, incluido el equipo. <b>Despachador</b> y <b>Telefonista</b> ven y gestionan reservas. <b>Conductor</b> solo verá sus servicios asignados (en la app del conductor, próxima etapa).</p>
+    </div>
+
+    <div data-pane="cuentas" class="panel" style="margin-top:14px" hidden>
+      <h2>Cuentas de clientes</h2>
+      <p class="muted">Usuario y contraseña para que el cliente entre al <b>portal de empresas</b> (<a href="/empresa/" target="_blank" rel="noopener" style="color:var(--gold)">fk-servicios.com/empresa</a>): agenda, ve sus viajes y su gasto. No se envía ningún correo: usted le pasa los datos por WhatsApp.</p>
+      <form id="cc-form" class="confirm" novalidate>
+        <b>+ Crear cuenta de cliente</b>
+        <div class="row3">
+          <div class="f"><label for="cc-emp">Empresa con convenio</label><select id="cc-emp"></select></div>
+          <div class="f"><label for="cc-nom">Nombre</label><input id="cc-nom" maxlength="200" placeholder="Nombre y apellido"></div>
+          <div class="f"><label for="cc-rol">Rol en el portal</label><select id="cc-rol"><option value="encargado">Encargado de convenio (administra personas, presupuesto y facturación)</option><option value="directivo">Directivo / dueño (ve todos los viajes de la empresa)</option><option value="pasajero">Pasajero autorizado (agenda y ve sus viajes)</option></select></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="cc-mail">Correo o usuario</label><input id="cc-mail" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="200" placeholder="persona@empresa.cl o usuario"></div>
+          <div class="f"><label for="cc-tel">Teléfono</label><input id="cc-tel" type="tel" maxlength="30" placeholder="+56 9 ..."></div>
+          <div class="f"><label for="cc-clave">Contraseña provisoria</label><input id="cc-clave" maxlength="60" autocomplete="off"></div>
+        </div>
+        <div class="actions"><button class="btn" type="submit">Crear cuenta</button></div>
+        <p class="small muted" style="margin:0">¿La empresa no está en la lista? Créela primero en <b>Clientes y cobros → Empresas</b>.</p>
+      </form>
+      <div id="cc-msg" class="msg" hidden></div>
+      <div id="cc-datos" class="pay" hidden></div>
+      <div class="actions" style="margin-top:8px"><input id="cc-buscar" type="search" placeholder="🔎 Buscar por nombre, empresa o correo" style="flex:1;min-width:200px"></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="cc-lista"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
     </div>
 
     <div data-pane="reportar" class="panel" style="margin-top:14px" hidden>
@@ -417,6 +443,8 @@ async function cargarRecursos() {
 const nombreConductor = id => (conductores.find(c => c.id === id) || {}).nombre;
 // Categorías: el servicio pide auto (cualquiera), suv (SUV o van) o van (solo van). Si no calza, se advierte.
 const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
+// "Taxi ejecutivo Volkswagen Virtus, color azul · patente SSHY88"
+const vehTexto = v => [CAT[v.categoria], [v.marca, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" ") + (v.color ? `, color ${v.color.toLowerCase()}` : "") + ` · patente ${v.patente}`;
 const PIDE = { auto: "Auto", suv: "SUV", van: "Van" };
 const sirve = (cat, pide) => pide === "van" ? cat === "van" : pide === "suv" ? ["suv", "van"].includes(cat) : true;
 const vehDe = (cond, vehId) => vehiculos.find(v => v.id === vehId) || vehiculos.find(v => v.conductor_habitual === cond);
@@ -518,7 +546,7 @@ async function iniciar(session) {
   }
   yo = data;
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
-  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
+  $("tab-equipo").hidden = data.rol !== "admin"; $("tab-cuentas").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
   $("app").hidden = false;
   await cargarRecursos(); cargarCuentas();
   conectarEnVivo();
@@ -655,6 +683,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "central") cargarCentral();
   if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
+  if (b.dataset.tab === "cuentas") cargarCuentasClientes();
   if (b.dataset.tab === "agenda") cargarAgenda();
   if (b.dataset.tab === "clientes") { $("cl-ficha").hidden = true; $("em-lista").hidden = true; $("cl-lista").hidden = false; $("cl-ver-per").classList.add("on"); $("cl-ver-emp").classList.remove("on"); cargarClientes(); }
   if (b.dataset.tab === "equipo") cargarTarifas();
@@ -718,7 +747,7 @@ function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
   const nombre = (alSolicitante ? r.solicitante_nombre : r.nombre_pasajero || "").split(" ")[0];
   const v = vehDe(r.conductor_id, r.vehiculo_id), cond = r.conductor_id ? etiquetaConductor(r.conductor_id).split(" · ").slice(0, 2).join(" · ") : "";
   const link = `${location.origin}/seguimiento/?t=${r.token_seguimiento}`;
-  const vTxt = v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "";
+  const vTxt = v ? `\nVehículo: ${vehTexto(v)}` : "";
   const quien = alSolicitante ? `el conductor de ${r.nombre_pasajero}` : "su conductor";
   const datos = `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") + (cond ? `\nConductor: móvil ${cond}` : "") + vTxt;
   const otros = {
@@ -730,7 +759,7 @@ function enviarConfirmacion(r, alSolicitante, tipo = "confirmacion") {
   if (otros[tipo]) return FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(otros[tipo]));
   const t = `Hola ${nombre}, ${alSolicitante ? `el traslado de ${r.nombre_pasajero} está confirmado` : "su traslado con Flota-K está confirmado"}.\n\n` +
     `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
-    (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
+    (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${vehTexto(v)}` : "") +
     `\n\nSiga su traslado y confirme su punto exacto de retiro aquí: ${location.origin}/seguimiento/?t=${r.token_seguimiento}\n\nComprometidos con su traslado. Flota-K`;
   FK.abrirExterno("https://wa.me/" + d + "?text=" + encodeURIComponent(t));
 }
@@ -741,7 +770,7 @@ function mensajeSeguimiento(r) {
   const link = `${location.origin}/seguimiento/?t=${r.token_seguimiento}`;
   return `Hola${nombre ? " " + nombre : ""}, le compartimos el seguimiento de su traslado con Flota-K.\n\n` +
     `Código: ${r.codigo}\nFecha y hora: ${fecha(r.fecha_hora)}\nDesde: ${r.origen}\nHacia: ${r.destino}` + (r.vuelo ? `\nVuelo: ${r.vuelo}` : "") +
-    (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${[v.marca, v.modelo, v.color].filter(Boolean).join(" ")} · patente ${v.patente}` : "") +
+    (cond ? `\nConductor: móvil ${cond}` : "") + (v ? `\nVehículo: ${vehTexto(v)}` : "") +
     `\n\nEn este enlace puede ver a su conductor en el mapa cuando vaya en camino, confirmar su punto exacto de retiro y escribirnos:\n${link}\n\nComprometidos con su traslado. Flota-K`;
 }
 // ---- Copiar reserva: abre "Nueva reserva" con los mismos datos (falta poner la fecha)
@@ -1401,7 +1430,7 @@ async function cargarFlota() {
         <div><select class="v-cat-sel" aria-label="Categoría de ${esc(v.patente)}">${Object.entries(CAT).map(([k, t]) => `<option value="${k}" ${k === v.categoria ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${v.conductor_habitual ? "" : ' <span class="alerta roja">Sin conductor fijo</span>'}</div>
         <div>${resumenDocs(docsDe("vehiculo_id", v.id))}</div>
         <div class="actions" style="margin-top:6px"><select class="v-cond-sel" aria-label="Conductor de ${esc(v.patente)}"><option value="">Sin conductor fijo</option>${flPerf.map(p => `<option value="${p.id}" ${p.id === v.conductor_habitual ? "selected" : ""}>${esc([p.movil, p.nombre].filter(Boolean).join(" · "))}</option>`).join("")}</select>
-          <label class="btn ghost sm">Foto<input type="file" accept="image/*" class="v-foto-in" hidden></label><button class="btn ghost sm v-doc" type="button">+ Documento</button>
+          <label class="btn ghost sm">Foto<input type="file" accept="image/*" class="v-foto-in" hidden></label><button class="btn ghost sm v-doc" type="button">+ Documento</button><button class="btn ghost sm v-edit" type="button">✏️ Editar datos</button>
           <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div>
         <div class="actions small" style="margin-top:4px"><label>Propietario <select class="v-prop" aria-label="Propietario de ${esc(v.patente)}"><option value="">Flota-K (propio)</option>${flTodos.map(p => `<option value="${p.id}" ${p.id === v.propietario_id ? "selected" : ""}>${esc(p.nombre)}${p.rol === "propietario" ? "" : " (" + esc(ROLES[p.rol] || p.rol) + ")"}</option>`).join("")}</select></label>
           <label class="chk"><input type="checkbox" class="v-propio" ${v.propio !== false ? "checked" : ""}> Propio de Flota-K (cierre diario)</label>
@@ -1436,6 +1465,7 @@ async function cargarFlota() {
       catch (e) { msg("v-msg", errText(e), "err"); }
     });
     card.querySelector(".v-doc").addEventListener("click", () => abrirDoc({ vehiculo_id: v.id }, v.patente));
+    card.querySelector(".v-edit").addEventListener("click", () => editarVehiculo(v));
     card.querySelector(".v-tog").addEventListener("click", async () => {
       const { error } = await sb.from("vehiculos").update({ activo: !v.activo }).eq("id", v.id);
       if (error) msg("v-msg", errText(error), "err"); else { await cargarRecursos(); cargarFlota(); }
@@ -1503,6 +1533,19 @@ $("v-marca").addEventListener("change", () => {
   const m = Object.keys(window.FK_AUTOS || {}).find(k => norm(k) === norm($("v-marca").value.trim()) || norm(k).startsWith(norm($("v-marca").value.trim())) && $("v-marca").value.trim().length >= 3);
   if (m) { $("v-marca").value = m; $("v-marca").dispatchEvent(new Event("input")); }
 });
+// Editar marca, modelo, año, color, patente, categoría, capacidad y conductor de un vehículo ya creado
+let vehEditando = null;
+function editarVehiculo(v) {
+  vehEditando = v;
+  $("vf-tit").textContent = `Editar vehículo ${v.patente}`; $("vf-ok").textContent = "Guardar cambios"; $("vf-cancel").hidden = false;
+  $("v-marca").value = v.marca || ""; $("v-marca").dispatchEvent(new Event("input"));
+  $("v-modelo").value = v.modelo || ""; $("v-anio").value = v.anio || ""; $("v-color").value = v.color || "";
+  $("v-pat").value = v.patente; $("v-cat").value = v.categoria || "taxi_ejecutivo"; $("v-cap").value = v.capacidad || 4;
+  $("v-cond").value = v.conductor_habitual || "";
+  $("vf").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function terminarEdicionVeh() { vehEditando = null; $("vf").reset(); $("vf-tit").textContent = "Agregar vehículo"; $("vf-ok").textContent = "Agregar vehículo"; $("vf-cancel").hidden = true; }
+$("vf-cancel").addEventListener("click", terminarEdicionVeh);
 $("vf").addEventListener("submit", async e => {
   e.preventDefault();
   const pat = $("v-pat").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -1513,6 +1556,16 @@ $("vf").addEventListener("submit", async e => {
   const cat = $("v-cat").value;
   const fila = { empresa_id: yo.empresa_id, patente: pat, marca, modelo, anio: Number($("v-anio").value) || null, color: color || null,
     descripcion: [marca, modelo, color && color.toLowerCase()].filter(Boolean).join(" "), categoria: cat, tipo: cat === "van" ? "van" : cat === "suv" ? "suv" : "auto", capacidad: Number($("v-cap").value) || 4, conductor_habitual: $("v-cond").value || null };
+  if (vehEditando) {
+    delete fila.empresa_id;
+    const id = vehEditando.id;
+    const { error } = await sb.from("vehiculos").update(fila).eq("id", id);
+    if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Esa patente ya está registrada." : errText(error), "err");
+    const f = $("v-foto").files[0];
+    if (f) { try { const path = await subirFoto(f, "vehiculo-" + id); await sb.from("vehiculos").update({ foto_path: path }).eq("id", id); } catch (e2) { msg("v-msg", "Datos guardados, pero la foto no se pudo subir: " + errText(e2), "err"); } }
+    msg("v-msg", `Vehículo ${pat} actualizado. El pasajero ya lo ve así en el seguimiento.`, "ok"); terminarEdicionVeh(); await cargarRecursos(); cargarFlota();
+    return;
+  }
   const { data, error } = await sb.from("vehiculos").insert(fila).select("id").single();
   if (error) return msg("v-msg", /duplicate|unique/i.test(error.message) ? "Esa patente ya está registrada." : errText(error), "err");
   const f = $("v-foto").files[0];
@@ -2322,17 +2375,17 @@ async function pintarPortal(e) {
   });
 }
 // Mensaje listo para enviar con los datos de acceso al portal de empresas
-function datosAcceso(nombre, correo, rol, clave, empresa, soloClave) {
-  const box = $("pu-datos"); if (!box) return;
+function datosAcceso(nombre, correo, rol, clave, empresa, soloClave, boxId) {
+  const box = $(boxId || "pu-datos"); if (!box) return;
   const url = location.origin + "/empresa/";
   const t = !clave ? `${nombre} ya tenía cuenta en Flota-K: ahora también tiene acceso al portal de ${empresa} y entra con su contraseña de siempre en ${url}`
     : soloClave ? `Hola ${nombre.split(" ")[0]}, su nueva contraseña provisoria del portal de empresas de Flota-K es: ${clave}\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiarla.`
     : `Hola ${nombre.split(" ")[0]}, ya tiene acceso al portal de empresas de Flota-K para ${empresa}, como ${ROL_CONV[rol]}.\n\nEntre a: ${url}\nUsuario: ${FK.usuarioVisible(correo)}\nContraseña provisoria: ${clave}\n\nAl entrar, el sistema le pedirá cambiar la contraseña.` + (rol === "encargado" ? " Luego complete los datos de facturación de la empresa para poder agendar." : "");
   box.hidden = false;
   box.innerHTML = `<b>✅ ${soloClave ? "Contraseña cambiada" : "Acceso listo"}. Envíele estos datos:</b><pre style="white-space:pre-wrap;margin:6px 0;font:inherit">${esc(t)}</pre>
-    <div class="actions"><button class="btn sm" type="button" id="pu-wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" id="pu-cp">⧉ Copiar</button></div>`;
-  $("pu-wa").onclick = () => FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t));
-  $("pu-cp").onclick = () => navigator.clipboard?.writeText(t).then(() => $("pu-cp").textContent = "Copiado").catch(() => {});
+    <div class="actions"><button class="btn sm" type="button" data-da="wa">📲 Enviar por WhatsApp</button><button class="btn ghost sm" type="button" data-da="cp">⧉ Copiar</button></div>`;
+  box.querySelector('[data-da="wa"]').onclick = () => FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(t));
+  const cp = box.querySelector('[data-da="cp"]'); cp.onclick = () => navigator.clipboard?.writeText(t).then(() => cp.textContent = "Copiado").catch(() => {});
   box.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
@@ -2803,6 +2856,63 @@ $("nf").addEventListener("submit", async e => {
   $("nf").reset(); lugO.limpiar(); lugD.limpiar(); parN.limpiar(); verVuelo(); rutaNueva = null; $("n-ruta").hidden = true; $("n-pas").hidden = true; $("l-nombre").textContent = "Pasajero"; clienteSel = null; $("n-cli").hidden = true; $("n-sugerida").hidden = true; $("n-emp").innerHTML = ""; verPaga();
 });
 
+// ---- Cuentas de clientes (solo admin): todas las personas con acceso al portal de empresas, en un solo lugar
+let ccUsuarios = [];
+async function cargarCuentasClientes() {
+  await cargarCuentas();
+  const sel = $("cc-emp").value;
+  $("cc-emp").innerHTML = '<option value="">— Elegir empresa —</option>' + cuentas.filter(c => c.activa !== false)
+    .map(c => `<option value="${esc(c.id)}" ${c.id === sel ? "selected" : ""}>${esc(c.razon_social)}</option>`).join("");
+  if (!$("cc-clave").value) $("cc-clave").value = claveProvisoria();
+  const res = await Promise.all(cuentas.map(c => sb.rpc("convenio_admin_ver", { p_cuenta: c.id }).then(({ data }) => ((data && data.usuarios) || []).map(u => ({ ...u, cuenta: c })))));
+  ccUsuarios = res.flat().sort((a, b) => (a.cuenta.razon_social || "").localeCompare(b.cuenta.razon_social || "") || (a.nombre || "").localeCompare(b.nombre || ""));
+  pintarCuentasClientes();
+}
+function pintarCuentasClientes() {
+  const q = norm($("cc-buscar").value.trim());
+  const us = ccUsuarios.filter(u => !q || norm([u.nombre, u.correo, u.telefono, u.cuenta.razon_social].join(" ")).includes(q));
+  $("cc-lista").innerHTML = us.length ? us.map(u => `<tr>
+      <td>${esc(u.cuenta.razon_social)}</td>
+      <td><b>${esc(u.nombre)}</b><br><span class="muted small">${esc(FK.usuarioVisible(u.correo))}${u.telefono ? " · " + esc(u.telefono) : ""}</span></td>
+      <td class="small">${esc(ROL_CONV[u.rol] || u.rol)}</td>
+      <td class="small">${u.activo ? (u.clave_cambiada ? "✅ Activo" : "🔑 Falta cambiar la clave provisoria") : '<span class="muted">Sin acceso</span>'}</td>
+      <td class="nowrap small"><button class="linkbtn" type="button" data-ccclave="${esc(u.id)}">🔑 Nueva clave</button> · <button class="linkbtn" type="button" data-ccact="${esc(u.id)}" data-v="${u.activo ? "0" : "1"}">${u.activo ? "Quitar acceso" : "Dar acceso"}</button> · <a class="linkbtn" href="/empresa/?como=${esc(u.id)}" target="_blank" rel="noopener">👁 Ver como</a></td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">${ccUsuarios.length ? "Nada coincide con la búsqueda." : "Aún no hay cuentas de clientes. Cree la primera arriba."}</td></tr>`;
+  $("cc-lista").querySelectorAll("[data-ccclave]").forEach(b => b.onclick = async () => {
+    const u = ccUsuarios.find(x => x.id === b.dataset.ccclave), clave = claveProvisoria();
+    if (!confirm(`¿Darle a ${u.nombre} la contraseña provisoria ${clave}?`)) return;
+    const { data: r, error } = await sb.functions.invoke("crear-usuario-convenio", { body: { cuenta: u.cuenta.id, accion: "clave", id: u.id, clave } });
+    const err = error ? await errFuncion(error) : r && r.error;
+    if (err) return msg("cc-msg", err, "err");
+    $("cc-msg").hidden = true; datosAcceso(u.nombre, u.correo, u.rol, clave, u.cuenta.razon_social, true, "cc-datos"); cargarCuentasClientes();
+  });
+  $("cc-lista").querySelectorAll("[data-ccact]").forEach(b => b.onclick = async () => {
+    const u = ccUsuarios.find(x => x.id === b.dataset.ccact);
+    if (b.dataset.v === "0" && !confirm(`¿Quitarle el acceso al portal a ${u.nombre}? Sus viajes no se borran y puede volver a darle acceso cuando quiera.`)) return;
+    const { error } = await sb.rpc("convenio_admin_activo", { p_usuario: u.id, p_activo: b.dataset.v === "1" });
+    if (error) return msg("cc-msg", errText(error), "err");
+    cargarCuentasClientes();
+  });
+}
+$("cc-buscar").addEventListener("input", pintarCuentasClientes);
+$("cc-form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const cuenta = $("cc-emp").value, c = cuentas.find(x => x.id === cuenta);
+  const nombre = $("cc-nom").value.trim(), correo = FK.usuarioACorreo($("cc-mail").value), telefono = $("cc-tel").value.trim(), rol = $("cc-rol").value, clave = $("cc-clave").value.trim();
+  if (!c) return msg("cc-msg", "Elija la empresa.", "err");
+  if (nombre.length < 2) return msg("cc-msg", "Escriba el nombre.", "err");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return msg("cc-msg", "Escriba un correo o un usuario válido.", "err");
+  if (clave.length < 8) return msg("cc-msg", "La contraseña provisoria debe tener al menos 8 caracteres.", "err");
+  msg("cc-msg", "Creando cuenta…"); $("cc-datos").hidden = true;
+  const { data: r, error } = await sb.functions.invoke("crear-usuario-convenio", { body: { cuenta, nombre, correo, telefono, rol, clave } });
+  const err = error ? await errFuncion(error) : r && r.error;
+  if (err) return msg("cc-msg", err, "err");
+  $("cc-msg").hidden = true;
+  datosAcceso(nombre, correo, rol, r.existia ? null : clave, c.razon_social, false, "cc-datos");
+  $("cc-form").reset(); $("cc-emp").value = cuenta; $("cc-clave").value = claveProvisoria();
+  cargarCuentasClientes();
+});
+
 // ---- Equipo y roles (solo admin)
 async function cargarEquipo() {
   const { data: m } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce").order("nombre");
@@ -2810,7 +2920,7 @@ async function cargarEquipo() {
     <tr data-id="${esc(p.id)}">
       <td>${esc(p.nombre)}${p.id === yo.id ? ' <span class="muted small">(usted)</span>' : ""}</td>
       <td><select class="rol" ${p.id === yo.id ? "disabled" : ""}>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}" ${k === p.rol ? "selected" : ""}>${v}</option>`).join("")}</select></td>
-      <td><input type="checkbox" class="cond" aria-label="Conduce" ${p.conduce ? "checked" : ""}></td>
+      <td><label class="chk"><input type="checkbox" class="cond" aria-label="También conduce" ${p.conduce || p.rol === "conductor" ? "checked" : ""} ${p.rol === "conductor" ? "disabled title=\"Los conductores siempre conducen\"" : ""}> ${p.conduce || p.rol === "conductor" ? "Sí" : "No"}</label></td>
       <td>${p.activo ? "Activo" : '<span class="muted">Desactivado</span>'}</td>
       <td>${p.id === yo.id ? "" : `<button class="btn ghost sm tog" type="button">${p.activo ? "Desactivar" : "Activar"}</button>`}</td>
       <td>${p.id === yo.id ? "" : '<button class="btn ghost sm clv" type="button" title="Si olvidó su contraseña">🔑 Nueva contraseña</button>'}</td>
@@ -2819,11 +2929,11 @@ async function cargarEquipo() {
     const id = tr.dataset.id, p = m.find(x => x.id === id);
     tr.querySelector(".rol")?.addEventListener("change", async ev => {
       const { error } = await sb.from("perfiles").update({ rol: ev.target.value }).eq("id", id);
-      if (error) msg("i-msg", errText(error), "err"); else msg("i-msg", `Rol de ${p.nombre} actualizado.`, "ok");
+      if (error) msg("i-msg", errText(error), "err"); else { msg("i-msg", `Rol de ${p.nombre} actualizado.`, "ok"); cargarEquipo(); }
     });
     tr.querySelector(".cond")?.addEventListener("change", async ev => {
       const { error } = await sb.from("perfiles").update({ conduce: ev.target.checked }).eq("id", id);
-      if (error) msg("i-msg", errText(error), "err"); else { msg("i-msg", `${p.nombre}: ${ev.target.checked ? "puede recibir servicios" : "ya no recibe servicios"}.`, "ok"); cargarRecursos(); }
+      if (error) msg("i-msg", errText(error), "err"); else { msg("i-msg", `${p.nombre}: ${ev.target.checked ? "también conduce (aparece en la lista de conductores y puede recibir servicios)" : "ya no aparece como conductor"}.`, "ok"); cargarRecursos(); cargarEquipo(); }
     });
     tr.querySelector(".clv")?.addEventListener("click", async () => {
       const clave = prompt(`Nueva contraseña provisoria para ${p.nombre} (mínimo 8 caracteres):`, claveProvisoria());
