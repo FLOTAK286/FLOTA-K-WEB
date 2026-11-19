@@ -1,5 +1,8 @@
 # Cambios
 
+## 19 nov 2026 · "Decreto 80" pasa a llamarse "Corporativo"
+- Pedido del dueño: en pantalla la casilla se llama **"🏢 Corporativo"** (vehículo con autorización ministerial). Cambian los textos del panel (Flota, advertencia al asignar, ficha, inscripciones), del formulario de inscripción y el mensaje de `conductor_tomar_reserva` (etapa 50b, ya aplicada). Las columnas internas siguen siendo `decreto80` y `decreto80_vence`.
+
 ## 19 nov 2026 · Decreto 80: servicios de empresas con convenio solo con vehículos acreditados
 - Flota (panel): casilla **"🏢 Decreto 80"** en cada vehículo, con fecha de vencimiento (opcional) y aviso "Decreto 80 vencido".
 - **Toda reserva de una empresa con convenio exige un vehículo con Decreto 80 vigente** (decisión del dueño). En "Reservas para conductores" no se le muestra a quien no lo tenga y no la puede tomar (`bolsa_servicios`, `conductor_tomar_reserva`). En el panel, la lista de conductores marca "⚠ sin Decreto 80" y al asignar pide confirmación ("¿Asignar de todas formas?"). La ficha muestra "🏢 exige vehículo con Decreto 80".

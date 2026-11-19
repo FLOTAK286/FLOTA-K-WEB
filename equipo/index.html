@@ -521,7 +521,7 @@ const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ej
 const vehTexto = v => [CAT[v.categoria], [v.marca, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" ") + (v.color ? `, color ${v.color.toLowerCase()}` : "") + ` · patente ${v.patente}`;
 const PIDE = { auto: "Auto", suv: "SUV", van: "Van" };
 const sirve = (cat, pide) => pide === "van" ? cat === "van" : pide === "suv" ? ["suv", "van", "particular_suv"].includes(cat) : true;
-// Decreto 80 vigente (las reservas de empresas con convenio lo exigen)
+// Vehículo corporativo = autorización ministerial vigente (columna decreto80; las reservas de empresas con convenio lo exigen)
 const hoyCL = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
 const d80ok = v => !!(v && v.decreto80 && (!v.decreto80_vence || v.decreto80_vence >= hoyCL()));
 const vehDe = (cond, vehId) => vehiculos.find(v => v.id === vehId) || vehiculos.find(v => v.conductor_habitual === cond);
@@ -534,12 +534,12 @@ function etiquetaConductor(id) {
 function opcionesConductor(sel, pide, d80) {
   return conductores.map(c => { const v = vehiculos.find(x => x.conductor_habitual === c.id);
     const ok = !v || sirve(v.categoria, pide || "auto"), okD = !d80 || d80ok(v);
-    return `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(etiquetaConductor(c.id))}${ok ? "" : " ⚠ " + esc(CAT[v.categoria])}${okD ? "" : " ⚠ sin Decreto 80"}</option>`; }).join("");
+    return `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(etiquetaConductor(c.id))}${ok ? "" : " ⚠ " + esc(CAT[v.categoria])}${okD ? "" : " ⚠ no corporativo"}</option>`; }).join("");
 }
 // Pide confirmación si el vehículo no corresponde a lo que pide el servicio
 function confirmarCategoria(r, cond, vehId) {
   const v = vehDe(cond, vehId), pide = r.vehiculo || "auto";
-  if (r.cuenta_corporativa_id && !d80ok(v) && !confirm(`⚠ Este servicio es de una empresa con convenio y exige un vehículo con Decreto 80 vigente.\n\n${v ? `${v.patente}${v.modelo ? " " + v.modelo : ""} no tiene Decreto 80 vigente (márquelo en Flota si ya lo tiene).` : "Este conductor no tiene vehículo asignado."}\n\n¿Asignar de todas formas?`)) return false;
+  if (r.cuenta_corporativa_id && !d80ok(v) && !confirm(`⚠ Este servicio es de una empresa con convenio y exige un vehículo corporativo (con autorización ministerial vigente).\n\n${v ? `${v.patente}${v.modelo ? " " + v.modelo : ""} no está marcado como corporativo o su autorización venció (márquelo en Flota si ya la tiene).` : "Este conductor no tiene vehículo asignado."}\n\n¿Asignar de todas formas?`)) return false;
   if (!v || sirve(v.categoria, pide)) return true;
   return confirm(`Este servicio es de ${PIDE[pide] || pide} y va a asignar un ${CAT[v.categoria]} (${v.patente}${v.modelo ? " " + v.modelo : ""}, ${v.capacidad} pasajeros).\n\n¿Está seguro?`);
 }
@@ -1228,7 +1228,7 @@ async function abrir(id) {
       ${(r.paradas || []).length || !["finalizada", "cancelada"].includes(r.estado) ? `<dt>Paradas</dt><dd><div id="d-par-ver">${(r.paradas || []).length ? FKParadas.html(r.paradas, true) : '<span class="muted">Sin paradas</span>'}</div>${!["finalizada", "cancelada"].includes(r.estado) ? '<button class="btn ghost sm" type="button" id="d-par-edit">✏ Editar paradas</button><div id="d-par-box" hidden><div id="d-par"></div><p id="d-par-km" class="small muted"></p><div class="actions"><button class="btn sm" type="button" id="d-par-save">Guardar paradas</button><button class="btn ghost sm" type="button" id="d-par-x">Volver</button></div></div>' : ""}<div id="d-par-esp" class="small"></div></dd>` : ""}
       <dt>Destino</dt><dd>${esc(r.destino)}${r.destino_lat != null ? ` <a class="small" href="https://www.google.com/maps/search/?api=1&query=${r.destino_lat},${r.destino_lng}" target="_blank" rel="noopener">📍 ver punto</a>` : ' <span class="small warn">(sin punto en el mapa)</span>'}</dd>
       <dt>Vuelo</dt><dd>${vueloLink(r.vuelo)}</dd>
-      ${r.cuenta_corporativa_id || r.centro_costo ? `<dt>Empresa</dt><dd>${esc((cuentas.find(x => x.id === r.cuenta_corporativa_id) || {}).razon_social || "—")}${r.centro_costo ? " · centro de costo: " + esc(r.centro_costo) : ""}${r.cuenta_corporativa_id ? ' · <b>🏢 exige vehículo con Decreto 80</b>' : ""}</dd>` : ""}
+      ${r.cuenta_corporativa_id || r.centro_costo ? `<dt>Empresa</dt><dd>${esc((cuentas.find(x => x.id === r.cuenta_corporativa_id) || {}).razon_social || "—")}${r.centro_costo ? " · centro de costo: " + esc(r.centro_costo) : ""}${r.cuenta_corporativa_id ? ' · <b>🏢 exige vehículo corporativo</b>' : ""}</dd>` : ""}
       <dt>Pasajeros / maletas</dt><dd>${esc(r.pasajeros)} / ${esc(r.maletas ?? "—")}</dd>
       <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
       <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
@@ -1558,8 +1558,8 @@ async function cargarFlota() {
           <button class="btn ghost sm v-tog" type="button">${v.activo ? "Dar de baja" : "Reactivar"}</button></div>
         <div class="actions small" style="margin-top:4px"><label>Propietario <select class="v-prop" aria-label="Propietario de ${esc(v.patente)}"><option value="">Flota-K (propio)</option>${flTodos.map(p => `<option value="${p.id}" ${p.id === v.propietario_id ? "selected" : ""}>${esc(p.nombre)}${p.rol === "propietario" ? "" : " (" + esc(ROLES[p.rol] || p.rol) + ")"}</option>`).join("")}</select></label>
           <label class="chk"><input type="checkbox" class="v-propio" ${v.propio !== false ? "checked" : ""}> Propio de Flota-K (cierre diario)</label>
-          <label class="chk" title="Inscrito en el Decreto 80: puede hacer servicios de empresas con convenio"><input type="checkbox" class="v-d80" ${v.decreto80 ? "checked" : ""}> 🏢 Decreto 80</label>
-          <label ${v.decreto80 ? "" : "hidden"} class="v-d80-v">vence <input class="v-d80-f" type="date" value="${esc(v.decreto80_vence || "")}" style="padding:4px 6px"></label>${v.decreto80 && !d80ok(v) ? ' <span class="alerta roja">Decreto 80 vencido</span>' : ""}
+          <label class="chk" title="Con autorización ministerial: puede hacer servicios de empresas con convenio"><input type="checkbox" class="v-d80" ${v.decreto80 ? "checked" : ""}> 🏢 Corporativo</label>
+          <label ${v.decreto80 ? "" : "hidden"} class="v-d80-v">vence <input class="v-d80-f" type="date" value="${esc(v.decreto80_vence || "")}" style="padding:4px 6px"></label>${v.decreto80 && !d80ok(v) ? ' <span class="alerta roja">Autorización corporativa vencida</span>' : ""}
           <label>Comisión Flota-K <input class="v-com" type="number" min="0" max="100" step="0.5" value="${v.comision_pct ?? ""}" placeholder="%" style="width:70px;padding:4px 6px"> %</label></div></div></div>`).join("") || '<p class="muted">Aún no hay vehículos.</p>';
   $("fl-vehs").querySelectorAll(".fl-card").forEach(card => {
     const v = flVehs.find(x => x.id === card.dataset.v);
@@ -1577,12 +1577,12 @@ async function cargarFlota() {
     });
     card.querySelector(".v-d80").addEventListener("change", async ev => {
       const { error } = await sb.from("vehiculos").update({ decreto80: ev.target.checked }).eq("id", v.id);
-      msg("v-msg", error ? errText(error) : `${v.patente}: ${ev.target.checked ? "con Decreto 80: puede hacer servicios de empresas con convenio. Indique la fecha de vencimiento si tiene." : "sin Decreto 80: no se le ofrecerán servicios de empresas con convenio."}`, error ? "err" : "ok");
+      msg("v-msg", error ? errText(error) : `${v.patente}: ${ev.target.checked ? "corporativo (con autorización ministerial): puede hacer servicios de empresas con convenio. Indique la fecha de vencimiento si tiene." : "no corporativo: no se le ofrecerán servicios de empresas con convenio."}`, error ? "err" : "ok");
       cargarRecursos(); cargarFlota();
     });
     card.querySelector(".v-d80-f").addEventListener("change", async ev => {
       const { error } = await sb.from("vehiculos").update({ decreto80_vence: ev.target.value || null }).eq("id", v.id);
-      msg("v-msg", error ? errText(error) : `${v.patente}: vencimiento del Decreto 80 guardado.`, error ? "err" : "ok"); cargarRecursos(); cargarFlota();
+      msg("v-msg", error ? errText(error) : `${v.patente}: vencimiento de la autorización corporativa guardado.`, error ? "err" : "ok"); cargarRecursos(); cargarFlota();
     });
     card.querySelector(".v-com").addEventListener("change", async ev => {
       const n = ev.target.value === "" ? null : Math.max(0, Math.min(100, Number(ev.target.value)));
@@ -3493,7 +3493,7 @@ async function cargarInscripciones() {
       <div><b>${esc(p.nombre)}</b> <span class="small muted">· se inscribió el ${esc(fecha(x.creado_en))}</span></div>
       <div class="small">📞 ${esc(p.telefono || "—")} · ✉️ ${esc(x.correo || "—")} · RUT ${esc(x.rut || "—")} · ${esc(x.comuna || "comuna no indicada")} · Licencia ${esc(x.licencia_clase || "—")}</div>
       ${x.experiencia ? `<div class="small muted">“${esc(x.experiencia)}”</div>` : ""}
-      <div class="small">${x.tiene_vehiculo ? `🚗 Vehículo propio: <b>${esc(x.patente || "")}</b> ${esc([CAT[x.categoria], x.marca, x.modelo, x.anio, x.color].filter(Boolean).join(" · "))}${x.dice_decreto80 ? " · <b>dice tener Decreto 80</b> (verifíquelo y márquelo en Flota)" : ""}` : "Sin vehículo propio"}</div>
+      <div class="small">${x.tiene_vehiculo ? `🚗 Vehículo propio: <b>${esc(x.patente || "")}</b> ${esc([CAT[x.categoria], x.marca, x.modelo, x.anio, x.color].filter(Boolean).join(" · "))}${x.dice_decreto80 ? " · <b>dice tener autorización ministerial (corporativo)</b> (verifíquela y marque \"Corporativo\" en Flota)" : ""}` : "Sin vehículo propio"}</div>
       <div class="small">📄 Documentos: ${dd.length ? dd.map(d => `<button class="linkbtn pdoc" type="button" data-path="${esc(d.archivo_path)}">${esc(NOMD[d.tipo] || d.tipo)}</button>`).join(" · ") : '<span class="muted">aún no sube documentos</span>'}</div>
       <div class="actions" style="margin-top:6px"><button class="btn sm pok" type="button">✅ Activar</button><button class="btn ghost sm pno" type="button">Rechazar</button>
         ${p.telefono ? `<button class="btn ghost sm pwa" type="button" data-tel="${esc(p.telefono)}" data-nom="${esc(p.nombre)}">📲 WhatsApp</button>` : ""}</div>
