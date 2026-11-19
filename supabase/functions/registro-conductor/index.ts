@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const d = {
       nombre: txt(b.nombre, 120), telefono: txt(b.telefono, 30), rut: txt(b.rut, 20), comuna: txt(b.comuna, 80),
       licencia: txt(b.licencia, 20), experiencia: txt(b.experiencia, 500), tiene_vehiculo: b.tiene_vehiculo === true,
-      patente: txt(b.patente, 10), marca: txt(b.marca, 60), modelo: txt(b.modelo, 60), anio: txt(b.anio, 4), color: txt(b.color, 40),
+      categoria: txt(b.categoria, 30), patente: txt(b.patente, 10), marca: txt(b.marca, 60), modelo: txt(b.modelo, 60), anio: txt(b.anio, 4), color: txt(b.color, 40),
     };
 
     const { data: emp } = await admin.rpc("inscripcion_empresa", { p_codigo: codigo });
@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
     if (d.tiene_vehiculo) {
       const pat = d.patente.toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!/^[A-Z]{2,4}[0-9]{2,4}$/.test(pat) || pat.length < 5 || pat.length > 6) return json({ error: "Revise la patente (ej.: ABCD12)" }, 400);
+      if (!d.categoria) return json({ error: "Elija la categoría del vehículo" }, 400);
       if (!d.marca || !d.modelo) return json({ error: "Escriba la marca y el modelo del vehículo" }, 400);
       if (!/^(19|20)\d\d$/.test(d.anio)) return json({ error: "Escriba el año del vehículo" }, 400);
     }

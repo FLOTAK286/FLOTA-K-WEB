@@ -59,7 +59,7 @@
 const { sb, esc, clp, fecha, errText, SERVICIOS, ESTADOS } = FK;
 const $ = id => document.getElementById(id);
 const TZ = "America/Santiago";
-const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
+const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van", particular_sedan: "Particular sedán", particular_suv: "Particular SUV", particular_vip: "Particular VIP" };
 let yo = null, vehs = [], filas = [];
 function msg(id, t, k) { const m = $(id); m.hidden = false; m.className = "msg " + (k || ""); m.textContent = t; }
 

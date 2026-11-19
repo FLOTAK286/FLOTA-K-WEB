@@ -273,7 +273,7 @@ details.paso > summary { cursor: pointer; }
         <div class="row3">
           <div class="f"><label for="v-color">Color</label><input id="v-color" list="dl-colores" autocomplete="off" maxlength="40"></div>
           <div class="f"><label for="v-pat">Patente</label><input id="v-pat" required placeholder="ABCD12" maxlength="10"></div>
-          <div class="f"><label for="v-cat">Categoría</label><select id="v-cat"><option value="taxi_basico">Taxi básico</option><option value="taxi_turismo">Taxi turismo</option><option value="taxi_ejecutivo">Taxi ejecutivo</option><option value="suv">SUV</option><option value="van">Van</option></select></div>
+          <div class="f"><label for="v-cat">Categoría</label><select id="v-cat"><option value="taxi_basico">Taxi básico</option><option value="taxi_turismo">Taxi turismo</option><option value="taxi_ejecutivo">Taxi ejecutivo</option><option value="suv">SUV</option><option value="van">Van</option><option value="particular_sedan">Particular sedán</option><option value="particular_suv">Particular SUV</option><option value="particular_vip">Particular VIP</option></select></div>
         </div>
         <div class="row3">
           <div class="f"><label for="v-cap">Capacidad (pasajeros)</label><input id="v-cap" type="number" min="1" max="20" value="4"></div>
@@ -516,11 +516,11 @@ function semClave(r) {
 }
 const semaforo = r => { const k = semClave(r); if (!k) return ""; const [bg, fg, t] = SEM[k]; return `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`; };
 const semLeyenda = () => `<div class="sem-ley small">${Object.values(SEM).map(([bg, fg, t]) => `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`).join(" ")}</div>`;
-const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
+const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van", particular_sedan: "Particular sedán", particular_suv: "Particular SUV", particular_vip: "Particular VIP" };
 // "Taxi ejecutivo Volkswagen Virtus, color azul · patente SSHY88"
 const vehTexto = v => [CAT[v.categoria], [v.marca, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" ") + (v.color ? `, color ${v.color.toLowerCase()}` : "") + ` · patente ${v.patente}`;
 const PIDE = { auto: "Auto", suv: "SUV", van: "Van" };
-const sirve = (cat, pide) => pide === "van" ? cat === "van" : pide === "suv" ? ["suv", "van"].includes(cat) : true;
+const sirve = (cat, pide) => pide === "van" ? cat === "van" : pide === "suv" ? ["suv", "van", "particular_suv"].includes(cat) : true;
 const vehDe = (cond, vehId) => vehiculos.find(v => v.id === vehId) || vehiculos.find(v => v.conductor_habitual === cond);
 // "286 · Juan Kieferling · SSHY88 Virtus"
 function etiquetaConductor(id) {
@@ -1576,7 +1576,7 @@ async function cargarFlota() {
     });
     card.querySelector(".v-cat-sel").addEventListener("change", async ev => {
       const cat = ev.target.value;
-      const { error } = await sb.from("vehiculos").update({ categoria: cat, tipo: cat === "van" ? "van" : cat === "suv" ? "suv" : "auto" }).eq("id", v.id);
+      const { error } = await sb.from("vehiculos").update({ categoria: cat, tipo: cat === "van" ? "van" : ["suv", "particular_suv"].includes(cat) ? "suv" : "auto" }).eq("id", v.id);
       msg("v-msg", error ? errText(error) : `${v.patente}: categoría ${CAT[cat]}.`, error ? "err" : "ok"); cargarRecursos();
     });
     card.querySelector(".v-foto-in").addEventListener("change", async ev => {
@@ -1675,7 +1675,7 @@ $("vf").addEventListener("submit", async e => {
   if (!$("v-cond").value) return msg("v-msg", "Elija el conductor fijo del vehículo.", "err");
   const cat = $("v-cat").value;
   const fila = { empresa_id: yo.empresa_id, patente: pat, marca, modelo, anio: Number($("v-anio").value) || null, color: color || null,
-    descripcion: [marca, modelo, color && color.toLowerCase()].filter(Boolean).join(" "), categoria: cat, tipo: cat === "van" ? "van" : cat === "suv" ? "suv" : "auto", capacidad: Number($("v-cap").value) || 4, conductor_habitual: $("v-cond").value || null };
+    descripcion: [marca, modelo, color && color.toLowerCase()].filter(Boolean).join(" "), categoria: cat, tipo: cat === "van" ? "van" : ["suv", "particular_suv"].includes(cat) ? "suv" : "auto", capacidad: Number($("v-cap").value) || 4, conductor_habitual: $("v-cond").value || null };
   if (vehEditando) {
     delete fila.empresa_id;
     const id = vehEditando.id;
@@ -3478,7 +3478,7 @@ async function cargarInscripciones() {
       <div><b>${esc(p.nombre)}</b> <span class="small muted">· se inscribió el ${esc(fecha(x.creado_en))}</span></div>
       <div class="small">📞 ${esc(p.telefono || "—")} · ✉️ ${esc(x.correo || "—")} · RUT ${esc(x.rut || "—")} · ${esc(x.comuna || "comuna no indicada")} · Licencia ${esc(x.licencia_clase || "—")}</div>
       ${x.experiencia ? `<div class="small muted">“${esc(x.experiencia)}”</div>` : ""}
-      <div class="small">${x.tiene_vehiculo ? `🚗 Vehículo propio: <b>${esc(x.patente || "")}</b> ${esc([x.marca, x.modelo, x.anio, x.color].filter(Boolean).join(" · "))}` : "Sin vehículo propio"}</div>
+      <div class="small">${x.tiene_vehiculo ? `🚗 Vehículo propio: <b>${esc(x.patente || "")}</b> ${esc([CAT[x.categoria], x.marca, x.modelo, x.anio, x.color].filter(Boolean).join(" · "))}` : "Sin vehículo propio"}</div>
       <div class="small">📄 Documentos: ${dd.length ? dd.map(d => `<button class="linkbtn pdoc" type="button" data-path="${esc(d.archivo_path)}">${esc(NOMD[d.tipo] || d.tipo)}</button>`).join(" · ") : '<span class="muted">aún no sube documentos</span>'}</div>
       <div class="actions" style="margin-top:6px"><button class="btn sm pok" type="button">✅ Activar</button><button class="btn ghost sm pno" type="button">Rechazar</button>
         ${p.telefono ? `<button class="btn ghost sm pwa" type="button" data-tel="${esc(p.telefono)}" data-nom="${esc(p.nombre)}">📲 WhatsApp</button>` : ""}</div>

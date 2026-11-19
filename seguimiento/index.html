@@ -52,7 +52,7 @@ const ORDEN = ["recibida", "confirmada", "asignada", "en_camino", "en_lugar", "a
 const token = new URLSearchParams(location.search).get("t");
 
 const EN_CURSO = ["en_camino", "en_lugar", "a_bordo"];
-const CATEGORIA = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
+const CATEGORIA = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van", particular_sedan: "Particular sedán", particular_suv: "Particular SUV", particular_vip: "Particular VIP" };
 let estado = null, mapa = null, pin = null, centrado = false, timerUb = null;
 
 async function cargar() {
