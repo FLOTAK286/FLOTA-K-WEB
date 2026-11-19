@@ -181,6 +181,7 @@ body.drv { overscroll-behavior-y: contain; }
         <label for="in-modelo">Modelo</label><input id="in-modelo" maxlength="60">
         <label for="in-anio">Año</label><input id="in-anio" type="number" min="1990" max="2100">
         <label for="in-color">Color</label><input id="in-color" maxlength="40">
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="in-d80"> Mi vehículo está inscrito en el Decreto 80 (transporte privado remunerado)</label>
       </div>
       <label for="in-mail" style="margin-top:6px">Correo</label><input id="in-mail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="200" required>
       <label for="in-pass">Cree una contraseña</label><input id="in-pass" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Mínimo 8, con letras y números" required>
@@ -307,7 +308,7 @@ $("insc-form").addEventListener("submit", async e => {
   const v = id => $(id).value.trim(), veh = $("in-veh").checked;
   const b = { codigo: codInsc, nombre: v("in-nombre"), rut: v("in-rut"), telefono: v("in-tel"), comuna: v("in-comuna"), licencia: v("in-lic"),
     experiencia: v("in-exp"), tiene_vehiculo: veh, categoria: veh ? v("in-cat") : "", patente: veh ? v("in-pat") : "", marca: veh ? v("in-marca") : "", modelo: veh ? v("in-modelo") : "",
-    anio: veh ? v("in-anio") : "", color: veh ? v("in-color") : "", correo: v("in-mail").toLowerCase(), clave: $("in-pass").value };
+    anio: veh ? v("in-anio") : "", color: veh ? v("in-color") : "", decreto80: veh && $("in-d80").checked, correo: v("in-mail").toLowerCase(), clave: $("in-pass").value };
   if (!b.nombre.includes(" ")) return msg("insc-msg", "Escriba su nombre y apellido.", "err");
   if (b.rut.replace(/[^0-9kK]/g, "").length < 7) return msg("insc-msg", "Escriba su RUT.", "err");
   if (b.telefono.replace(/\D/g, "").length < 8) return msg("insc-msg", "Escriba un teléfono válido.", "err");

@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const d = {
       nombre: txt(b.nombre, 120), telefono: txt(b.telefono, 30), rut: txt(b.rut, 20), comuna: txt(b.comuna, 80),
       licencia: txt(b.licencia, 20), experiencia: txt(b.experiencia, 500), tiene_vehiculo: b.tiene_vehiculo === true,
-      categoria: txt(b.categoria, 30), patente: txt(b.patente, 10), marca: txt(b.marca, 60), modelo: txt(b.modelo, 60), anio: txt(b.anio, 4), color: txt(b.color, 40),
+      categoria: txt(b.categoria, 30), patente: txt(b.patente, 10), marca: txt(b.marca, 60), modelo: txt(b.modelo, 60), anio: txt(b.anio, 4), color: txt(b.color, 40), decreto80: b.decreto80 === true,
     };
 
     const { data: emp } = await admin.rpc("inscripcion_empresa", { p_codigo: codigo });

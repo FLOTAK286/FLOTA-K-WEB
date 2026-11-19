@@ -1,5 +1,11 @@
 # Cambios
 
+## 19 nov 2026 · Decreto 80: servicios de empresas con convenio solo con vehículos acreditados
+- Flota (panel): casilla **"🏢 Decreto 80"** en cada vehículo, con fecha de vencimiento (opcional) y aviso "Decreto 80 vencido".
+- **Toda reserva de una empresa con convenio exige un vehículo con Decreto 80 vigente** (decisión del dueño). En "Reservas para conductores" no se le muestra a quien no lo tenga y no la puede tomar (`bolsa_servicios`, `conductor_tomar_reserva`). En el panel, la lista de conductores marca "⚠ sin Decreto 80" y al asignar pide confirmación ("¿Asignar de todas formas?"). La ficha muestra "🏢 exige vehículo con Decreto 80".
+- Inscripción de conductores: casilla "Mi vehículo está inscrito en el Decreto 80"; el panel lo muestra como "dice tener Decreto 80 (verifíquelo y márquelo en Flota)". No se marca solo.
+- Base de datos (etapa 50, ya aplicada): `vehiculos.decreto80`, `vehiculos.decreto80_vence`, `postulaciones_conductor.dice_decreto80`, función `vehiculo_decreto80_ok`.
+
 ## 19 nov 2026 · Inscripción de conductores con enlace (aprobación con un toque)
 - Panel → Equipo y roles (solo admin): **"🆕 Inscripción de conductores"** con el enlace para enviar (WhatsApp o copiar), "Cambiar enlace" (el anterior deja de servir) y "Pausar inscripciones". Lista **"Por aprobar"** con datos (teléfono, correo, RUT, comuna, licencia, experiencia, vehículo propio) y documentos para abrir; botones **✅ Activar**, Rechazar (con motivo opcional que la persona ve) y WhatsApp. Las rechazadas quedan plegadas, con "Activar de todas formas". La pestaña muestra "(🆕 N)" si hay inscripciones pendientes. Los postulantes no aparecen en la tabla de miembros hasta ser aprobados.
 - App del conductor: con `/conductor/?inscripcion=<código>` aparece el formulario "Inscripción de conductores" (nombre, RUT, teléfono, comuna, licencia, experiencia, vehículo propio opcional, correo y contraseña, declaración). Al enviar, entra solo y ve **"Su inscripción está en revisión"**, donde sube licencia, cédula, antecedentes y hoja de vida (lista con ✅). No ve servicios hasta ser activado. Si se rechaza, ve el aviso con el motivo.
