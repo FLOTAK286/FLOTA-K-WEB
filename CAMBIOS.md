@@ -1,5 +1,9 @@
 # Cambios
 
+## 19 nov 2026 · Semáforo del conductor y aviso de aceptación
+- Panel de Operaciones: etiqueta de color con el estado del conductor en cada servicio (pedido de Paola): 🟤 sin aceptar, 🟢 aceptó, 🔴 no puede, 🟡 en camino, 🔵 ubicado (celeste), 🔷 pasajero a bordo (azul), ⚪ finalizado (gris). En Despacho (bajo el conductor, con leyenda arriba), en la lista de Reservas, en la Agenda (columnas y línea de tiempo, donde el bloque toma el color) y en la ficha ("Asignación"). `SEM`, `semClave`, `semaforo` en equipo; estilos `.sem` en app.css.
+- Base de datos (etapa 48, ya aplicada): aviso a Operaciones "✅ [conductor] aceptó el servicio" (tipo `acepto`), también con la app cerrada; el rechazo ya avisaba.
+
 ## 18 nov 2026 · Gastos (fijos o variables, por patente) y otros ingresos con comisión en Reportes
 - Gastos: se marcan **Fijo** o **Variable** (chips al ingresar y casilla "Fijo" en la lista para cambiarlo); se asocian a la **patente** (o a la empresa), sin conductor.
 - **Otros ingresos** (Cabify, Servimóvil, Uber, DiDi, particular, otra; se pueden agregar plataformas): monto bruto, % de comisión (por defecto según la plataforma; Servimóvil 23 %, editable en "⚙ Comisiones por plataforma"), viajes, patente; la comisión y el neto los calcula la base de datos. Se pueden anular.

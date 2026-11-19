@@ -318,3 +318,6 @@ header.top .userbar .btn.ghost { color: #eceae4; border-color: #4a4f57; }
 .barra { height: 10px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
 .barra i { display: block; height: 100%; background: var(--gold); }
 .barra.alta i { background: #e5533d; }
+/* Semáforo del conductor (panel de Operaciones) */
+.sem { display: inline-block; font-size: .74rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; vertical-align: middle; line-height: 1.4; }
+.sem-ley { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }

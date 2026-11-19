@@ -101,6 +101,7 @@ details.paso > summary { cursor: pointer; }
         <span class="actions"><button class="btn ghost sm" type="button" id="tb-avisos">🔔 Activar avisos</button><label class="chk small"><input type="checkbox" id="tb-vermapa"> Ver mapa al lado</label><span class="muted small" id="tb-act"></span></span>
       </div>
       <div id="tb-resumen" class="kpis"></div>
+      <div id="tb-ley"></div>
       <div id="tb-split"><div class="tblwrap"><table class="tbl tb"><thead><tr><th>Hora</th><th>Servicio</th><th>Pasajero</th><th>Trayecto</th><th>Vuelo</th><th>Conductor</th><th>Valor</th><th>Alertas</th></tr></thead><tbody id="tb-body"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody></table></div><div id="tb-mapa" class="mapa alto" hidden></div></div>
       <p class="muted small" style="margin:0">Muestra desde 12 horas atrás hasta 2 días adelante, más toda reserva por confirmar. Se actualiza solo cada 30 segundos. Toque una fila para abrir la ficha; el conductor se puede asignar directo en la fila.</p>
     </div>
@@ -498,6 +499,19 @@ async function cargarRecursos() {
 }
 const nombreConductor = id => (conductores.find(c => c.id === id) || {}).nombre;
 // Categorías: el servicio pide auto (cualquiera), suv (SUV o van) o van (solo van). Si no calza, se advierte.
+// Semáforo del conductor en cada servicio: sin aceptar, aceptó, no puede, en camino, ubicado, a bordo, finalizado
+const SEM = { sin_aceptar: ["#8b5a2b", "#fff", "Sin aceptar"], acepto: ["#2e9e5f", "#fff", "Aceptó"], no_puede: ["#e5533d", "#fff", "No puede"],
+  en_camino: ["#f2c94c", "#2b2100", "En camino"], en_lugar: ["#56ccf2", "#06283a", "Ubicado"], a_bordo: ["#2563eb", "#fff", "Pasajero a bordo"], finalizada: ["#9aa0a6", "#17191c", "Finalizado"] };
+function semClave(r) {
+  if (!r || r.estado === "cancelada") return null;
+  if (r.estado === "finalizada") return "finalizada";
+  if (["en_camino", "en_lugar", "a_bordo"].includes(r.estado)) return r.estado;
+  if (r.conductor_respuesta === "rechazado") return "no_puede";
+  if (!r.conductor_id) return null;
+  return r.conductor_respuesta === "aceptado" ? "acepto" : "sin_aceptar";
+}
+const semaforo = r => { const k = semClave(r); if (!k) return ""; const [bg, fg, t] = SEM[k]; return `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`; };
+const semLeyenda = () => `<div class="sem-ley small">${Object.values(SEM).map(([bg, fg, t]) => `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`).join(" ")}</div>`;
 const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van" };
 // "Taxi ejecutivo Volkswagen Virtus, color azul · patente SSHY88"
 const vehTexto = v => [CAT[v.categoria], [v.marca, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" ") + (v.color ? `, color ${v.color.toLowerCase()}` : "") + ` · patente ${v.patente}`;
@@ -1117,7 +1131,7 @@ function pintar() {
       <div><b>${esc(r.nombre_pasajero)}</b> · ${esc(r.telefono)}</div>
       <div>${esc(r.origen)} → ${(r.paradas || []).length ? `<b>🛑 ${r.paradas.length} parada(s)</b> → ` : ""}${esc(r.destino)}</div>
       <div class="top"><span class="code">${esc(r.codigo)} · ${esc(SERVICIOS[r.tipo_servicio] || "")} · ${esc(r.canal)}</span><span>${clp(r.precio ?? r.tarifa_web)}</span></div>
-      <div class="small ${r.conductor_id || r.derivado_a ? "" : "warn"}">${esc(asignadoTxt(r))}</div>
+      <div class="small ${r.conductor_id || r.derivado_a ? "" : "warn"}">${esc(asignadoTxt(r))} ${semaforo(r)}</div>
     </button>`).join("") : '<p class="muted">No hay reservas para mostrar.</p>';
   $("lista").querySelectorAll(".card").forEach(c => c.addEventListener("click", () => {
     if (!$("sel-modo").checked) return abrir(c.dataset.id);
@@ -1226,7 +1240,7 @@ async function abrir(id) {
     <div class="actions"><select id="wa-tipo" aria-label="Mensaje de WhatsApp" style="max-width:240px">${Object.entries(PLANTILLAS).map(([k, v]) => `<option value="${k}" ${k === plantillaSugerida(r) ? "selected" : ""}>${esc(v)}</option>`).join("")}</select><button class="btn ghost sm" type="button" id="wa-pas">📲 WhatsApp al pasajero</button>${r.solicitante_nombre ? '<button class="btn ghost sm" type="button" id="wa-sol">📲 A quien reservó</button>' : ""}</div>
     <div class="actions"><button class="btn ghost sm" type="button" id="d-copiar">⧉ Duplicar</button><button class="btn ghost sm" type="button" id="d-regreso">↩ Crear regreso</button></div>
     <div id="d-notas"></div>
-    <h3 style="margin:6px 0 0">Asignación</h3>
+    <h3 style="margin:6px 0 0">Asignación ${semaforo(r)}</h3>
     <div id="a-sug" class="small"></div>
     <div class="row3">
       <div class="f"><label for="a-cond">Conductor</label><select id="a-cond"><option value="">Sin asignar</option>${opcionesConductor(r.conductor_id, r.vehiculo)}</select></div>
@@ -2339,6 +2353,7 @@ function pintarDespacho() {
   const opcCond = r => `<option value="">${r.derivado_a ? "Derivado: " + esc(r.derivado_a) : "Sin asignar"}</option>` + opcionesConductor(r.conductor_id, r.vehiculo);
   const patente = r => { const v = vehiculos.find(x => x.id === r.vehiculo_id) || vehiculos.find(x => x.conductor_habitual === r.conductor_id); return v ? v.patente : ""; };
   const corto = t => esc((t || "").length > 28 ? t.slice(0, 27) + "…" : t || "");
+  $("tb-ley").innerHTML = semLeyenda();
   $("tb-body").innerHTML = rows.length ? rows.map(r => `
     <tr data-id="${esc(r.id)}" class="${r._urg >= 3 ? "urg3" : r._urg === 2 ? "urg2" : ""} ${r.estado === "finalizada" ? "fin" : ""}">
       <td class="nowrap"><b>${esc(hora(r.fecha_hora))}</b><br><span class="muted small">${diaK(r.fecha_hora) === hoyK ? "hoy" : esc(new Date(r.fecha_hora).toLocaleDateString("es-CL", { timeZone: TZ, weekday: "short", day: "numeric" }))}</span></td>
@@ -2346,7 +2361,7 @@ function pintarDespacho() {
       <td><b>${esc(r.nombre_pasajero)}</b> ${etqHtml(etqDe[r.cliente_id])}${r.solicitante_nombre ? `<br><span class="small muted">paga: ${esc(r.solicitante_nombre)}</span>` : ""}<br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
       <td class="tray" title="${esc(r.origen)} → ${esc(r.destino)}">${corto(r.origen)}<br><span class="muted">→ ${(r.paradas || []).length ? `🛑${r.paradas.length} → ` : ""}${corto(r.destino)}</span></td>
       <td class="nowrap">${vueloLink(r.vuelo)}</td>
-      <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
+      <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${semClave(r) ? `<br>${semaforo(r)}` : ""}${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
       <td class="nowrap">${r.tipo_cobro === "taximetro" && r.estado !== "finalizada" ? '<span class="muted small">Taxímetro</span>' : clp(r.precio ?? r.tarifa_web)}<br><span class="small ${r.pagado ? "muted" : ""}">${r.pagado ? "Pagado" : "Por cobrar"}</span></td>
       <td>${r._al.map(x => `<span class="alerta ${x.c}">${esc(x.t)}</span>`).join(" ") || '<span class="muted small">—</span>'}</td>
     </tr>`).join("") : `<tr><td colspan="8" class="muted">No hay servicios en este filtro.</td></tr>`;
@@ -2409,6 +2424,7 @@ async function cargarAgenda() {
         <div class="top"><span class="when">${esc(hora(r.fecha_hora))}–${esc(hora(new Date(new Date(r.fecha_hora).getTime() + (r.duracion_min || 90) * 60000).toISOString()))}</span>${pill(r.estado)}</div>
         <div><b>${esc(r.nombre_pasajero)}</b>${r.vuelo ? " · " + esc(r.vuelo) : ""}</div>
         <div class="small">${esc(r.origen)} → ${(r.paradas || []).length ? `🛑 ${r.paradas.length} parada(s) → ` : ""}${esc(r.destino)}</div>
+        ${semaforo(r) ? `<div>${semaforo(r)}</div>` : ""}
         ${choca.has(r.id) ? '<div class="small warn">Se cruza con otro servicio</div>' : ""}
       </button>`).join("") : '<p class="muted small">Sin servicios</p>'}</div>`;
   }).join("") || '<p class="muted">No hay servicios este día.</p>';
@@ -2435,7 +2451,7 @@ function pintarLinea(grupos, fin, d) {
       if (g.id && g.id !== "red") g.items.forEach((a, i) => g.items.forEach((b, j) => { if (i < j && t(a) < fin(b) && t(b) < fin(a)) { choca.add(a.id); choca.add(b.id); } }));
       return `<div class="tl-fila"><div class="tl-nom">${esc(g.nombre)} <span class="muted small">${g.items.length}</span></div><div class="tl-pista">${lineas}${g.items.map(r => {
         const a = pos(t(r)), w = Math.max(pos(t(r) + (r.duracion_min || 90) * 60000) - a, 2.5);
-        return `<button type="button" class="tl-b e-${esc(r.estado)} ${choca.has(r.id) ? "choque" : ""}" data-id="${esc(r.id)}" style="left:${a}%;width:${w}%" title="${esc(hora(r.fecha_hora) + " · " + r.nombre_pasajero + " · " + r.origen + " → " + r.destino)}"><b>${esc(hora(r.fecha_hora))}</b> ${esc((r.nombre_pasajero || "").split(" ")[0])}</button>`;
+        return `<button type="button" class="tl-b e-${esc(r.estado)} ${choca.has(r.id) ? "choque" : ""}" data-id="${esc(r.id)}" style="left:${a}%;width:${w}%;${semClave(r) ? `background:${SEM[semClave(r)][0]};color:${SEM[semClave(r)][1]}` : ""}" title="${esc(hora(r.fecha_hora) + " · " + r.nombre_pasajero + " · " + r.origen + " → " + r.destino)}"><b>${esc(hora(r.fecha_hora))}</b> ${esc((r.nombre_pasajero || "").split(" ")[0])}</button>`;
       }).join("")}</div></div>`;
     }).join("")}</div></div>
     <p class="small muted">Cada bloque es un servicio con su duración estimada; los espacios vacíos son tiempo libre. En rojo: servicios que se cruzan. La línea dorada es la hora actual. Toque un bloque para abrir la reserva.</p>`;
