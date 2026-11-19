@@ -1,5 +1,9 @@
 # Cambios
 
+## 19 nov 2026 · El admin ve el portal de cada propietario
+- Equipo y roles: botón **"👁 Ver su portal"** en cada propietario. Abre /propietario/?ver=<id> con un aviso "Vista de administrador" y muestra exactamente sus vehículos, servicios y reportes (solo lectura).
+- Base de datos (etapa 52, ya aplicada): `admin_puede_ver_propietario`, `admin_ver_propietario_vehiculos`, `admin_ver_propietario_servicios` (solo admin de la misma empresa).
+
 ## 19 nov 2026 · Propietario que también conduce
 - Un usuario con rol **Propietario** y la casilla **"🚗 También conduce"** entra a la app del conductor y al portal /propietario. Al registrar su vehículo en la app (Perfil → Mi vehículo) queda automáticamente como **su propietario** y lo ve en /propietario con sus reportes (etapa 51, ya aplicada: `conductor_guardar_vehiculo` llena `propietario_id`).
 - App del conductor: botón "📊 Reportes de mi vehículo" en Perfil para propietarios. /propietario: botón "🚗 Ir a la app del conductor" y, si aún no tiene vehículos, explica cómo registrarlo.

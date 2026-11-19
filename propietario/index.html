@@ -21,6 +21,7 @@
 <body>
 <header class="top"><div class="wrap"><a class="brand" href="/propietario/">FLOTA<span>·K</span> <small style="color:#a3a6ad;font-size:.9rem;letter-spacing:.06em">PROPIETARIOS</small></a><div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn ghost sm" id="logout" type="button">Salir</button></div></div></header>
 <main class="app">
+  <div class="msg" id="vista-admin" hidden style="margin-bottom:12px;border-color:var(--gold)"></div>
   <section class="panel" id="login" hidden>
     <h2>Portal del propietario</h2>
     <p class="muted">Para dueños de vehículos y gestores de flota que trabajan con Flota-K. Ingrese con su correo y contraseña.</p>
@@ -86,15 +87,24 @@ function rango() {
 }
 const neto = r => Math.round((r.o_total || 0) * (1 - (Number(r.o_comision) || 0) / 100));
 
+let verId = null;
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
   const { data: p } = await sb.from("perfiles").select("nombre, rol, activo, conduce").eq("id", session.user.id).maybeSingle();
   yo = p || { nombre: session.user.email };
   $("who").textContent = yo.nombre; $("userbar").hidden = false;
-  const { data, error } = await sb.rpc("propietario_vehiculos");
+  // Vista del administrador: /propietario/?ver=<id> muestra lo que ve ese propietario (solo lectura)
+  const ver = new URLSearchParams(location.search).get("ver");
+  if (ver && yo.rol === "admin") {
+    const { data: q } = await sb.from("perfiles").select("nombre, conduce").eq("id", ver).maybeSingle();
+    verId = ver; yo = { nombre: q ? q.nombre : "propietario", rol: "propietario", conduce: q && q.conduce };
+    $("vista-admin").hidden = false;
+    $("vista-admin").innerHTML = `👁 <b>Vista de administrador:</b> está viendo el portal tal como lo ve <b>${esc(yo.nombre)}</b> (solo lectura). <a href="/equipo/">Volver al panel</a>`;
+  }
+  const { data, error } = verId ? await sb.rpc("admin_ver_propietario_vehiculos", { p_propietario: verId }) : await sb.rpc("propietario_vehiculos");
   vehs = data || [];
-  if (yo.conduce) $("ir-cond").hidden = false;
+  if (yo.conduce && !verId) $("ir-cond").hidden = false;
   if (error || !vehs.length) {
     if (yo.conduce) $("noaccess-txt").innerHTML = 'Aún no tiene vehículos registrados. Como también conduce, registre su vehículo en la <a href="/conductor/">app del conductor</a> (Perfil → Mi vehículo): aparecerá aquí con sus reportes.';
     $("noaccess").hidden = false; return;
@@ -104,7 +114,7 @@ async function iniciar(session) {
 }
 async function cargar() {
   const [desde, hasta, txt] = rango();
-  const { data, error } = await FK.todo(() => sb.rpc("propietario_servicios", { p_desde: desde, p_hasta: hasta }));
+  const { data, error } = await FK.todo(() => verId ? sb.rpc("admin_ver_propietario_servicios", { p_propietario: verId, p_desde: desde, p_hasta: hasta }) : sb.rpc("propietario_servicios", { p_desde: desde, p_hasta: hasta }));
   if (error) { $("tbody").innerHTML = `<tr><td colspan="8" class="msg err">${esc(errText(error))}</td></tr>`; return; }
   filas = data || [];
   const fin = filas.filter(r => r.o_estado === "finalizada");

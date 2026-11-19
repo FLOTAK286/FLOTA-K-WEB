@@ -3430,7 +3430,7 @@ async function cargarEquipo() {
       <td><label class="chk"><input type="checkbox" class="cond" aria-label="También conduce" ${p.conduce || p.rol === "conductor" ? "checked" : ""} ${p.rol === "conductor" ? "disabled title=\"Los conductores siempre conducen\"" : ""}> ${p.conduce || p.rol === "conductor" ? "Sí" : "No"}</label></td>
       <td>${p.activo ? "Activo" : '<span class="muted">Desactivado</span>'}</td>
       <td>${p.id === yo.id ? "" : `<button class="btn ghost sm tog" type="button">${p.activo ? "Desactivar" : "Activar"}</button>`}</td>
-      <td>${p.id === yo.id ? "" : '<button class="btn ghost sm clv" type="button" title="Si olvidó su contraseña">🔑 Nueva contraseña</button>'}</td>
+      <td>${p.id === yo.id ? "" : '<button class="btn ghost sm clv" type="button" title="Si olvidó su contraseña">🔑 Nueva contraseña</button>'}${p.rol === "propietario" ? ` <a class="btn ghost sm" href="/propietario/?ver=${esc(p.id)}" title="Ver su portal tal como lo ve (solo lectura)">👁 Ver su portal</a>` : ""}</td>
     </tr>`).join("");
   $("miembros").querySelectorAll("tr").forEach(tr => {
     const id = tr.dataset.id, p = m.find(x => x.id === id);
