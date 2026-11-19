@@ -1236,6 +1236,7 @@ async function pintarPerfil() {
         <div class="list" style="margin-top:8px"><div class="f"><label for="pw-n">Nueva contraseña (mínimo 8 caracteres, distinta de la actual)</label><input id="pw-n" type="password" autocomplete="new-password" minlength="8"></div>
         <label class="chk small"><input type="checkbox" id="pw-ver"> Mostrar lo que escribo</label>
         <button class="btn" id="pw-ok" type="button">Guardar contraseña</button></div></details>
+      ${yo.rol === "propietario" ? '<a class="btn ghost" href="/propietario/">📊 Reportes de mi vehículo</a>' : ""}
       <button class="btn ghost" id="salir2" type="button">Cerrar sesión</button>
     </div>
     <div class="msg" id="pf-msg" hidden></div>`;

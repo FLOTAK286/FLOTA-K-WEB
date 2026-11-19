@@ -32,7 +32,8 @@
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
-  <section class="panel" id="noaccess" hidden><h2>Sin vehículos</h2><p>Su usuario aún no tiene vehículos asociados. Pida a Flota-K que lo asigne como propietario de su vehículo.</p></section>
+  <section class="panel" id="noaccess" hidden><h2>Sin vehículos</h2><p id="noaccess-txt">Su usuario aún no tiene vehículos asociados. Pida a Flota-K que lo asigne como propietario de su vehículo.</p></section>
+  <p class="small" id="ir-cond" hidden style="margin:8px 0"><a class="btn ghost sm" href="/conductor/">🚗 Ir a la app del conductor</a></p>
 
   <section id="app" hidden class="list">
     <div class="actions" style="justify-content:space-between;align-items:flex-end">
@@ -88,12 +89,16 @@ const neto = r => Math.round((r.o_total || 0) * (1 - (Number(r.o_comision) || 0)
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
-  const { data: p } = await sb.from("perfiles").select("nombre, rol, activo").eq("id", session.user.id).maybeSingle();
+  const { data: p } = await sb.from("perfiles").select("nombre, rol, activo, conduce").eq("id", session.user.id).maybeSingle();
   yo = p || { nombre: session.user.email };
   $("who").textContent = yo.nombre; $("userbar").hidden = false;
   const { data, error } = await sb.rpc("propietario_vehiculos");
   vehs = data || [];
-  if (error || !vehs.length) { $("noaccess").hidden = false; return; }
+  if (yo.conduce) $("ir-cond").hidden = false;
+  if (error || !vehs.length) {
+    if (yo.conduce) $("noaccess-txt").innerHTML = 'Aún no tiene vehículos registrados. Como también conduce, registre su vehículo en la <a href="/conductor/">app del conductor</a> (Perfil → Mi vehículo): aparecerá aquí con sus reportes.';
+    $("noaccess").hidden = false; return;
+  }
   $("app").hidden = false;
   cargar();
 }

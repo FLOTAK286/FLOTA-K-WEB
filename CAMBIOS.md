@@ -1,5 +1,10 @@
 # Cambios
 
+## 19 nov 2026 · Propietario que también conduce
+- Un usuario con rol **Propietario** y la casilla **"🚗 También conduce"** entra a la app del conductor y al portal /propietario. Al registrar su vehículo en la app (Perfil → Mi vehículo) queda automáticamente como **su propietario** y lo ve en /propietario con sus reportes (etapa 51, ya aplicada: `conductor_guardar_vehiculo` llena `propietario_id`).
+- App del conductor: botón "📊 Reportes de mi vehículo" en Perfil para propietarios. /propietario: botón "🚗 Ir a la app del conductor" y, si aún no tiene vehículos, explica cómo registrarlo.
+- Datos: Jorge Muñoz pasó de Conductor a Propietario (sigue con "También conduce"; su vehículo PKSH59 ya estaba a su nombre). Pedido del dueño.
+
 ## 19 nov 2026 · "Decreto 80" pasa a llamarse "Corporativo"
 - Pedido del dueño: en pantalla la casilla se llama **"🏢 Corporativo"** (vehículo con autorización ministerial). Cambian los textos del panel (Flota, advertencia al asignar, ficha, inscripciones), del formulario de inscripción y el mensaje de `conductor_tomar_reserva` (etapa 50b, ya aplicada). Las columnas internas siguen siendo `decreto80` y `decreto80_vence`.
 
