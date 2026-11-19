@@ -1,5 +1,8 @@
 # Cambios
 
+## 19 nov 2026 · Pagos de servicios suman al saldo en cuenta (rama `saldo-pagos`, sin publicar)
+- Reportes → "🏦 Saldo en cuenta": los servicios marcados como pagados por **Transferencia** o **Factura mensual** después del último saldo anotado se suman solos a la cuenta principal (la del saldo más reciente). Se muestra "saldo anotado + pagos recibidos" y la lista de esos pagos. Al anotar un saldo nuevo, la cuenta parte de ese número. Desmarcar un pago lo resta. Tarjeta y efectivo no se suman. Sin cambios en la base de datos.
+
 ## 19 nov 2026 · "Decreto 80" pasa a llamarse "Corporativo"
 - Pedido del dueño: en pantalla la casilla se llama **"🏢 Corporativo"** (vehículo con autorización ministerial). Cambian los textos del panel (Flota, advertencia al asignar, ficha, inscripciones), del formulario de inscripción y el mensaje de `conductor_tomar_reserva` (etapa 50b, ya aplicada). Las columnas internas siguen siendo `decreto80` y `decreto80_vence`.
 

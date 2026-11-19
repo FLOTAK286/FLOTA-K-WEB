@@ -2043,11 +2043,26 @@ async function pintarSaldo() {
   if (error) { box.innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
   saldos = data || [];
   const ult = {}; saldos.forEach(x => { if (!ult[x.cuenta]) ult[x.cuenta] = x; });
-  const cuentasS = Object.values(ult), total = cuentasS.reduce((a, x) => a + Number(x.saldo), 0);
+  const cuentasS = Object.values(ult);
+  // Los servicios que se marcan pagados (por transferencia o factura) DESPUÉS del último saldo anotado
+  // se suman solos a la cuenta principal (la del saldo más reciente). El efectivo y la tarjeta no.
+  const principal = saldos[0] || null;
+  let pagosNuevos = [];
+  if (principal) {
+    const { data: ps } = await FK.todo(() => sb.from("v_cobro").select("id, codigo, nombre_pasajero, total, pagado_en, pagado_medio")
+      .eq("pagado", true).gt("pagado_en", principal.creado_en).in("pagado_medio", ["Transferencia", "Factura mensual"]).order("pagado_en").order("id"));
+    pagosNuevos = ps || [];
+  }
+  const sumaPagos = pagosNuevos.reduce((a, x) => a + (Number(x.total) || 0), 0);
+  const total = cuentasS.reduce((a, x) => a + Number(x.saldo), 0) + sumaPagos;
   const fch = f => new Date(f + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+  const fchH = t => new Date(t).toLocaleString("es-CL", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
       <div><h3 style="margin:0">🏦 Saldo en cuenta</h3>${cuentasS.length ? `<b style="font-family:var(--font-display);font-size:1.6rem" class="${total < 0 ? "warn" : ""}">${clp(total)}</b>
-        <div class="small muted">${cuentasS.map(x => `${esc(x.cuenta)}: <b>${clp(Number(x.saldo))}</b> al ${esc(fch(x.fecha))}`).join(" · ")}</div>` : '<p class="small muted" style="margin:0">Aún no registra el saldo de la cuenta de la empresa.</p>'}</div>
+        <div class="small muted">${cuentasS.map(x => `${esc(x.cuenta)}: <b>${clp(Number(x.saldo) + (x === principal ? sumaPagos : 0))}</b>${x === principal && sumaPagos ? ` (saldo anotado ${clp(Number(x.saldo))} al ${esc(fch(x.fecha))} + pagos recibidos ${clp(sumaPagos)})` : ` al ${esc(fch(x.fecha))}`}`).join(" · ")}</div>
+        ${pagosNuevos.length ? `<details style="margin-top:4px"><summary class="small">💰 ${pagosNuevos.length} pago(s) de servicios sumados desde el último saldo anotado</summary><div class="tblwrap"><table class="tbl"><thead><tr><th>Marcado pagado</th><th>Servicio</th><th>Cliente</th><th>Medio</th><th>Monto</th></tr></thead><tbody>
+          ${pagosNuevos.map(x => `<tr><td class="nowrap">${esc(fchH(x.pagado_en))}</td><td class="nowrap">${esc(x.codigo)}</td><td>${esc(x.nombre_pasajero || "")}</td><td>${esc(x.pagado_medio || "")}</td><td class="nowrap"><b>${clp(Number(x.total) || 0)}</b></td></tr>`).join("")}
+          </tbody></table></div><p class="small muted" style="margin:4px 0 0">Cuando anote un saldo nuevo con "Actualizar saldo", la cuenta vuelve a partir de ese número y estos pagos ya quedan dentro de él. Si desmarca un pago, se resta solo.</p></details>` : ""}` : '<p class="small muted" style="margin:0">Aún no registra el saldo de la cuenta de la empresa.</p>'}</div>
       <button class="btn sm" type="button" id="sc-abrir">Actualizar saldo</button></div>
     <form id="sc-form" hidden novalidate style="display:grid;gap:8px;margin-top:8px">
       <div class="row3"><div class="f"><label for="sc-cuenta">Cuenta</label><input id="sc-cuenta" list="sc-cuentas" maxlength="80" value="${esc((cuentasS[0] || {}).cuenta || "Cuenta corriente")}"><datalist id="sc-cuentas">${cuentasS.map(x => `<option value="${esc(x.cuenta)}">`).join("")}</datalist></div>
