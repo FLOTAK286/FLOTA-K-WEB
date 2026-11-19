@@ -156,10 +156,41 @@ body.drv { overscroll-behavior-y: contain; }
       <label for="pass" style="margin-top:6px">Contraseña</label>
       <input id="pass" type="password" autocomplete="current-password">
       <div class="actions" style="margin-top:8px"><button class="btn big" type="submit">Entrar</button></div>
+      <p class="small muted" id="a-insc" hidden>¿Primera vez? <button class="linkbtn" type="button" id="ir-insc">Inscríbase como conductor</button></p>
       <p class="small muted"><button class="linkbtn" type="button" id="olvido">¿Olvidó su contraseña?</button> Le enviamos un enlace a su correo para crear una nueva. Si entra con usuario (sin correo) o es su primera vez, pídale al administrador una contraseña provisoria.</p>
     </form>
     <div id="login-msg" class="msg" hidden></div>
   </section>
+
+  <section class="panel" id="insc" hidden>
+    <h2>Inscripción de conductores</h2>
+    <p class="small muted" id="insc-emp">Complete sus datos. Revisaremos su inscripción y le avisaremos cuando quede activo para recibir servicios.</p>
+    <form id="insc-form" class="f" novalidate>
+      <label for="in-nombre">Nombre y apellido</label><input id="in-nombre" autocomplete="name" maxlength="120" required>
+      <label for="in-rut">RUT</label><input id="in-rut" placeholder="12.345.678-9" maxlength="12" required>
+      <label for="in-tel">Teléfono (WhatsApp)</label><input id="in-tel" type="tel" autocomplete="tel" placeholder="+56 9 1234 5678" maxlength="20" required>
+      <label for="in-comuna">Comuna donde vive</label><input id="in-comuna" maxlength="80">
+      <label for="in-lic">Clase de licencia</label><select id="in-lic"><option value="">Elija…</option><option>A1</option><option>A2</option><option>A3</option><option>B</option><option>Otra</option></select>
+      <label for="in-exp">Experiencia (opcional)</label><textarea id="in-exp" rows="2" maxlength="500" placeholder="Ej.: 5 años como conductor ejecutivo, conozco bien el aeropuerto"></textarea>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" id="in-veh"> Tengo vehículo propio para trabajar</label>
+      <div id="in-veh-box" hidden>
+        <label for="in-pat">Patente</label><input id="in-pat" maxlength="8" placeholder="ABCD12" autocapitalize="characters">
+        <label for="in-marca">Marca</label><input id="in-marca" maxlength="60" list="in-dl-marcas">
+        <datalist id="in-dl-marcas"></datalist>
+        <label for="in-modelo">Modelo</label><input id="in-modelo" maxlength="60">
+        <label for="in-anio">Año</label><input id="in-anio" type="number" min="1990" max="2100">
+        <label for="in-color">Color</label><input id="in-color" maxlength="40">
+      </div>
+      <label for="in-mail" style="margin-top:6px">Correo</label><input id="in-mail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="200" required>
+      <label for="in-pass">Cree una contraseña</label><input id="in-pass" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Mínimo 8, con letras y números" required>
+      <label class="chk small" style="margin-top:6px"><input type="checkbox" id="in-ok"> Declaro que mis datos son verdaderos y autorizo a Flota-K a revisarlos.</label>
+      <div class="actions" style="margin-top:8px"><button class="btn big" type="submit" id="in-btn">Inscribirme</button></div>
+      <p class="small muted">¿Ya tiene cuenta? <button class="linkbtn" type="button" id="in-login">Ingresar</button></p>
+    </form>
+    <div id="insc-msg" class="msg" hidden></div>
+  </section>
+
+  <section class="panel" id="revision" hidden></section>
 
   <section class="panel" id="noaccess" hidden>
     <h2>Sin servicios asignables</h2>
@@ -255,6 +286,90 @@ $("login-form").addEventListener("submit", async e => {
   const { error } = await sb.auth.signInWithPassword({ email: v, password: pw });
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
 });
+// ---- Inscripción con el enlace que envía Flota-K (/conductor/?inscripcion=<código>)
+const codInsc = (() => { const q = new URLSearchParams(location.search).get("inscripcion");
+  try { if (q) localStorage.setItem("fk_insc", q); return q || localStorage.getItem("fk_insc"); } catch (_) { return q; } })();
+function verInscripcion(si) { $("login").hidden = si; $("insc").hidden = !si; window.scrollTo(0, 0); }
+if (codInsc) {
+  $("a-insc").hidden = false;
+  sb.rpc("inscripcion_empresa", { p_codigo: codInsc }).then(({ data }) => {
+    if (data) $("insc-emp").textContent = `Inscripción para conducir con ${data}. Complete sus datos: revisaremos su inscripción y le avisaremos cuando quede activo para recibir servicios.`;
+    else { $("a-insc").hidden = true; $("insc").hidden = true; try { localStorage.removeItem("fk_insc"); } catch (_) {} if (!iniciado) $("login").hidden = false; }
+  });
+}
+$("ir-insc").addEventListener("click", () => verInscripcion(true));
+$("in-login").addEventListener("click", () => verInscripcion(false));
+$("in-veh").addEventListener("change", () => $("in-veh-box").hidden = !$("in-veh").checked);
+$("in-dl-marcas").innerHTML = Object.keys(window.FK_AUTOS || {}).map(m => `<option value="${esc(m)}">`).join("");
+$("insc-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const v = id => $(id).value.trim(), veh = $("in-veh").checked;
+  const b = { codigo: codInsc, nombre: v("in-nombre"), rut: v("in-rut"), telefono: v("in-tel"), comuna: v("in-comuna"), licencia: v("in-lic"),
+    experiencia: v("in-exp"), tiene_vehiculo: veh, patente: veh ? v("in-pat") : "", marca: veh ? v("in-marca") : "", modelo: veh ? v("in-modelo") : "",
+    anio: veh ? v("in-anio") : "", color: veh ? v("in-color") : "", correo: v("in-mail").toLowerCase(), clave: $("in-pass").value };
+  if (!b.nombre.includes(" ")) return msg("insc-msg", "Escriba su nombre y apellido.", "err");
+  if (b.rut.replace(/[^0-9kK]/g, "").length < 7) return msg("insc-msg", "Escriba su RUT.", "err");
+  if (b.telefono.replace(/\D/g, "").length < 8) return msg("insc-msg", "Escriba un teléfono válido.", "err");
+  if (!b.licencia) return msg("insc-msg", "Indique la clase de su licencia.", "err");
+  if (veh && (!b.patente || !b.marca || !b.modelo || !b.anio)) return msg("insc-msg", "Complete los datos de su vehículo (patente, marca, modelo y año).", "err");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.correo)) return msg("insc-msg", "Escriba un correo válido.", "err");
+  if (b.clave.length < 8 || !/[a-zA-Z]/.test(b.clave) || !/\d/.test(b.clave)) return msg("insc-msg", "La contraseña debe tener al menos 8 caracteres, con letras y números.", "err");
+  if (!$("in-ok").checked) return msg("insc-msg", "Marque la casilla de declaración para continuar.", "err");
+  $("in-btn").disabled = true; msg("insc-msg", "Enviando su inscripción…");
+  const { data: r, error } = await sb.functions.invoke("registro-conductor", { body: b });
+  let err = r && r.error;
+  if (error) { try { err = (await error.context.json()).error; } catch (_) { err = errText(error); } }
+  if (err) { $("in-btn").disabled = false; return msg("insc-msg", err, "err"); }
+  try { localStorage.removeItem("fk_insc"); } catch (_) {}
+  msg("insc-msg", "¡Inscripción recibida! Entrando…", "ok");
+  const { error: e2 } = await sb.auth.signInWithPassword({ email: b.correo, password: b.clave });
+  if (e2) { verInscripcion(false); $("email").value = b.correo; msg("login-msg", "Su inscripción quedó lista. Entre con su correo y la contraseña que creó.", "ok"); }
+});
+
+// ---- Cuenta en revisión: puede subir sus documentos mientras el administrador la aprueba
+async function mostrarRevision(p) {
+  $("userbar").hidden = false; $("reload").hidden = true; $("insc").hidden = true;
+  const box = $("revision"); box.hidden = false;
+  if (p.postulacion === "rechazada") {
+    const { data: po } = await sb.from("postulaciones_conductor").select("nota").eq("id", p.id).maybeSingle();
+    box.innerHTML = `<h2>Inscripción no aprobada</h2><p>Hola ${esc(p.nombre.split(" ")[0])}, por ahora su inscripción no fue aprobada.${po && po.nota ? " " + esc(po.nota) : ""}</p>
+      <p class="small muted">Si cree que es un error, escríbanos por WhatsApp al +56 9 2227 5399.</p>`;
+    return;
+  }
+  const { data: docs } = await sb.from("documentos").select("tipo, creado_en").eq("conductor_id", p.id);
+  const tiene = new Set((docs || []).map(d => d.tipo));
+  const req = ["licencia", "cedula", "antecedentes", "hoja_vida"];
+  const NOMB = { licencia: "Licencia de conducir", cedula: "Cédula de identidad (por ambos lados)", antecedentes: "Certificado de antecedentes", hoja_vida: "Hoja de vida del conductor",
+    permiso_circulacion: "Permiso de circulación", revision_tecnica: "Revisión técnica", soap: "SOAP", seguro: "Seguro", padron: "Padrón", otro: "Otro documento" };
+  box.innerHTML = `<h2>Su inscripción está en revisión ⏳</h2>
+    <p>Hola ${esc(p.nombre.split(" ")[0])}, recibimos sus datos. Cuando el administrador apruebe su inscripción, esta misma app le mostrará los servicios. Puede cerrarla y volver más tarde.</p>
+    <h3 style="margin:10px 0 4px">Suba sus documentos</h3>
+    <p class="small muted" style="margin:0 0 6px">Con fotos claras se aprueba más rápido.</p>
+    <ul class="small" style="margin:0 0 8px;padding-left:18px">${req.map(t => `<li>${tiene.has(t) ? "✅" : "⬜"} ${esc(NOMB[t])}</li>`).join("")}${[...tiene].filter(t => !req.includes(t)).map(t => `<li>✅ ${esc(NOMB[t] || t)}</li>`).join("")}</ul>
+    <div class="f"><label for="rv-tipo">Documento</label><select id="rv-tipo">${Object.entries(NOMB).map(([k, n]) => `<option value="${k}" ${k === req.find(t => !tiene.has(t)) ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+      <label for="rv-vence">Vence (si tiene fecha)</label><input id="rv-vence" type="date">
+      <label for="rv-arch">Foto o PDF</label><input id="rv-arch" type="file" accept="image/*,application/pdf">
+      <div class="actions" style="margin-top:6px"><button class="btn" type="button" id="rv-ok">Subir documento</button><button class="btn ghost" type="button" id="rv-rec">⟳ Revisar si ya me aprobaron</button></div></div>
+    <div class="msg" id="rv-msg" hidden></div>`;
+  $("rv-rec").onclick = () => location.reload();
+  $("rv-ok").onclick = async () => {
+    const f = $("rv-arch").files[0];
+    if (!f) return msg("rv-msg", "Adjunte una foto o PDF del documento.", "err");
+    if (f.size > 10 * 1024 * 1024) return msg("rv-msg", "El archivo supera 10 MB.", "err");
+    $("rv-ok").disabled = true; msg("rv-msg", "Subiendo…");
+    try {
+      let b = f, ext = f.type === "application/pdf" ? "pdf" : "jpg";
+      if (ext === "jpg") { const img = await createImageBitmap(f); const k = Math.min(1, 1600 / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = img.width * k; c.height = img.height * k; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); b = await new Promise(r => c.toBlob(x => r(x || f), "image/jpeg", 0.85)); }
+      const tipo = $("rv-tipo").value, path = `${p.empresa_id}/${p.id}/${tipo}-${Date.now()}.${ext}`;
+      const up = await sb.storage.from("documentos").upload(path, b, { contentType: ext === "pdf" ? "application/pdf" : "image/jpeg" });
+      if (up.error) throw up.error;
+      const { error } = await sb.rpc("postulante_documento", { p_tipo: tipo, p_numero: null, p_vence: $("rv-vence").value || null, p_path: path });
+      if (error) throw error;
+      await mostrarRevision(p); msg("rv-msg", "Documento recibido. ¡Gracias!", "ok");
+    } catch (e) { msg("rv-msg", errText(e), "err"); $("rv-ok").disabled = false; }
+  };
+}
+
 // Cerrar sesión: queda desconectado y el teléfono deja de enviar la ubicación (también la de la app cerrada)
 async function salirSesion() {
   try { if (yo && yo.disponible) await sb.rpc("conductor_disponible", { p_disponible: false }); } catch (_) {}
@@ -267,7 +382,8 @@ $("reload").addEventListener("click", () => cargar());
 async function iniciar(session) {
   $("login").hidden = true;
   try { await sb.rpc("aceptar_invitacion"); } catch (_) {}
-  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil, ubicacion_aceptada_en, otro_servicio_hasta, otro_servicio_destino").eq("id", session.user.id).maybeSingle();
+  const { data } = await sb.from("perfiles").select("id, nombre, rol, activo, conduce, disponible, empresa_id, telefono, foto_path, movil, ubicacion_aceptada_en, otro_servicio_hasta, otro_servicio_destino, postulacion").eq("id", session.user.id).maybeSingle();
+  if (data && !data.activo && data.postulacion) { window.__fkListo = true; return mostrarRevision(data); }
   if (!data || !data.activo || !(data.conduce || data.rol === "conductor")) { $("noaccess").hidden = false; window.__fkListo = true; return; }
   yo = data; window.__fkListo = true;
   const { data: vs } = await sb.from("vehiculos").select("*");
@@ -1597,7 +1713,7 @@ function mostrarFalla(t) {
 }
 window.addEventListener("error", e => { if (!yo) mostrarFalla(e.message); });
 window.addEventListener("unhandledrejection", e => { if (!yo) mostrarFalla(e.reason && (e.reason.message || e.reason)); });
-setTimeout(() => { if (!yo && $("login").hidden && $("noaccess").hidden) mostrarFalla("la app no respondió a tiempo. Revise su internet."); }, 15000);
+setTimeout(() => { if (!yo && $("login").hidden && $("noaccess").hidden && $("insc").hidden && $("revision").hidden) mostrarFalla("la app no respondió a tiempo. Revise su internet."); }, 15000);
 
 // Aviso de "Sin conexión"
 function estadoRed() {
@@ -1610,7 +1726,7 @@ window.addEventListener("offline", estadoRed);
 
 let iniciado = false;
 sb.auth.onAuthStateChange((_ev, s) => { if (s && !iniciado) { iniciado = true; iniciar(s); } });
-sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else { $("login").hidden = false; window.__fkListo = true; } })
+sb.auth.getSession().then(({ data }) => { if (data.session) { if (!iniciado) { iniciado = true; iniciar(data.session); } } else { if (codInsc) verInscripcion(true); else $("login").hidden = false; window.__fkListo = true; } })
   .catch(e => window.__fkFalla && window.__fkFalla("Sesión: " + (e && e.message || e)));
 </script>
 </body>
