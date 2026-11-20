@@ -1,5 +1,8 @@
 # Cambios
 
+## 20 nov 2026 · Aviso de reservas nuevas con la app cerrada
+- Base de datos (etapa 57, ya aplicada): `conductor_latido` ahora también entrega avisos "Nueva reserva disponible · DD/MM HH:MM" (tipo `reserva_disponible`) de las reservas publicadas que el conductor ya puede ver según su prioridad, cumpla o no los requisitos, una sola vez por reserva (tabla `bolsa_avisos`, con RLS y sin políticas) y solo si está conectado. El servicio nativo de la app Android 2.0+ los muestra con sonido cuando la app no está a la vista: no hizo falta armar una versión nueva.
+
 ## 20 nov 2026 · Mapa de calor de próximos servicios y aviso de todas las reservas
 - **Mapa de calor** (próximas 12 horas, por cuánto falta): 🔴 menos de 30 min, 🟠 30–60 min, 🟡 1–2 h, 🔵 más de 2 h. Círculos de ~900 m en la zona de retiro; donde hay varios, el color se intensifica.
   - App del conductor (Inicio): todos los próximos servicios de la empresa, solo zona aproximada (redondeada a ~1 km) y minutos que faltan, sin datos del pasajero (`mapa_demanda`, etapa 56). Se actualiza cada ~2 min. Sin servicio en curso, el mapa se abre más alejado para ver la zona.
