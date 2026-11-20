@@ -55,5 +55,6 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 - Cámaras de comercio: venden membresías (Chileno-India: 19,5 UF/año), no contratan traslados; no pagar membresías mientras no se justifiquen con ventas. Usar sus listados de socios para contactar empresas directo.
 
 ## Datos de referencia
+- Capacidad operativa: 70 vehículos contando la flota de Servimóvil (partner); flota propia/asociada en la plataforma: 3. Se puede ofrecer "capacidad de 70 vehículos" a empresas y delegaciones.
 - Costo operativo: $410 por km.
 - Estados de reserva: `recibida`, `confirmada`, `asignada`, `en_camino`, `en_lugar`, `a_bordo`, `finalizada`, `cancelada`.
