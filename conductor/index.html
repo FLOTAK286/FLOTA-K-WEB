@@ -480,7 +480,7 @@ async function revisarBolsa(avisar = true) {
   // Aviso y contador para todas las reservas nuevas, cumpla o no los requisitos (pedido del dueño: transparencia)
   $("b-bolsa").hidden = !bolsa.length; $("b-bolsa").textContent = bolsa.length;
   const nuevos = bolsa.filter(x => !antes.has(x.o_id));
-  if (avisar && bolsaCargada && nuevos.length && yo.disponible) {
+  if (avisar && bolsaCargada && nuevos.length) { // conectado o no (pedido del dueño)
     sonar(); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
     const x = nuevos[0];
     if (LN) LN.schedule({ notifications: [{ id: 1500000000 + Math.floor(Math.random() * 99999999), title: "Nueva reserva disponible · " + FK.fecha(x.o_fecha_hora), body: `${x.o_zona_origen} → ${x.o_zona_destino}${x.o_valor ? " · " + clp(x.o_valor) : ""}. ¡Tómelo antes que otro!` }] }).catch(() => {});

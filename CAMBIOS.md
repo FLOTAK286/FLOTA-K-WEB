@@ -1,5 +1,8 @@
 # Cambios
 
+## 20 nov 2026 · Aviso de reservas nuevas aunque el conductor esté desconectado
+- Pedido del dueño: el aviso "Nueva reserva disponible" llega **siempre**, conectado o no, con la app abierta (ya no exige `yo.disponible`) o cerrada (`conductor_latido`, etapa 58b ya aplicada). Los avisos de servicios asignados, quitados, cancelados o modificados ya llegaban estando desconectado.
+
 ## 20 nov 2026 · El dueño de vehículo inscribe a sus conductores y les asigna su auto
 - /propietario → **"Mis conductores"**: enlace personal del dueño (`/conductor/?dueno=<código>`, `propietario_codigo`) con botones WhatsApp y copiar; lista de sus conductores (él mismo si conduce y los inscritos con su enlace) con su estado (activo, esperando aprobación de Flota-K, no aprobado) y el vehículo que manejan; **"¿Quién maneja cada vehículo?"** con un selector por vehículo (`propietario_asignar_conductor`: solo sus vehículos y sus conductores; un conductor maneja un solo vehículo del dueño a la vez). No aparece en la vista de administrador.
 - App del conductor: el enlace del dueño muestra "conductor de <dueño>" y oculta "Tengo vehículo propio". **Flota-K igual aprueba** a cada conductor en Equipo y roles (decisión del dueño); el aviso a Operaciones y la ficha de la inscripción dicen "inscrito por el dueño <nombre>".
