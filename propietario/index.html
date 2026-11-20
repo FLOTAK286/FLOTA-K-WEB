@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="/assets/app.css">
 <style>
   .pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .pv-cond { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--panel); display: grid; gap: 10px; }
+  .pv-cond h2 { margin: 0; }
+  .pv-cond .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; }
+  .pv-cond .link { word-break: break-all; font-size: .9rem; }
+  .est { font-size: .8rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--line); }
+  .est.activo { color: #2e9e5f; border-color: #2e9e5f; } .est.pendiente { color: #c9772b; border-color: #c9772b; } .est.rechazado, .est.inactivo { color: #999; }
   .pv-card { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--panel); }
   .pv-card img, .pv-card .ph { width: 92px; height: 64px; object-fit: cover; border-radius: 6px; flex: none; background: var(--bg); display: grid; place-items: center; }
   .pv-card > div { display: grid; gap: 3px; min-width: 0; }
@@ -46,6 +52,7 @@
     </div>
     <div id="kpis" class="rp-kpis"></div>
     <div id="vehs" class="pv-grid"></div>
+    <div id="mis-cond" class="pv-cond" hidden></div>
     <div class="rp-grid" id="grafs"></div>
     <h2 style="margin:6px 0 0">Servicios del período</h2>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Código</th><th>Vehículo</th><th>Conductor</th><th>Trayecto (comunas)</th><th>Total</th><th>Le corresponde</th><th>Cobro al cliente</th></tr></thead><tbody id="tbody"></tbody></table></div>
@@ -111,6 +118,37 @@ async function iniciar(session) {
   }
   $("app").hidden = false;
   cargar();
+  if (!verId) pintarConductores();
+}
+
+// ---- Mis conductores: el dueño inscribe a sus conductores con su enlace y les asigna sus vehículos.
+// Flota-K aprueba a cada conductor antes de que reciba servicios.
+async function pintarConductores() {
+  const box = $("mis-cond");
+  const [{ data: cod, error: e1 }, { data: cs }] = await Promise.all([sb.rpc("propietario_codigo"), sb.rpc("propietario_conductores")]);
+  if (e1) return; // solo para rol propietario
+  const conds = cs || [], url = location.origin + "/conductor/?dueno=" + cod;
+  const t = `Hola, lo invito a conducir mi vehículo con Flota-K. Inscríbase en este enlace, cree su cuenta y suba sus documentos:\n${url}\nFlota-K revisará su inscripción y le avisará cuando quede activo.`;
+  const EST = { activo: "Activo", pendiente: "Esperando aprobación de Flota-K", rechazado: "No aprobado", inactivo: "Inactivo" };
+  box.hidden = false;
+  box.innerHTML = `<h2>Mis conductores</h2>
+    <p class="small muted" style="margin:0">Envíe su enlace a la persona que manejará su vehículo. Se inscribe con su correo y contraseña, sube sus documentos y Flota-K la aprueba antes de que reciba servicios. Usted elige qué vehículo maneja cada uno.</p>
+    <div class="link"><b>Su enlace:</b> ${esc(url)}</div>
+    <div class="actions"><a class="btn sm" href="https://wa.me/?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">📲 Enviar por WhatsApp</a><button class="btn ghost sm" type="button" id="mc-cp">⧉ Copiar enlace</button></div>
+    ${conds.length ? conds.map(c => `<div class="fila"><span><b>${esc(c.o_nombre)}</b>${c.o_es_yo ? ' <span class="muted small">(usted)</span>' : ""} <span class="est ${esc(c.o_estado)}">${esc(EST[c.o_estado] || c.o_estado)}</span>${c.o_telefono ? ` <span class="small muted">${esc(c.o_telefono)}</span>` : ""}</span><span class="small">${c.o_patente ? "Maneja: <b>" + esc(c.o_patente) + "</b>" : '<span class="muted">sin vehículo asignado</span>'}</span></div>`).join("")
+      : '<p class="small muted" style="margin:0">Aún no tiene conductores inscritos con su enlace.</p>'}
+    <h3 style="margin:6px 0 0">¿Quién maneja cada vehículo?</h3>
+    ${vehs.map(v => `<div class="fila"><span><b>${esc(v.o_patente)}</b> <span class="small muted">${esc([v.o_marca, v.o_modelo].filter(Boolean).join(" "))}</span></span>
+      <select data-veh="${esc(v.o_id)}" aria-label="Conductor de ${esc(v.o_patente)}"><option value="">Sin conductor fijo</option>${conds.filter(c => c.o_estado !== "rechazado").map(c => `<option value="${esc(c.o_id)}" ${c.o_patente === v.o_patente ? "selected" : ""}>${esc(c.o_nombre)}${c.o_es_yo ? " (usted)" : ""}${c.o_estado === "pendiente" ? " · esperando aprobación" : ""}</option>`).join("")}</select></div>`).join("")}
+    <div class="msg" id="mc-msg" hidden></div>`;
+  $("mc-cp").onclick = () => navigator.clipboard?.writeText(url).then(() => $("mc-cp").textContent = "Copiado").catch(() => prompt("Copie su enlace:", url));
+  box.querySelectorAll("[data-veh]").forEach(sel => sel.addEventListener("change", async () => {
+    const { error } = await sb.rpc("propietario_asignar_conductor", { p_vehiculo: sel.dataset.veh, p_conductor: sel.value || null });
+    const m = $("mc-msg"); m.hidden = false;
+    if (error) { m.className = "msg err"; m.textContent = errText(error); return; }
+    m.className = "msg ok"; m.textContent = "Listo: conductor del vehículo actualizado.";
+    const { data } = await sb.rpc("propietario_vehiculos"); vehs = data || vehs; pintarConductores(); cargar();
+  }));
 }
 async function cargar() {
   const [desde, hasta, txt] = rango();

@@ -1,5 +1,10 @@
 # Cambios
 
+## 20 nov 2026 · El dueño de vehículo inscribe a sus conductores y les asigna su auto
+- /propietario → **"Mis conductores"**: enlace personal del dueño (`/conductor/?dueno=<código>`, `propietario_codigo`) con botones WhatsApp y copiar; lista de sus conductores (él mismo si conduce y los inscritos con su enlace) con su estado (activo, esperando aprobación de Flota-K, no aprobado) y el vehículo que manejan; **"¿Quién maneja cada vehículo?"** con un selector por vehículo (`propietario_asignar_conductor`: solo sus vehículos y sus conductores; un conductor maneja un solo vehículo del dueño a la vez). No aparece en la vista de administrador.
+- App del conductor: el enlace del dueño muestra "conductor de <dueño>" y oculta "Tengo vehículo propio". **Flota-K igual aprueba** a cada conductor en Equipo y roles (decisión del dueño); el aviso a Operaciones y la ficha de la inscripción dicen "inscrito por el dueño <nombre>".
+- Edge Function `registro-conductor` (v4) acepta `dueno`. Base de datos (etapa 58, ya aplicada): `perfiles.codigo_dueno`, `postulaciones_conductor.invitado_por`, `inscripcion_dueno`, `propietario_conductores`; `conductor_postular` acepta el código del dueño.
+
 ## 20 nov 2026 · Corrección: el inscrito queda como propietario de su vehículo
 - Etapa 57b (ya aplicada): `aprobar_postulante` ahora deja al conductor como **propietario** (`propietario_id`) además de conductor habitual del vehículo que declaró en la inscripción. Se corrigió KKLJ80 (Bruno Oliveri), que figuraba como "Flota-K (propio)" en el selector de propietario y no aparecía en su portal /propietario.
 

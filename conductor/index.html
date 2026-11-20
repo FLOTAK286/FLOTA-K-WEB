@@ -292,24 +292,30 @@ $("login-form").addEventListener("submit", async e => {
   if (error) msg("login-msg", /invalid/i.test(error.message) ? "Correo o contraseña incorrectos." : errText(error), "err");
 });
 // ---- Inscripción con el enlace que envía Flota-K (/conductor/?inscripcion=<código>)
-const codInsc = (() => { const q = new URLSearchParams(location.search).get("inscripcion");
+// También con el enlace personal de un dueño de vehículo (/conductor/?dueno=<código>): el conductor manejará un auto del dueño
+const codDueno = (() => { const q = new URLSearchParams(location.search).get("dueno");
+  try { if (q) { localStorage.setItem("fk_dueno", q); localStorage.removeItem("fk_insc"); } return q || localStorage.getItem("fk_dueno"); } catch (_) { return q; } })();
+const codInsc = codDueno ? "dueno" : (() => { const q = new URLSearchParams(location.search).get("inscripcion");
   try { if (q) localStorage.setItem("fk_insc", q); return q || localStorage.getItem("fk_insc"); } catch (_) { return q; } })();
 function verInscripcion(si) { $("login").hidden = si; $("insc").hidden = !si; window.scrollTo(0, 0); }
 if (codInsc) {
   $("a-insc").hidden = false;
-  sb.rpc("inscripcion_empresa", { p_codigo: codInsc }).then(({ data }) => {
-    if (data) $("insc-emp").textContent = `Inscripción para conducir con ${data}. Complete sus datos: revisaremos su inscripción y le avisaremos cuando quede activo para recibir servicios.`;
-    else { $("a-insc").hidden = true; $("insc").hidden = true; try { localStorage.removeItem("fk_insc"); } catch (_) {} if (!iniciado) $("login").hidden = false; }
+  (codDueno ? sb.rpc("inscripcion_dueno", { p_codigo: codDueno }) : sb.rpc("inscripcion_empresa", { p_codigo: codInsc })).then(({ data }) => {
+    if (data) $("insc-emp").textContent = codDueno
+      ? `Inscripción para conducir con ${data}. Usted manejará un vehículo de ese dueño. Complete sus datos: Flota-K revisará su inscripción y le avisará cuando quede activo.`
+      : `Inscripción para conducir con ${data}. Complete sus datos: revisaremos su inscripción y le avisaremos cuando quede activo para recibir servicios.`;
+    else { $("a-insc").hidden = true; $("insc").hidden = true; try { localStorage.removeItem("fk_insc"); localStorage.removeItem("fk_dueno"); } catch (_) {} if (!iniciado) $("login").hidden = false; }
   });
 }
 $("ir-insc").addEventListener("click", () => verInscripcion(true));
 $("in-login").addEventListener("click", () => verInscripcion(false));
 $("in-veh").addEventListener("change", () => $("in-veh-box").hidden = !$("in-veh").checked);
+if (codDueno) $("in-veh").closest("label").hidden = true; // el vehículo lo asigna el dueño
 $("in-dl-marcas").innerHTML = Object.keys(window.FK_AUTOS || {}).map(m => `<option value="${esc(m)}">`).join("");
 $("insc-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const v = id => $(id).value.trim(), veh = $("in-veh").checked;
-  const b = { codigo: codInsc, nombre: v("in-nombre"), rut: v("in-rut"), telefono: v("in-tel"), comuna: v("in-comuna"), licencia: v("in-lic"),
+  const v = id => $(id).value.trim(), veh = $("in-veh").checked && !codDueno;
+  const b = { codigo: codDueno ? "" : codInsc, dueno: codDueno || undefined, nombre: v("in-nombre"), rut: v("in-rut"), telefono: v("in-tel"), comuna: v("in-comuna"), licencia: v("in-lic"),
     experiencia: v("in-exp"), tiene_vehiculo: veh, categoria: veh ? v("in-cat") : "", patente: veh ? v("in-pat") : "", marca: veh ? v("in-marca") : "", modelo: veh ? v("in-modelo") : "",
     anio: veh ? v("in-anio") : "", color: veh ? v("in-color") : "", decreto80: veh && $("in-d80").checked, correo: v("in-mail").toLowerCase(), clave: $("in-pass").value };
   if (!b.nombre.includes(" ")) return msg("insc-msg", "Escriba su nombre y apellido.", "err");
@@ -325,7 +331,7 @@ $("insc-form").addEventListener("submit", async e => {
   let err = r && r.error;
   if (error) { try { err = (await error.context.json()).error; } catch (_) { err = errText(error); } }
   if (err) { $("in-btn").disabled = false; return msg("insc-msg", err, "err"); }
-  try { localStorage.removeItem("fk_insc"); } catch (_) {}
+  try { localStorage.removeItem("fk_insc"); localStorage.removeItem("fk_dueno"); } catch (_) {}
   msg("insc-msg", "¡Inscripción recibida! Entrando…", "ok");
   const { error: e2 } = await sb.auth.signInWithPassword({ email: b.correo, password: b.clave });
   if (e2) { verInscripcion(false); $("email").value = b.correo; msg("login-msg", "Su inscripción quedó lista. Entre con su correo y la contraseña que creó.", "ok"); }

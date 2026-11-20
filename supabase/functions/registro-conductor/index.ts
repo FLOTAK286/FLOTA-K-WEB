@@ -18,15 +18,16 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const b = await req.json().catch(() => ({}));
     const codigo = txt(b.codigo, 40).toLowerCase();
+    const dueno = txt(b.dueno, 40).toLowerCase(); // enlace personal de un dueño de vehículo
     const correo = txt(b.correo, 200).toLowerCase();
     const clave = String(b.clave ?? "");
     const d = {
       nombre: txt(b.nombre, 120), telefono: txt(b.telefono, 30), rut: txt(b.rut, 20), comuna: txt(b.comuna, 80),
-      licencia: txt(b.licencia, 20), experiencia: txt(b.experiencia, 500), tiene_vehiculo: b.tiene_vehiculo === true,
-      categoria: txt(b.categoria, 30), patente: txt(b.patente, 10), marca: txt(b.marca, 60), modelo: txt(b.modelo, 60), anio: txt(b.anio, 4), color: txt(b.color, 40), decreto80: b.decreto80 === true,
+      licencia: txt(b.licencia, 20), experiencia: txt(b.experiencia, 500), tiene_vehiculo: b.tiene_vehiculo === true && !dueno,
+      categoria: txt(b.categoria, 30), patente: txt(b.patente, 10), marca: txt(b.marca, 60), modelo: txt(b.modelo, 60), anio: txt(b.anio, 4), color: txt(b.color, 40), decreto80: b.decreto80 === true, ...(dueno ? { dueno } : {}),
     };
 
-    const { data: emp } = await admin.rpc("inscripcion_empresa", { p_codigo: codigo });
+    const { data: emp } = dueno ? await admin.rpc("inscripcion_dueno", { p_codigo: dueno }) : await admin.rpc("inscripcion_empresa", { p_codigo: codigo });
     if (!emp) return json({ error: "Este enlace de inscripción no es válido o ya no está activo. Pida uno nuevo a Flota-K." }, 400);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo) || /@usuarios\.fk-servicios\.com$/.test(correo)) return json({ error: "Escriba un correo válido" }, 400);
     if (d.nombre.length < 5 || !d.nombre.includes(" ")) return json({ error: "Escriba su nombre y apellido" }, 400);

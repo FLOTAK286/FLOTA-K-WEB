@@ -3540,6 +3540,9 @@ async function cargarInscripciones() {
     sb.from("postulaciones_conductor").select("*").order("creado_en", { ascending: false }),
     sb.from("perfiles").select("id, nombre, telefono, postulacion").not("postulacion", "is", null)]);
   const pend = (ps || []).filter(x => (pf || []).find(p => p.id === x.id && p.postulacion === "pendiente"));
+  const dIds = [...new Set((ps || []).map(x => x.invitado_por).filter(Boolean))];
+  const { data: dn } = dIds.length ? await sb.from("perfiles").select("id, nombre").in("id", dIds) : { data: [] };
+  const dueNom = Object.fromEntries((dn || []).map(p => [p.id, p.nombre]));
   const rech = (ps || []).filter(x => (pf || []).find(p => p.id === x.id && p.postulacion === "rechazada"));
   const ids = pend.map(x => x.id);
   const { data: docs } = ids.length ? await sb.from("documentos").select("id, conductor_id, tipo, vence, archivo_path").in("conductor_id", ids) : { data: [] };
@@ -3551,6 +3554,7 @@ async function cargarInscripciones() {
       <div><b>${esc(p.nombre)}</b> <span class="small muted">· se inscribió el ${esc(fecha(x.creado_en))}</span></div>
       <div class="small">📞 ${esc(p.telefono || "—")} · ✉️ ${esc(x.correo || "—")} · RUT ${esc(x.rut || "—")} · ${esc(x.comuna || "comuna no indicada")} · Licencia ${esc(x.licencia_clase || "—")}</div>
       ${x.experiencia ? `<div class="small muted">“${esc(x.experiencia)}”</div>` : ""}
+      ${x.invitado_por ? `<div class="small">🤝 Inscrito por el dueño <b>${esc((dueNom[x.invitado_por]) || "de vehículo")}</b>: manejará un vehículo de ese dueño (él se lo asigna).</div>` : ""}
       <div class="small">${x.tiene_vehiculo ? `🚗 Vehículo propio: <b>${esc(x.patente || "")}</b> ${esc([CAT[x.categoria], x.marca, x.modelo, x.anio, x.color].filter(Boolean).join(" · "))}${x.dice_decreto80 ? " · <b>dice tener autorización ministerial (corporativo)</b> (verifíquela y marque \"Corporativo\" en Flota)" : ""}` : "Sin vehículo propio"}</div>
       <div class="small">📄 Documentos: ${dd.length ? dd.map(d => `<button class="linkbtn pdoc" type="button" data-path="${esc(d.archivo_path)}">${esc(NOMD[d.tipo] || d.tipo)}</button>`).join(" · ") : '<span class="muted">aún no sube documentos</span>'}</div>
       <div class="actions" style="margin-top:6px"><button class="btn sm pok" type="button">✅ Activar</button><button class="btn ghost sm pno" type="button">Rechazar</button>
