@@ -1,5 +1,8 @@
 # Cambios
 
+## 20 nov 2026 · Corrección: el inscrito queda como propietario de su vehículo
+- Etapa 57b (ya aplicada): `aprobar_postulante` ahora deja al conductor como **propietario** (`propietario_id`) además de conductor habitual del vehículo que declaró en la inscripción. Se corrigió KKLJ80 (Bruno Oliveri), que figuraba como "Flota-K (propio)" en el selector de propietario y no aparecía en su portal /propietario.
+
 ## 20 nov 2026 · Aviso de reservas nuevas con la app cerrada
 - Base de datos (etapa 57, ya aplicada): `conductor_latido` ahora también entrega avisos "Nueva reserva disponible · DD/MM HH:MM" (tipo `reserva_disponible`) de las reservas publicadas que el conductor ya puede ver según su prioridad, cumpla o no los requisitos, una sola vez por reserva (tabla `bolsa_avisos`, con RLS y sin políticas) y solo si está conectado. El servicio nativo de la app Android 2.0+ los muestra con sonido cuando la app no está a la vista: no hizo falta armar una versión nueva.
 
