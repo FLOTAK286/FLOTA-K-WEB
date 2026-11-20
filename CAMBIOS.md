@@ -1,5 +1,12 @@
 # Cambios
 
+## 20 nov 2026 · Reservas que nadie toma: alertas y asignación automática al más cercano
+- Tarea programada nueva `flotak-bolsa-vigilar` (cada 2 min, `bolsa_vigilar`, etapa 59 ya aplicada), para reservas publicadas sin conductor:
+  - 90 min antes: aviso a Operaciones "⚠️ Nadie ha tomado …" (tipo `sin_tomar`, también con la app cerrada).
+  - `empresas.bolsa_autoasignar_min` antes (por defecto **60**; se cambia o apaga en Equipo y roles): se asigna sola al **conductor más cercano que cumple** (`conductor_mas_cercano`: requisitos, vehículo que pide el servicio, sin otro servicio que se cruce, sin "otro servicio" a esa hora; primero los conectados y con ubicación reciente, luego por distancia GPS al retiro). Al conductor le llega "🚗 Servicio nuevo" y a Operaciones "🤖 Asignada sola a …" (tipo `auto_asignada`); el historial lo anota con la distancia. Si nadie cumple: "🚨 Nadie puede tomar …".
+  - 45 min antes, si sigue sin conductor: "🚨 … sigue sin conductor".
+  - Una reserva recién publicada tiene al menos 10 minutos en Reservas antes de avisar o asignar. Al volver a publicarla, todo parte de cero.
+
 ## 20 nov 2026 · Aviso de reservas nuevas aunque el conductor esté desconectado
 - Pedido del dueño: el aviso "Nueva reserva disponible" llega **siempre**, conectado o no, con la app abierta (ya no exige `yo.disponible`) o cerrada (`conductor_latido`, etapa 58b ya aplicada). Los avisos de servicios asignados, quitados, cancelados o modificados ya llegaban estando desconectado.
 
