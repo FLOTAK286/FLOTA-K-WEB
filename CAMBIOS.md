@@ -2,6 +2,7 @@
 
 ## 20 nov 2026 · Cotizador punto a punto en la web y "¿Cómo nos conoció?"
 - Página principal: nueva sección **"Viajes punto a punto · taxi ejecutivo"** (#punto, botón "Cotizar punto a punto" en la portada). Origen y destino con autocompletar (Photon), ruta con OSRM (+25 % por tráfico) y **valor estimado** con el taxímetro de la empresa (`cotizador_publico`: bajada, cada 200 m, mínimo $12.000), auto o van. Si un extremo es el aeropuerto, remite a la tarifa fija; Oriente ↔ costa usa la tarifa fija por tramo; > 120 km, cotización a medida. Botón "Reservar por WhatsApp" con origen, destino, vehículo y valor estimado ya escritos. Se aclara que el valor es aproximado y se confirma al reservar.
+- **Mínimo de la van: $25.000** (pedido del dueño): la van vale el mayor entre $25.000 y el cálculo por distancia, en la web y en la app del pasajero (etapa 53b, `cotizador_publico` entrega `minimo_van`; caché de la app fk-app-v11).
 - Corrección: los botones Ida/Regreso/Van del tarifario solo toman sus propios botones (`.seg button[data-mode]`).
 - Panel: campo **"¿Cómo nos conoció?"** en la reserva nueva (se marca "Página web" solo si el mensaje pegado viene del cotizador), editable en la ficha, y gráfico "¿Cómo nos conoció?" en Reportes. Base de datos (etapa 53, ya aplicada): `reservas.como_nos_conocio`.
 
