@@ -1,5 +1,9 @@
 # Cambios
 
+## 20 nov 2026 · Reservas para conductores: todos ven, solo toma quien cumple
+- App del conductor → Reservas: cada reserva muestra **🚘 Categoría** (las que pide o "cualquiera") y los requisitos (🏢 Corporativo, ★ calificación mínima). Quien no cumple **la ve atenuada, sin botón para tomarla, con el motivo** ("🔒 No puede tomarlo: Pide Van o Particular VIP y su vehículo es Taxi ejecutivo"). El aviso con sonido y el número en la pestaña cuentan solo las que puede tomar. Usa `bolsa_servicios_v4` (con respaldo a v3).
+- Base de datos (etapa 55, ya aplicada): `categoria_nombre`, `motivo_requisitos_bolsa` (y `cumple_requisitos_bolsa` la usa), `bolsa_servicios` ya no esconde a quien no cumple (la prioridad por calificación se mantiene), `bolsa_servicios_v4`; `conductor_tomar_reserva` responde con el motivo exacto.
+
 ## 20 nov 2026 · Requisitos al publicar en Reservas para conductores
 - Ficha de la reserva → "📢 Publicar en Reservas" abre un formulario (en vez de las preguntas sueltas): **tipos de vehículo** que pueden tomarla (ninguno = todos), **🏢 solo corporativos** (obligatorio y ya marcado en reservas de convenio), **calificación mínima** (4,50 a 5,00★, promedio de 90 días; opción "también sin calificaciones") y **bono**. Muestra cuántos conductores cumplen por vehículo. La ficha muestra los requisitos de una reserva publicada y el historial los anota.
 - Solo la ven (`bolsa_servicios`) y la pueden tomar (`conductor_tomar_reserva`) quienes cumplen (`cumple_requisitos_bolsa`). Publicar en grupo parte sin requisitos.

@@ -140,6 +140,8 @@ body.drv { overscroll-behavior-y: contain; }
 .coment { margin: 4px 0 0; font-style: italic; }
 .bolsa-item { gap: 6px; border-left: 4px solid var(--gold); }
 .bolsa-item.no-apto { opacity: .6; border-left-color: var(--line); }
+.bolsa-item .req { font-size: .9rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bolsa-item .req-chip { border: 1px solid var(--gold); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: .8rem; font-weight: 700; }
 .bolsa-item .bono { font-weight: 700; color: #17130a; background: var(--gold); border-radius: 6px; padding: 4px 8px; justify-self: start; }
 .bottom-nav button { font-size: .74rem; }
 </style>
@@ -463,11 +465,12 @@ let bolsa = [], bolsaCargada = false, miNivel = null;
 const PIDE_TXT = { auto: "auto", suv: "SUV", van: "van" };
 async function revisarBolsa(avisar = true) {
   if (!yo) return;
-  const { data, error } = await sb.rpc("bolsa_servicios_v3");
+  let { data, error } = await sb.rpc("bolsa_servicios_v4");
+  if (error) ({ data, error } = await sb.rpc("bolsa_servicios_v3"));
   if (error) return;
   const antes = new Set(bolsa.map(x => x.o_id));
   bolsa = data || [];
-  const aptos = bolsa.filter(x => x.o_sirve && !x.o_choque);
+  const aptos = bolsa.filter(x => x.o_sirve && !x.o_choque && !x.o_motivo);
   $("b-bolsa").hidden = !aptos.length; $("b-bolsa").textContent = aptos.length;
   const nuevos = aptos.filter(x => !antes.has(x.o_id));
   if (avisar && bolsaCargada && nuevos.length && yo.disponible) {
@@ -491,14 +494,16 @@ async function pintarBolsa(recargar = true) {
     <p class="small muted" style="margin:0">Servicios programados que la central dejó disponibles. <b>El primero que lo toma se lo queda.</b> Verá los datos del pasajero y la dirección exacta al tomarlo.</p>
     ${nivelTxt ? `<p class="small" style="margin:0">${nivelTxt}</p>` : ""}
     ${!veh ? '<div class="msg" style="margin:0;border-color:var(--gold)">🚗 Para tomar servicios, primero registre su vehículo. <button type="button" class="linkbtn" id="ir-veh">Registrarlo ahora →</button></div>' : ""}
-    ${bolsa.length ? bolsa.map(x => `<div class="svc bolsa-item ${!x.o_sirve || x.o_choque ? "no-apto" : ""}">
+    ${bolsa.length ? bolsa.map(x => `<div class="svc bolsa-item ${!x.o_sirve || x.o_choque || x.o_motivo ? "no-apto" : ""}">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><span><span class="time" style="font-size:1.6rem">${esc(hora(x.o_fecha_hora))}</span> <b>${esc(dia(x.o_fecha_hora))}</b></span><span class="pill">${esc(SERVICIOS[x.o_tipo_servicio] || "Servicio")}</span></div>
       <div style="font-size:1.05rem"><b>${esc(x.o_zona_origen)}</b> → <b>${esc(x.o_zona_destino)}</b></div>
       <div class="small muted">${esc(x.o_pasajeros || 1)} pasajero(s)${x.o_maletas != null ? " · " + esc(x.o_maletas) + " maleta(s)" : ""} · pide ${esc(PIDE_TXT[x.o_vehiculo] || x.o_vehiculo)}${x.o_vuelo ? " · vuelo " + esc(x.o_vuelo) : ""}${x.o_km ? " · " + String(x.o_km).replace(".", ",") + " km" : ""} · aprox. ${esc(x.o_duracion)} min</div>
+      <div class="req">🚘 <b>Categoría:</b> ${esc(x.o_categorias || "cualquiera")}${x.o_corporativo ? ' <span class="req-chip">🏢 Corporativo</span>' : ""}${x.o_calif_min != null ? ` <span class="req-chip">★ ${esc(Number(x.o_calif_min).toFixed(2).replace(".", ","))} o más</span>` : ""}</div>
       ${x.o_exclusiva ? '<div class="small" style="color:var(--gold);font-weight:700">⭐ Prioridad: usted lo ve antes que el resto de la flota</div>' : ""}
       ${x.o_bono ? `<div class="bono">🎁 Bono ${clp(x.o_bono)} para quien lo tome</div>` : ""}
       <div><b style="font-size:1.2rem">${x.o_valor ? clp(x.o_valor) : "Taxímetro"}</b>${pct != null && x.o_valor ? ` <span class="small muted">· le corresponde ${clp(Math.round(x.o_valor * (1 - pct / 100)))}</span>` : ""}</div>
-      ${!x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
+      ${x.o_motivo ? `<p class="small warn" style="margin:0">🔒 No puede tomarlo: ${esc(x.o_motivo)}.</p>`
+        : !x.o_sirve ? `<p class="small warn" style="margin:0">Este servicio pide ${esc(PIDE_TXT[x.o_vehiculo])}: su vehículo no corresponde.</p>`
         : x.o_choque ? '<p class="small warn" style="margin:0">Se le cruza con otro servicio suyo a esa hora.</p>'
         : `<div class="swipe" role="button" tabindex="0" data-tomar="${esc(x.o_id)}" aria-label="Tomar este servicio (deslice o presione Enter)"><span class="swipe-txt">Deslice → Tomar</span><span class="swipe-thumb">➜</span></div>`}
     </div>`).join("") : '<p class="muted">No hay reservas disponibles ahora. Cuando la central publique una, le avisaremos con sonido.</p>'}
