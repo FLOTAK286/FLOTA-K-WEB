@@ -1,5 +1,9 @@
 # Cambios
 
+## 20 nov 2026 · Corregir el valor de un servicio finalizado
+- Ficha de un servicio finalizado: recuadro "Valor cobrado" (indica si fue con taxímetro y si fue corregido, con el valor original) y botón **"✏️ Corregir valor"** (solo administrador): valor correcto + motivo opcional. El campo "Precio final" queda de solo lectura en servicios finalizados, para que todo cambio quede registrado.
+- Base de datos (etapa 60, ya aplicada): `admin_corregir_valor` cambia `taxi_total` (taxímetro) o `precio` (tarifa fija), guarda `valor_original` (la primera vez), `valor_corregido_por`/`_en` y anota en el historial "Valor corregido por …: $A → $B · motivo". Reportes, liquidaciones y billetera usan el valor nuevo (`v_cobro`).
+
 ## 20 nov 2026 · La asignación automática informa el móvil y la patente
 - Etapa 59b (ya aplicada): el aviso "🤖 Asignada sola a …" y el historial dicen "Móvil 286 · Juan Kieferling · SSHY88", igual que la asignación manual (`conductor_mas_cercano` devuelve esa etiqueta). El vehículo ya quedaba guardado en la reserva, pero no se mencionaba. Se corrigió la nota de FK-888BC8.
 

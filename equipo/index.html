@@ -1296,9 +1296,19 @@ async function abrir(id) {
       <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">⧉ Copiar mensaje</button> <button class="btn ghost sm" type="button" id="cp-wa">📲 Compartir por WhatsApp</button> <a class="btn ghost sm" href="${esc(seg)}" target="_blank" rel="noopener">👁 Ver lo que ve el pasajero</a><div id="d-gps" class="small" style="margin-top:4px"></div></dd>
     </dl>
     <div class="row2">
-      <div class="f"><label for="d-precio">Precio final</label><input id="d-precio" type="number" min="0" step="1000" value="${esc(r.precio ?? "")}"></div>
+      <div class="f"><label for="d-precio">Precio final</label><input id="d-precio" type="number" min="0" step="1000" value="${esc(r.precio ?? "")}" ${r.estado === "finalizada" ? 'readonly title="Servicio finalizado: use ✏️ Corregir valor"' : ""}></div>
       <div class="f"><label for="d-pago">Forma de pago</label><select id="d-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
     </div>
+    ${r.estado === "finalizada" ? `<div class="pay" style="margin:6px 0">
+      <b>Valor cobrado:</b> ${clp(r.tipo_cobro === "taximetro" ? r.taxi_total : (r.precio ?? r.tarifa_web))}${r.tipo_cobro === "taximetro" ? ' <span class="muted small">(taxímetro)</span>' : ""}
+      ${r.valor_original != null ? `<span class="small muted"> · corregido (original ${clp(r.valor_original)})</span>` : ""}
+      ${yo && yo.rol === "admin" ? `<button class="btn ghost sm" type="button" id="d-corr">✏️ Corregir valor</button>
+      <div id="d-corr-f" hidden style="margin-top:6px"><div class="row2">
+        <div class="f"><label for="d-corr-v">Valor correcto</label><input id="d-corr-v" type="number" min="0" step="100" inputmode="numeric"></div>
+        <div class="f"><label for="d-corr-m">Motivo (opcional)</label><input id="d-corr-m" maxlength="200" placeholder="Ej.: el taxímetro partió tarde"></div></div>
+        <div class="actions"><button class="btn sm" type="button" id="d-corr-ok">Guardar valor</button><button class="btn ghost sm" type="button" id="d-corr-x">Cancelar</button></div>
+        <p class="small muted" style="margin:4px 0 0">Queda anotado en el historial con el valor anterior. Los reportes y la billetera del conductor usan el valor nuevo.</p></div>` : ""}
+    </div>` : ""}
     <div class="row2">
       <div class="f"><label for="d-cobro">Tipo de cobro</label><select id="d-cobro" ${r.estado === "finalizada" ? "disabled" : ""}><option value="fija" ${r.tipo_cobro !== "taximetro" ? "selected" : ""}>Tarifa fija</option><option value="taximetro" ${r.tipo_cobro === "taximetro" ? "selected" : ""}>Taxímetro</option></select></div>
       <div class="f"><label for="d-conv">Particular o convenio</label><select id="d-conv"><option value="">Particular (paga la persona)</option>${cuentas.filter(c => c.activa || c.id === r.cuenta_corporativa_id).map(c => `<option value="${esc(c.id)}" ${c.id === r.cuenta_corporativa_id ? "selected" : ""}>Convenio: ${esc(c.razon_social)}</option>`).join("")}</select></div>
@@ -1353,6 +1363,18 @@ async function abrir(id) {
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
   if ($("d-bolsa")) $("d-bolsa").onclick = () => formularioBolsa(r);
+  if ($("d-corr")) {
+    $("d-corr").onclick = () => { $("d-corr-f").hidden = false; $("d-corr").hidden = true; $("d-corr-v").focus(); };
+    $("d-corr-x").onclick = () => { $("d-corr-f").hidden = true; $("d-corr").hidden = false; };
+    $("d-corr-ok").onclick = async () => {
+      const v = Number(String($("d-corr-v").value).replace(/\D/g, ""));
+      if (!$("d-corr-v").value || !(v >= 0)) return msg("d-msg", "Escriba el valor correcto.", "err");
+      $("d-corr-ok").disabled = true;
+      const { error } = await sb.rpc("admin_corregir_valor", { p_reserva: r.id, p_valor: v, p_motivo: $("d-corr-m").value.trim() || null });
+      if (error) { $("d-corr-ok").disabled = false; return msg("d-msg", errText(error), "err"); }
+      $("det").close(); refrescar();
+    };
+  }
   if ($("a-bolsa")) $("a-bolsa").onclick = () => $("d-bolsa").click();
   if ($("a-bolsa-x")) $("a-bolsa-x").onclick = () => $("d-bolsa-x").click();
   if ($("d-bolsa-x")) $("d-bolsa-x").onclick = async () => {
