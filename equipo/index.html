@@ -521,6 +521,47 @@ const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ej
 // "Taxi ejecutivo Volkswagen Virtus, color azul · patente SSHY88"
 const vehTexto = v => [CAT[v.categoria], [v.marca, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" ") + (v.color ? `, color ${v.color.toLowerCase()}` : "") + ` · patente ${v.patente}`;
 const PIDE = { auto: "Auto", suv: "SUV", van: "Van" };
+// Requisitos al publicar en Reservas para conductores (categorías, corporativo, calificación mínima)
+function textoRequisitos(r) {
+  const t = [];
+  if (r.bolsa_categorias && r.bolsa_categorias.length) t.push(r.bolsa_categorias.map(c => CAT[c] || c).join(", "));
+  if (r.bolsa_corporativo || r.cuenta_corporativa_id) t.push("solo vehículos corporativos");
+  if (r.bolsa_calif_min != null) t.push(`calificación ${String(Number(r.bolsa_calif_min).toFixed(2)).replace(".", ",")}★ o más` + (r.bolsa_sin_calif ? " (o sin calificaciones)" : ""));
+  return t.length ? t.join(" · ") : "ninguno (la ven todos)";
+}
+function formularioBolsa(r) {
+  const box = $("d-bolsa-form"), conv = !!r.cuenta_corporativa_id;
+  box.hidden = false;
+  box.innerHTML = `<b>📢 Publicar ${esc(r.codigo)} en Reservas para conductores</b>
+    <p class="small muted" style="margin:2px 0 6px">Solo la verán y podrán tomar los conductores que cumplan lo que marque. Sin marcar nada, la ven todos.${r.conductor_id ? ` Ojo: se le quita a ${esc(nombreConductor(r.conductor_id) || "el conductor asignado")}.` : ""}</p>
+    <div class="f"><label>Tipos de vehículo que pueden tomarla <span class="muted small">(ninguno marcado = todos)</span></label>
+      <div class="actions small">${Object.entries(CAT).map(([k, t]) => `<label class="chk"><input type="checkbox" class="bf-cat" value="${k}"> ${esc(t)}</label>`).join("")}</div></div>
+    <label class="chk small"><input type="checkbox" id="bf-corp" ${conv ? "checked disabled" : ""}> 🏢 Solo vehículos corporativos${conv ? " (obligatorio: es de una empresa con convenio)" : ""}</label>
+    <div class="actions small" style="margin-top:6px"><label for="bf-calif">Calificación mínima</label>
+      <select id="bf-calif"><option value="">Sin mínimo</option><option value="4.5">4,50★</option><option value="4.8">4,80★</option><option value="4.9">4,90★</option><option value="4.96">4,96★</option><option value="5">5,00★</option></select>
+      <label class="chk"><input type="checkbox" id="bf-sin"> También conductores sin calificaciones aún</label></div>
+    <div class="actions small" style="margin-top:6px"><label for="bf-bono">Bono para quien la tome (opcional)</label><input id="bf-bono" inputmode="numeric" placeholder="Ej.: 5000" style="width:110px"></div>
+    <p class="small muted" id="bf-cuantos" style="margin:6px 0 0"></p>
+    <div class="actions" style="margin-top:6px"><button class="btn sm" type="button" id="bf-ok">Publicar</button><button class="btn ghost sm" type="button" id="bf-x">Cancelar</button></div>`;
+  const cuantos = () => {
+    const cats = [...box.querySelectorAll(".bf-cat:checked")].map(x => x.value), corp = $("bf-corp").checked;
+    const n = conductores.filter(c => { const v = vehiculos.find(x => x.conductor_habitual === c.id);
+      if (cats.length && (!v || !cats.includes(v.categoria))) return false;
+      if (corp && !d80ok(v)) return false; return true; }).length;
+    $("bf-cuantos").textContent = `Con el tipo de vehículo${corp ? " y corporativo" : ""}: ${n} de ${conductores.length} conductor(es) cumplen${$("bf-calif").value ? " (la calificación se revisa al mostrarla)" : ""}.`;
+  };
+  box.querySelectorAll("input, select").forEach(x => x.addEventListener("change", cuantos)); cuantos();
+  $("bf-x").onclick = () => { box.hidden = true; };
+  $("bf-ok").onclick = async () => {
+    $("bf-ok").disabled = true;
+    const { error } = await sb.rpc("liberar_a_bolsa_requisitos", { p_reserva: r.id, p_bono: Number(String($("bf-bono").value).replace(/\D/g, "")) || 0,
+      p_categorias: [...box.querySelectorAll(".bf-cat:checked")].map(x => x.value), p_corporativo: $("bf-corp").checked && !conv,
+      p_calif_min: $("bf-calif").value ? Number($("bf-calif").value) : null, p_sin_calif: $("bf-sin").checked });
+    if (error) { $("bf-ok").disabled = false; return msg("d-msg", errText(error), "err"); }
+    $("det").close(); refrescar();
+  };
+  box.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 // "¿Cómo nos conoció?" (para saber qué canal de marketing trae clientes)
 const CONOCIO = { google: "Google / Google Maps", web: "Página web", instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", linkedin: "LinkedIn", recomendacion: "Recomendación", cliente_frecuente: "Ya era cliente", empresa_convenio: "Convenio de su empresa", volante: "Volante / tarjeta", otro: "Otro" };
 const CONOCIO_OPC = `<option value="">— Sin dato —</option><option value="google">Google / Google Maps</option><option value="web">Página web (fk-servicios.com)</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Recomendación de alguien</option><option value="cliente_frecuente">Ya era cliente</option><option value="empresa_convenio">Su empresa tiene convenio</option><option value="volante">Volante / tarjeta</option><option value="otro">Otro</option>`;
@@ -1281,6 +1322,8 @@ async function abrir(id) {
       ${r.estado !== "cancelada" && r.estado !== "finalizada" ? '<button class="btn ghost sm" type="button" id="d-cancelar">✕ Cancelar reserva</button>' : ""}
       ${yo && yo.rol === "admin" ? '<button class="btn ghost sm" type="button" id="d-eliminar" style="color:#b42318">🗑 Eliminar</button>' : ""}
     </div>
+    ${r.en_bolsa ? `<p class="small" style="margin:6px 0 0">📢 Publicada en Reservas · <b>Requisitos:</b> ${esc(textoRequisitos(r))}</p>` : ""}
+    <div id="d-bolsa-form" class="pay" hidden></div>
     <div id="cobro-box"></div>
     <div id="calif-box"></div>
     <h3 style="margin:6px 0 0">Mensajes del viaje (pasajero y conductor)</h3>
@@ -1295,14 +1338,7 @@ async function abrir(id) {
   $("det").showModal();
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
-  if ($("d-bolsa")) $("d-bolsa").onclick = async () => {
-    if (!confirm(`¿Liberar ${r.codigo} en Reservas para conductores?\n\nLos conductores lo verán en su app (sin datos del pasajero) y el primero que lo tome se lo queda.` + (r.conductor_id ? `\n\nOjo: se le quita a ${nombreConductor(r.conductor_id) || "el conductor asignado"}.` : ""))) return;
-    const bono = prompt("Bono opcional para el conductor que lo tome (ej.: 5000), por ser de madrugada, lejos, etc.\nDéjelo vacío si no hay bono:", "");
-    if (bono === null) return;
-    const { error } = await sb.rpc("liberar_a_bolsa_bono", { p_reserva: r.id, p_bono: Number(String(bono).replace(/\D/g, "")) || 0 });
-    if (error) return msg("d-msg", errText(error), "err");
-    $("det").close(); refrescar();
-  };
+  if ($("d-bolsa")) $("d-bolsa").onclick = () => formularioBolsa(r);
   if ($("a-bolsa")) $("a-bolsa").onclick = () => $("d-bolsa").click();
   if ($("a-bolsa-x")) $("a-bolsa-x").onclick = () => $("d-bolsa-x").click();
   if ($("d-bolsa-x")) $("d-bolsa-x").onclick = async () => {

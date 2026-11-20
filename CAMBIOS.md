@@ -1,5 +1,10 @@
 # Cambios
 
+## 20 nov 2026 · Requisitos al publicar en Reservas para conductores
+- Ficha de la reserva → "📢 Publicar en Reservas" abre un formulario (en vez de las preguntas sueltas): **tipos de vehículo** que pueden tomarla (ninguno = todos), **🏢 solo corporativos** (obligatorio y ya marcado en reservas de convenio), **calificación mínima** (4,50 a 5,00★, promedio de 90 días; opción "también sin calificaciones") y **bono**. Muestra cuántos conductores cumplen por vehículo. La ficha muestra los requisitos de una reserva publicada y el historial los anota.
+- Solo la ven (`bolsa_servicios`) y la pueden tomar (`conductor_tomar_reserva`) quienes cumplen (`cumple_requisitos_bolsa`). Publicar en grupo parte sin requisitos.
+- Base de datos (etapa 54, ya aplicada): `reservas.bolsa_categorias`, `bolsa_corporativo`, `bolsa_calif_min`, `bolsa_sin_calif`; `liberar_a_bolsa_requisitos`.
+
 ## 20 nov 2026 · Cotizador punto a punto en la web y "¿Cómo nos conoció?"
 - Página principal: nueva sección **"Viajes punto a punto · taxi ejecutivo"** (#punto, botón "Cotizar punto a punto" en la portada). Origen y destino con autocompletar (Photon), ruta con OSRM (+25 % por tráfico) y **valor estimado** con el taxímetro de la empresa (`cotizador_publico`: bajada, cada 200 m, mínimo $12.000), auto o van. Si un extremo es el aeropuerto, remite a la tarifa fija; Oriente ↔ costa usa la tarifa fija por tramo; > 120 km, cotización a medida. Botón "Reservar por WhatsApp" con origen, destino, vehículo y valor estimado ya escritos. Se aclara que el valor es aproximado y se confirma al reservar.
 - **Mínimo del auto: $5.000** (etapa 53c, en `cotizador_publico` y `pasajero_inicio`).
