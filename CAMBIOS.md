@@ -1,5 +1,8 @@
 # Cambios
 
+## 20 nov 2026 · Regla comercial actualizada (Cabify / Servimóvil)
+- Decisión del dueño tras la reunión con la Cámara Chileno-India: se mantiene el respeto a los clientes de **Servimóvil** (partner); con **Cabify** se compite abiertamente. CLAUDE.md y el kit de venta a empresas actualizados (objeción "Trabajamos con Cabify" con argumentos; cámaras de comercio como fuente de listados de empresas).
+
 ## 20 nov 2026 · Reservas que nadie toma: alertas y asignación automática al más cercano
 - Tarea programada nueva `flotak-bolsa-vigilar` (cada 2 min, `bolsa_vigilar`, etapa 59 ya aplicada), para reservas publicadas sin conductor:
   - 90 min antes: aviso a Operaciones "⚠️ Nadie ha tomado …" (tipo `sin_tomar`, también con la app cerrada).

@@ -51,7 +51,8 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 - No usar "cumplimiento garantizado"; usar "Comprometidos con su traslado".
 - Peajes y TAG incluidos en la RM; estacionamiento del aeropuerto incluido solo durante la espera (15 min domicilio, 45 min nacionales, 1 h internacionales).
 - No hay sillas para niños. Mascotas sí, en canil.
-- No captar clientes de Servimóvil ni de Cabify. No pagar comisiones a intermediarios.
+- No captar clientes de Servimóvil (partner y aliado estratégico de Flota-K). Con Cabify se compite abiertamente (decisión del dueño, 20 nov 2026). No pagar comisiones a intermediarios.
+- Cámaras de comercio: venden membresías (Chileno-India: 19,5 UF/año), no contratan traslados; no pagar membresías mientras no se justifiquen con ventas. Usar sus listados de socios para contactar empresas directo.
 
 ## Datos de referencia
 - Costo operativo: $410 por km.
