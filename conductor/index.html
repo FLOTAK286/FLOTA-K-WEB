@@ -232,6 +232,7 @@ body.drv { overscroll-behavior-y: contain; }
       <p style="margin:6px 0 0">Desde el navegador, la ubicación se envía solo mientras esta pantalla está abierta. Para que se siga enviando con Waze, Cabify u otra app abierta, instale la <b>app Android de Flota-K</b>: <a href="https://github.com/FLOTAK286/flota-k-web/releases/download/conductor-android/flota-k-conductor.apk">descargar app Android</a>.</p></details>
     <p class="small muted" style="margin-top:6px" id="waze-app" hidden>La ubicación se sigue enviando aunque use Waze u otra app, e incluso con la app cerrada, hasta que cierre sesión. Mientras tanto verá una notificación fija de Flota-K. Si la central le asigna, cambia o cancela un servicio, el teléfono suena aunque la app esté cerrada (app 2.1 o más nueva).</p>
     <div id="inicio-mapa" class="mapa drv-mapa" hidden></div>
+    <div id="calor-ley" class="small muted" hidden style="margin-top:6px"></div>
     <div id="list" class="list" style="margin-top:12px"><p class="muted">Cargando…</p></div>
     <div class="act-fila"><p class="muted small" id="updated" style="margin:0"></p><button class="btn ghost sm" id="refrescar" type="button">⟳ Actualizar</button></div>
     <div id="ptr" aria-hidden="true">↓ Deslice para actualizar</div>
@@ -242,7 +243,7 @@ body.drv { overscroll-behavior-y: contain; }
 <!-- Puente con la app Android (registerPlugin). En el navegador no hace nada. -->
 <script src="/assets/vendor/capacitor-core-6.2.3.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="/assets/mapa.js"></script>
+<script src="/assets/mapa.js?v=56"></script>
 <script src="/assets/vendor/supabase-2.45.4.js"></script>
 <script src="/assets/config.js"></script>
 <script src="/assets/app.js"></script>
@@ -470,9 +471,9 @@ async function revisarBolsa(avisar = true) {
   if (error) return;
   const antes = new Set(bolsa.map(x => x.o_id));
   bolsa = data || [];
-  const aptos = bolsa.filter(x => x.o_sirve && !x.o_choque && !x.o_motivo);
-  $("b-bolsa").hidden = !aptos.length; $("b-bolsa").textContent = aptos.length;
-  const nuevos = aptos.filter(x => !antes.has(x.o_id));
+  // Aviso y contador para todas las reservas nuevas, cumpla o no los requisitos (pedido del dueño: transparencia)
+  $("b-bolsa").hidden = !bolsa.length; $("b-bolsa").textContent = bolsa.length;
+  const nuevos = bolsa.filter(x => !antes.has(x.o_id));
   if (avisar && bolsaCargada && nuevos.length && yo.disponible) {
     sonar(); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
     const x = nuevos[0];
@@ -542,6 +543,19 @@ async function geocodificar(dir) {
   try { const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=cl&q=" + encodeURIComponent(dir + ", Región Metropolitana, Chile"));
     const j = await r.json(); if (!j[0]) return null; const c = [Number(j[0].lat), Number(j[0].lon)]; try { localStorage.setItem(k, JSON.stringify(c)); } catch (_) {} return c; } catch (_) { return null; }
 }
+// Mapa de calor: dónde hay servicios en las próximas 12 horas (zona aproximada) y cuánto falta
+let capaCalor = null, calorT = 0;
+async function pintarCalorInicio(forzar) {
+  if (!mapaIni || !window.FKMapa || (!forzar && Date.now() - calorT < 120000)) return;
+  calorT = Date.now();
+  const { data, error } = await sb.rpc("mapa_demanda", { p_horas: 12 });
+  if (error) return;
+  const pts = (data || []).map(x => ({ lat: x.o_lat, lng: x.o_lng, min: x.o_minutos }));
+  capaCalor = FKMapa.calor(mapaIni, capaCalor, pts);
+  $("calor-ley").hidden = false;
+  $("calor-ley").innerHTML = `🔥 <b>Próximos servicios (12 h)</b>: ${pts.length ? pts.length + " en el mapa" : "no hay por ahora"}<br>${FKMapa.leyendaCalor()}`;
+}
+setInterval(() => { if (vista === "inicio" && !document.hidden) pintarCalorInicio(); }, 130000);
 async function mapaInicio(r) {
   if (!window.L || !window.FKMapa) return;
   if (!mapaIni) mapaIni = FKMapa.crear($("inicio-mapa"), null, 11);
@@ -555,8 +569,9 @@ async function mapaInicio(r) {
     destClave = clave; if (pinDest) { pinDest.remove(); pinDest = null; }
     if (dir) { const c = coord || await geocodificar(dir); if (c && destClave === clave) pinDest = L.marker(c, { icon: L.divIcon({ className: "fk-dest", html: "<span>📍</span>", iconSize: [30, 30], iconAnchor: [15, 28] }), title: dir }).addTo(mapaIni).bindPopup(esc(dir)); }
   }
+  pintarCalorInicio();
   const pts = [pinYo && pinYo.getLatLng(), pinDest && pinDest.getLatLng()].filter(Boolean);
-  if (pts.length === 2) mapaIni.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); else if (pts.length === 1) mapaIni.setView(pts[0], 14);
+  if (pts.length === 2) mapaIni.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); else if (pts.length === 1) mapaIni.setView(pts[0], pinDest ? 14 : 12);
 }
 // Aviso de documentos vencidos o por vencer (se revisa al abrir y cada 6 horas)
 let alertaDocs = "";
@@ -1312,7 +1327,7 @@ async function pintarPerfil() {
 }
 
 function pintar() {
-  $("inicio-mapa").hidden = vista !== "inicio";
+  $("inicio-mapa").hidden = vista !== "inicio"; if (vista !== "inicio") $("calor-ley").hidden = true;
   if (vista === "bolsa") return pintarBolsa();
   if (vista === "gan") return pintarGanancias();
   if (vista === "perfil") return pintarPerfil();

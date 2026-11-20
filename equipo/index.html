@@ -151,6 +151,8 @@ details.paso > summary { cursor: pointer; }
     <div data-pane="mapa" class="panel" style="margin-top:14px" hidden>
       <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Mapa en vivo</h2><span class="muted small" id="mp-act"></span></div>
       <label class="chk small"><input type="checkbox" id="mp-ver-ret" checked> Ver los puntos de retiro de los servicios (próximas 24 horas)</label>
+      <label class="chk small"><input type="checkbox" id="mp-ver-calor" checked> 🔥 Mapa de calor: próximos servicios según cuánto falta (12 horas)</label>
+      <div class="small muted" id="mp-calor-ley"></div>
       <div class="mp-ley"><span><i style="background:#3ecf7f"></i>Disponible</span><span><i style="background:#d4a64a"></i>Disponible, con servicio en menos de 1 hora</span><span><i style="background:#e5533d"></i>Ocupado (en servicio)</span><span><i style="background:#8a8d93"></i>Desconectado o sin señal</span></div>
       <div id="mp-mapa" class="mapa alto"></div>
       <div class="mp-ley"><span><i style="background:#e5533d"></i>Retiro sin conductor</span><span><i style="background:#d4a64a"></i>Retiro en Reservas (conductores)</span><span><i style="background:#3b6fd8"></i>Retiro con conductor</span><span><i style="background:#2e9e5f"></i>Servicio en curso</span></div>
@@ -480,7 +482,7 @@ details.paso > summary { cursor: pointer; }
 <script src="/assets/recuperar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="/assets/mapa.js"></script>
+<script src="/assets/mapa.js?v=56"></script>
 <script src="/assets/chat.js"></script>
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/autos.js"></script>
@@ -1071,7 +1073,8 @@ function pintarRetiros(mapa, capa, servicios) {
 }
 let capaRetEq = null, capaRetTb = null;
 
-document.addEventListener("change", e => { if (e.target && e.target.id === "mp-ver-ret") cargarMapa(); });
+document.addEventListener("change", e => { if (e.target && (e.target.id === "mp-ver-ret" || e.target.id === "mp-ver-calor")) cargarMapa(); });
+let capaCalorEq = null;
 async function cargarMapa() {
   if (!window.L || !window.FKMapa) { $("mp-lista").innerHTML = '<p class="msg err">No se pudo cargar el mapa. Revise su conexión.</p>'; return; }
   if (!mapaEq) mapaEq = FKMapa.crear($("mp-mapa"));
@@ -1089,6 +1092,14 @@ async function cargarMapa() {
   if (ks && !(califCondCache && califCondCache.d === ks)) califCondCache = { t: Date.now(), d: ks };
   const califCond = {}; (ks || []).forEach(k => { const x = califCond[k.conductor_id] = califCond[k.conductor_id] || { n: 0, s: 0 }; x.n++; x.s += k.estrellas; });
   if (error) { $("mp-lista").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  if ($("mp-ver-calor").checked) {
+    const fut = (rs || []).filter(r => ["recibida", "confirmada", "asignada"].includes(r.estado) && r.origen_lat != null
+      && new Date(r.fecha_hora) > Date.now() - 600000 && new Date(r.fecha_hora) < Date.now() + 12 * 3600e3)
+      .map(r => { const min = Math.max(0, Math.floor((new Date(r.fecha_hora) - Date.now()) / 60000));
+        return { lat: r.origen_lat, lng: r.origen_lng, min, txt: `<b>${esc(r.codigo)} · ${esc(hora(r.fecha_hora))}</b> (en ${FKMapa.tiempoTxt(min)})<br>${esc(r.origen)}` }; });
+    capaCalorEq = FKMapa.calor(mapaEq, capaCalorEq, fut);
+    $("mp-calor-ley").innerHTML = `${fut.length} servicio(s) en las próximas 12 horas · ${FKMapa.leyendaCalor()}`;
+  } else { if (capaCalorEq) capaCalorEq.clearLayers(); $("mp-calor-ley").innerHTML = ""; }
   if ($("mp-ver-ret").checked) capaRetEq = pintarRetiros(mapaEq, capaRetEq, (rs || []).filter(r => new Date(r.fecha_hora) < Date.now() + 24 * 3600e3)); else if (capaRetEq) capaRetEq.clearLayers();
   const ids = new Set([...conductores.map(c => c.id), ...(us || []).map(u => u.conductor_id)]);
   const filas = [...ids].map(id => {

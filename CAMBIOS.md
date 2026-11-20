@@ -1,5 +1,12 @@
 # Cambios
 
+## 20 nov 2026 · Mapa de calor de próximos servicios y aviso de todas las reservas
+- **Mapa de calor** (próximas 12 horas, por cuánto falta): 🔴 menos de 30 min, 🟠 30–60 min, 🟡 1–2 h, 🔵 más de 2 h. Círculos de ~900 m en la zona de retiro; donde hay varios, el color se intensifica.
+  - App del conductor (Inicio): todos los próximos servicios de la empresa, solo zona aproximada (redondeada a ~1 km) y minutos que faltan, sin datos del pasajero (`mapa_demanda`, etapa 56). Se actualiza cada ~2 min. Sin servicio en curso, el mapa se abre más alejado para ver la zona.
+  - Panel → Mapa en vivo: casilla "🔥 Mapa de calor" (activada), con código, hora y origen al tocar cada círculo.
+  - `FKMapa.calor`, `colorCalor`, `leyendaCalor`, `tiempoTxt` en assets/mapa.js (`?v=56` en conductor y equipo).
+- App del conductor → Reservas: **el aviso con sonido y el número de la pestaña cuentan todas las reservas nuevas**, cumpla o no los requisitos (pedido del dueño).
+
 ## 20 nov 2026 · Reservas para conductores: todos ven, solo toma quien cumple
 - App del conductor → Reservas: cada reserva muestra **🚘 Categoría** (las que pide o "cualquiera") y los requisitos (🏢 Corporativo, ★ calificación mínima). Quien no cumple **la ve atenuada, sin botón para tomarla, con el motivo** ("🔒 No puede tomarlo: Pide Van o Particular VIP y su vehículo es Taxi ejecutivo"). El aviso con sonido y el número en la pestaña cuentan solo las que puede tomar. Usa `bolsa_servicios_v4` (con respaldo a v3).
 - Base de datos (etapa 55, ya aplicada): `categoria_nombre`, `motivo_requisitos_bolsa` (y `cumple_requisitos_bolsa` la usa), `bolsa_servicios` ya no esconde a quien no cumple (la prioridad por calificación se mantiene), `bolsa_servicios_v4`; `conductor_tomar_reserva` responde con el motivo exacto.
