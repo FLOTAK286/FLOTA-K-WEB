@@ -1,5 +1,8 @@
 # Cambios
 
+## 20 nov 2026 · La asignación automática informa el móvil y la patente
+- Etapa 59b (ya aplicada): el aviso "🤖 Asignada sola a …" y el historial dicen "Móvil 286 · Juan Kieferling · SSHY88", igual que la asignación manual (`conductor_mas_cercano` devuelve esa etiqueta). El vehículo ya quedaba guardado en la reserva, pero no se mencionaba. Se corrigió la nota de FK-888BC8.
+
 ## 20 nov 2026 · Regla comercial actualizada (Cabify / Servimóvil)
 - Decisión del dueño tras la reunión con la Cámara Chileno-India: se mantiene el respeto a los clientes de **Servimóvil** (partner); con **Cabify** se compite abiertamente. CLAUDE.md y el kit de venta a empresas actualizados (objeción "Trabajamos con Cabify" con argumentos; cámaras de comercio como fuente de listados de empresas).
 
