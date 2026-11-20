@@ -235,6 +235,7 @@ details.paso > summary { cursor: pointer; }
         <details class="paso"><summary><b>Más opciones</b> <span class="small muted">(por dónde llegó, repetir la reserva)</span></summary>
           <div class="row3" style="margin-top:8px">
             <div class="f"><label for="n-canal">Llegó por</label><select id="n-canal"><option value="whatsapp">WhatsApp</option><option value="telefono">Teléfono</option><option value="correo">Correo</option><option value="convenio">Convenio empresa</option><option value="otro">Otro</option></select></div>
+            <div class="f"><label for="n-conocio">¿Cómo nos conoció? <span class="muted small">(pregúntelo siempre)</span></label><select id="n-conocio"><option value="">— Sin dato —</option><option value="google">Google / Google Maps</option><option value="web">Página web (fk-servicios.com)</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Recomendación de alguien</option><option value="cliente_frecuente">Ya era cliente</option><option value="empresa_convenio">Su empresa tiene convenio</option><option value="volante">Volante / tarjeta</option><option value="otro">Otro</option></select></div>
             <div class="f"><label for="n-rep">Repetir</label><select id="n-rep"><option value="">No se repite</option><option value="semanal">Cada semana (mismo día y hora)</option><option value="habiles">Lunes a viernes (misma hora)</option><option value="diario">Todos los días (misma hora)</option></select></div>
             <div class="f"><label for="n-rep-hasta">Hasta (fecha)</label><input id="n-rep-hasta" type="date"></div>
           </div>
@@ -520,6 +521,9 @@ const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ej
 // "Taxi ejecutivo Volkswagen Virtus, color azul · patente SSHY88"
 const vehTexto = v => [CAT[v.categoria], [v.marca, v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" ") + (v.color ? `, color ${v.color.toLowerCase()}` : "") + ` · patente ${v.patente}`;
 const PIDE = { auto: "Auto", suv: "SUV", van: "Van" };
+// "¿Cómo nos conoció?" (para saber qué canal de marketing trae clientes)
+const CONOCIO = { google: "Google / Google Maps", web: "Página web", instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", linkedin: "LinkedIn", recomendacion: "Recomendación", cliente_frecuente: "Ya era cliente", empresa_convenio: "Convenio de su empresa", volante: "Volante / tarjeta", otro: "Otro" };
+const CONOCIO_OPC = `<option value="">— Sin dato —</option><option value="google">Google / Google Maps</option><option value="web">Página web (fk-servicios.com)</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Recomendación de alguien</option><option value="cliente_frecuente">Ya era cliente</option><option value="empresa_convenio">Su empresa tiene convenio</option><option value="volante">Volante / tarjeta</option><option value="otro">Otro</option>`;
 const sirve = (cat, pide) => pide === "van" ? cat === "van" : pide === "suv" ? ["suv", "van", "particular_suv"].includes(cat) : true;
 // Vehículo corporativo = autorización ministerial vigente (columna decreto80; las reservas de empresas con convenio lo exigen)
 const hoyCL = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
@@ -1233,6 +1237,7 @@ async function abrir(id) {
       <dt>Tarifa web</dt><dd>${clp(r.tarifa_web)}</dd>
       <dt>Comentarios</dt><dd>${esc(r.comentarios || "—")}</dd>
       <dt>Canal</dt><dd>${esc(r.canal)}</dd>
+      <dt>¿Cómo nos conoció?</dt><dd><select id="d-conocio" aria-label="Cómo nos conoció">${CONOCIO_OPC.replace(`value="${r.como_nos_conocio || ""}"`, `value="${r.como_nos_conocio || ""}" selected`)}</select></dd>
       <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">⧉ Copiar mensaje</button> <button class="btn ghost sm" type="button" id="cp-wa">📲 Compartir por WhatsApp</button> <a class="btn ghost sm" href="${esc(seg)}" target="_blank" rel="noopener">👁 Ver lo que ve el pasajero</a><div id="d-gps" class="small" style="margin-top:4px"></div></dd>
     </dl>
     <div class="row2">
@@ -1332,6 +1337,10 @@ async function abrir(id) {
   estadoGps(r);
   if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
   // Copia o comparte el mensaje completo (no solo el enlace)
+  $("d-conocio").onchange = async ev => {
+    const { error } = await sb.from("reservas").update({ como_nos_conocio: ev.target.value || null }).eq("id", r.id);
+    if (error) alert(errText(error)); else r.como_nos_conocio = ev.target.value || null;
+  };
   $("cp").onclick = () => { const t = mensajeSeguimiento(r); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => $("cp").textContent = "✅ Mensaje copiado").catch(() => prompt("Copie el mensaje:", t)); };
   $("cp-wa").onclick = () => FK.abrirExterno("https://wa.me/?text=" + encodeURIComponent(mensajeSeguimiento(r)));
   const margen = () => {
@@ -1765,7 +1774,7 @@ async function cargarReportes() {
   const { desde, hasta, txt } = rangoReporte();
   $("rp-body").innerHTML = '<p class="muted">Cargando…</p>';
   const [{ data: rs, error }, { data: vs }] = await Promise.all([
-    FK.todo(() => sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros, vehiculo_id").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("fecha_hora").order("id")),
+    FK.todo(() => sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, como_nos_conocio, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros, vehiculo_id").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("fecha_hora").order("id")),
     FK.todo(() => sb.from("v_cobro").select("id, total, gastos, pagado").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("fecha_hora").order("id"))
   ]);
   if (error) { $("rp-body").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
@@ -1803,6 +1812,7 @@ async function cargarReportes() {
     <div class="rp-caja"><h3>Ingresos por día (${esc(txt)})</h3>${porDia.length ? `<div class="rp-dias">${porDia.map(x => `<div class="rp-dia" title="${esc(x.k)}: ${clp(x.t)} (${x.n})"><span style="height:${Math.max(3, x.t / mxd * 100)}%"></span><small>${esc(x.k.slice(8))}</small></div>`).join("")}</div>` : '<p class="muted small">Sin servicios finalizados en el período.</p>'}</div>
     <div class="rp-grid">
       ${barras("Por canal", agrupar(ok, r => r.canal, k => canales[k] || k))}
+      ${barras("¿Cómo nos conoció?", agrupar(ok.filter(r => r.como_nos_conocio), r => r.como_nos_conocio, k => CONOCIO[k] || k))}
       ${barras("Por tipo de servicio", agrupar(ok, r => r.tipo_servicio, k => SERVICIOS[k] || k))}
       ${barras("Por conductor", agrupar(ok, r => r.derivado_a ? "red:" + r.derivado_a : r.conductor_id, k => k.startsWith("red:") ? "Red: " + k.slice(4) : (nombreConductor(k) || "Sin asignar")))}
       ${barras("Mejores clientes", agrupar(ok, r => r.cliente_id, k => cliNom[k] || "—"), 10)}
@@ -3087,6 +3097,7 @@ $("n-leer").addEventListener("click", () => {
   if (o.origen && !lugO.get()) setTimeout(() => lugO.buscarAhora(), 400); else if (o.destino && !lugD.get()) setTimeout(() => lugD.buscarAhora(), 400);
   if (o.fecha || o.hora) set("n-fecha", `${o.fecha || hoyChile()}T${o.hora || "00:00"}`);
   $("n-canal").value = "whatsapp";
+  if (/valor estimado en la web|fk-servicios\.com/i.test($("n-pegar").value || "")) $("n-conocio").value = "web";
   if (!$("n-com").value) $("n-com").value = $("n-pegar").value.trim().slice(0, 500);
   const faltan = [!o.fecha && "fecha", !o.hora && "hora", !o.origen && "origen", !o.destino && "destino", !o.nombre && "nombre", !o.tel && "teléfono"].filter(Boolean);
   $("n-leido").textContent = faltan.length ? "Complete a mano: " + faltan.join(", ") + ". Revise todo antes de guardar." : "Listo. Revise los datos antes de guardar.";
@@ -3318,7 +3329,7 @@ $("nf").addEventListener("submit", async e => {
     empresa_id: yo.empresa_id, nombre_pasajero: $("n-nombre").value.trim(), telefono: $("n-tel").value.trim(),
     correo: $("n-mail").value.trim().toLowerCase() || null, fecha_hora: fh, origen: $("n-origen").value.trim(), destino: $("n-destino").value.trim(),
     vuelo: $("b-n-vuelo").hidden ? null : ($("n-vuelo").value.trim() || null), paradas: paradasN, pasajeros: Number($("n-pax").value) || 1, maletas: $("n-maletas").value === "" ? null : Number($("n-maletas").value),
-    tipo_servicio: $("n-tipo").value, vehiculo: $("n-veh").value, canal: $("n-canal").value, tipo_cobro: $("n-cobro").value,
+    tipo_servicio: $("n-tipo").value, vehiculo: $("n-veh").value, canal: $("n-canal").value, como_nos_conocio: $("n-conocio").value || null, tipo_cobro: $("n-cobro").value,
     precio: $("n-precio").value === "" ? null : Number($("n-precio").value), forma_pago: $("n-pago").value || null,
     comentarios: $("n-com").value.trim() || null, estado: "confirmada",
     origen_lat: po.lat, origen_lng: po.lng, destino_lat: pd.lat, destino_lng: pd.lng

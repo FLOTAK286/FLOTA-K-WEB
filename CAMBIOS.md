@@ -1,5 +1,10 @@
 # Cambios
 
+## 20 nov 2026 · Cotizador punto a punto en la web y "¿Cómo nos conoció?"
+- Página principal: nueva sección **"Viajes punto a punto · taxi ejecutivo"** (#punto, botón "Cotizar punto a punto" en la portada). Origen y destino con autocompletar (Photon), ruta con OSRM (+25 % por tráfico) y **valor estimado** con el taxímetro de la empresa (`cotizador_publico`: bajada, cada 200 m, mínimo $12.000), auto o van. Si un extremo es el aeropuerto, remite a la tarifa fija; Oriente ↔ costa usa la tarifa fija por tramo; > 120 km, cotización a medida. Botón "Reservar por WhatsApp" con origen, destino, vehículo y valor estimado ya escritos. Se aclara que el valor es aproximado y se confirma al reservar.
+- Corrección: los botones Ida/Regreso/Van del tarifario solo toman sus propios botones (`.seg button[data-mode]`).
+- Panel: campo **"¿Cómo nos conoció?"** en la reserva nueva (se marca "Página web" solo si el mensaje pegado viene del cotizador), editable en la ficha, y gráfico "¿Cómo nos conoció?" en Reportes. Base de datos (etapa 53, ya aplicada): `reservas.como_nos_conocio`.
+
 ## 19 nov 2026 · El admin ve el portal de cada propietario
 - Equipo y roles: botón **"👁 Ver su portal"** en cada propietario. Abre /propietario/?ver=<id> con un aviso "Vista de administrador" y muestra exactamente sus vehículos, servicios y reportes (solo lectura).
 - Base de datos (etapa 52, ya aplicada): `admin_puede_ver_propietario`, `admin_ver_propietario_vehiculos`, `admin_ver_propietario_servicios` (solo admin de la misma empresa).
