@@ -1,5 +1,8 @@
 # Cambios
 
+## 20 nov 2026 · Corregir el valor de un servicio finalizado directamente en la ficha
+- Pedido del dueño (facturación, cobros de más, etc.): en la ficha de un servicio finalizado el campo pasa a llamarse **"Valor final cobrado"**, muestra el valor real (el del taxímetro o la tarifa fija) y el administrador lo cambia y toca **"Guardar cambios"**. El guardado usa `admin_corregir_valor` (queda en el historial con el valor anterior y la nota escrita como motivo). Se quitó el botón separado "✏️ Corregir valor". Para otros roles el campo es de solo lectura.
+
 ## 20 nov 2026 · Corregir el valor de un servicio finalizado
 - Ficha de un servicio finalizado: recuadro "Valor cobrado" (indica si fue con taxímetro y si fue corregido, con el valor original) y botón **"✏️ Corregir valor"** (solo administrador): valor correcto + motivo opcional. El campo "Precio final" queda de solo lectura en servicios finalizados, para que todo cambio quede registrado.
 - Base de datos (etapa 60, ya aplicada): `admin_corregir_valor` cambia `taxi_total` (taxímetro) o `precio` (tarifa fija), guarda `valor_original` (la primera vez), `valor_corregido_por`/`_en` y anota en el historial "Valor corregido por …: $A → $B · motivo". Reportes, liquidaciones y billetera usan el valor nuevo (`v_cobro`).
