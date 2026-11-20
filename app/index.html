@@ -484,7 +484,7 @@ function viajeCosta(a, b) {
 }
 // Taxímetro ejecutivo de la empresa: bajada + cada 200 m, con un mínimo
 function cotizarRuta(km) {
-  const c = (D && D.cotizador) || { bajada: 2400, cada_200m: 180, minimo: 12000 };
+  const c = (D && D.cotizador) || { bajada: 2400, cada_200m: 180, minimo: 5000 };
   const auto = Math.max(c.minimo || 0, c.bajada + Math.ceil(km * 5) * c.cada_200m);
   return redondear(veh === "van" ? Math.max(c.minimo_van || 25000, auto * FACTOR_VAN) : auto);
 }

@@ -481,7 +481,7 @@ footer .wrap { display: grid; gap: 14px; }
     return 2 * R * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2)); };
   const T = window.FK_TARIFAS || [];
   const FACTOR_VAN = (() => { const f = T.map(r => r[3] / r[1]).filter(x => x > 1 && x < 3).sort((a, b) => a - b); return f.length ? f[Math.floor(f.length / 2)] : 1.35; })();
-  let tar = { bajada: 2400, cada_200m: 180, minimo: 12000, minimo_van: 25000 }, veh = "auto", pts = { a: null, b: null }, n = 0;
+  let tar = { bajada: 2400, cada_200m: 180, minimo: 5000, minimo_van: 25000 }, veh = "auto", pts = { a: null, b: null }, n = 0;
   const C = window.FK_CONFIG;
   fetch(C.url + "/rest/v1/rpc/cotizador_publico", { method: "POST", headers: { apikey: C.anonKey, Authorization: "Bearer " + C.anonKey, "Content-Type": "application/json" }, body: "{}" })
     .then(r => r.ok ? r.json() : null).then(j => { if (j && j.bajada) { tar = j; calcular(); } }).catch(() => {});
