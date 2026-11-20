@@ -450,11 +450,18 @@ async function cargar() {
   const desde = new Date(Date.now() - 18 * 3600e3).toISOString();
   const hasta = new Date(Date.now() + 14 * 24 * 3600e3).toISOString();
   const { data, error } = await sb.from("reservas")
-    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, paradas, bono_bolsa, retiro_detalle, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre")
+    .select("id, codigo, estado, fecha_hora, nombre_pasajero, telefono, origen, destino, origen_lat, origen_lng, destino_lat, destino_lng, paradas, bono_bolsa, retiro_detalle, vuelo, pasajeros, maletas, comentarios, tipo_servicio, precio, tarifa_web, forma_pago, pagado, vehiculo_id, tipo_cobro, observacion_conductor, conductor_respuesta, solicitante_nombre, negativo_estado, negativo_valor, no_presentado")
     .eq("conductor_id", yo.id).neq("estado", "cancelada")
     .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora");
   if (error) { $("list").innerHTML = `<p class="msg err">${esc(errText(error))}</p>`; return; }
+  const negAntes = Object.fromEntries(items.map(x => [x.id, x.negativo_estado]));
   items = data || [];
+  // Respuesta de la central al "pasajero no presentado": aviso con sonido
+  items.forEach(x => { if (negAntes[x.id] === "solicitado" && x.negativo_estado && x.negativo_estado !== "solicitado") {
+    sonarAlerta(); if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    mostrarAviso(x.negativo_estado === "autorizado" ? "asignado" : "quitado", x.negativo_estado === "autorizado" ? "✅ Negativo autorizado" : "⛔ Negativo no autorizado",
+      x.negativo_estado === "autorizado" ? `Puede cerrar ${x.codigo} como no presentado por ${clp(x.negativo_valor)}.` : `La central no autorizó cerrar ${x.codigo} como no presentado. Siga esperando o comuníquese con la central.`);
+  } });
   // Si el servicio con el chat abierto ya terminó, se cierra el chat (si no, la lista dejaría de actualizarse)
   if (chatAbiertoId && !items.some(x => x.id === chatAbiertoId && ["en_camino", "en_lugar", "a_bordo"].includes(x.estado))) { chatAbiertoId = null; chatVivo = null; }
   avisarNuevos(); await avisarCambios(); programarRecordatorios(); avisoSalida();
@@ -1405,6 +1412,12 @@ function pintar() {
         <a class="btn ghost" href="https://wa.me/${esc(wa(r.telefono))}?text=${encodeURIComponent(msgWa)}" target="_blank" rel="noopener">WhatsApp</a>`}
       </div>
       ${veh ? `<p class="small muted">Vehículo: ${esc(veh.descripcion || "")} · ${esc(veh.patente)}</p>` : ""}
+      ${r.no_presentado ? `<p class="small"><b>🚫 Pasajero no presentado</b> · negativo ${clp(r.precio)}</p>` : ""}
+      ${r.estado === "en_lugar" ? (r.negativo_estado === "solicitado"
+          ? '<div class="msg" style="border-color:var(--gold)">⏳ Informó <b>pasajero no presentado</b>. Esperando autorización de la central…</div>'
+          : r.negativo_estado === "autorizado"
+          ? `<div class="msg ok">✅ La central autorizó el negativo: <b>${clp(r.negativo_valor)}</b><div class="actions" style="margin-top:6px"><button class="btn end neg-cerrar" type="button">Cerrar como no presentado (${clp(r.negativo_valor)})</button></div></div>`
+          : `${r.negativo_estado === "rechazado" ? '<p class="small warn" style="margin:0">⛔ La central no autorizó el negativo. Siga esperando o comuníquese con la central.</p>' : ""}<button class="btn ghost neg-pedir" type="button">🚫 Pasajero no presentado</button>`) : ""}
       ${["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) - Date.now() > 3 * 3600e3 ? '<button class="btn ghost sm devolver" type="button">↩ No podré hacerlo: devolver a Reservas</button>' : ""}
       ${s && !fin ? (pendiente === r.id
         ? (r.tipo_cobro === "taximetro" ? `<div class="confirm taxi">
@@ -1470,6 +1483,19 @@ function pintar() {
       $("list").prepend(done); setTimeout(() => done.remove(), 6000);
     });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
+    card.querySelector(".neg-pedir")?.addEventListener("click", async () => {
+      if (!confirm(`¿Informar que el pasajero de ${r.codigo} no se presentó?\n\nEl servicio sigue abierto: la central debe autorizar el negativo. Valor: $5.000 (incluye 15 min de espera) más la espera después de esos 15 minutos.`)) return;
+      const nota = prompt("Detalle para la central (opcional): por ejemplo, si llamó al pasajero y no contestó.", "") || null;
+      const { data: v, error } = await sb.rpc("conductor_pedir_negativo", { p_reserva: id, p_nota: nota });
+      if (error) return alert(errText(error));
+      r.negativo_estado = "solicitado"; pintar();
+      mostrarAviso("cambio", "Aviso enviado a la central", `Negativo calculado: ${clp(v)}. Espere la autorización para cerrar el servicio.`);
+    });
+    card.querySelector(".neg-cerrar")?.addEventListener("click", async () => {
+      const { data: v, error } = await sb.rpc("conductor_cerrar_negativo", { p_reserva: id });
+      if (error) return alert(errText(error));
+      await cargar(); mostrarAviso("asignado", "Servicio cerrado", `${r.codigo} quedó como pasajero no presentado (${clp(v)}).`);
+    });
     card.querySelector(".devolver")?.addEventListener("click", async () => {
       if (!confirm(`¿Devolver el servicio ${r.codigo} (${FK.fecha(r.fecha_hora)}) a Reservas?\n\nOtro conductor podrá tomarlo. La central recibe un aviso y queda registrado. Úselo solo si de verdad no puede hacerlo.`)) return;
       const { error } = await sb.rpc("conductor_devolver_reserva", { p_reserva: id });

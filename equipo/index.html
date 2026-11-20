@@ -1271,6 +1271,16 @@ async function abrir(id) {
   const seg = location.origin + "/seguimiento/?t=" + r.token_seguimiento;
   $("det-body").innerHTML = `
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2>${esc(r.codigo)}</h2>${pill(r.estado)}</div>
+    ${r.no_presentado ? `<p class="msg" style="margin:6px 0">🚫 <b>Pasajero no presentado</b> · negativo ${clp(r.precio)}</p>` : ""}
+    ${r.negativo_estado === "solicitado" && ["en_lugar", "en_camino"].includes(r.estado) ? `<div class="pay" id="neg-box" style="margin:6px 0;border-color:#e5533d">
+      <b>🚫 El conductor informa: pasajero no presentado</b>
+      <span class="small" id="neg-calc">Calculando el negativo…</span>
+      <div class="row2"><div class="f"><label for="neg-valor">Valor del negativo</label><input id="neg-valor" type="number" min="0" step="100" inputmode="numeric"></div>
+        <div class="f"><label for="neg-nota">Nota (opcional)</label><input id="neg-nota" maxlength="200" placeholder="Ej.: se llamó al pasajero y no contestó"></div></div>
+      <div class="actions"><button class="btn sm" type="button" id="neg-ok">✅ Autorizar negativo</button><button class="btn ghost sm" type="button" id="neg-no">⛔ No autorizar</button></div>
+      <span class="small muted">Al autorizar, el conductor puede cerrar el servicio como "no presentado" con este valor.</span></div>` : ""}
+    ${r.negativo_estado === "autorizado" && r.estado !== "finalizada" ? `<div class="pay" style="margin:6px 0">✅ <b>Negativo autorizado: ${clp(r.negativo_valor)}</b> · esperando que el conductor cierre el servicio.
+      <div class="actions" style="margin-top:4px"><button class="btn ghost sm" type="button" id="neg-cerrar">Cerrar ahora como no presentado</button></div></div>` : ""}
     <dl class="kv">
       <dt>Fecha y hora</dt><dd><b id="d-fh-ver">${esc(fecha(r.fecha_hora))}</b>${["finalizada", "cancelada", "a_bordo"].includes(r.estado) ? "" : ` <button class="btn ghost sm" type="button" id="d-fh-edit">✏ Cambiar fecha u hora</button>
         <div id="d-fh-box" hidden style="margin-top:6px"><div class="actions"><input id="d-fh" type="datetime-local" aria-label="Nueva fecha y hora (hora de Chile)"><button class="btn sm" type="button" id="d-fh-save">Guardar nueva hora</button><button class="btn ghost sm" type="button" id="d-fh-x">Volver</button></div>
@@ -1355,6 +1365,24 @@ async function abrir(id) {
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
   if ($("d-bolsa")) $("d-bolsa").onclick = () => formularioBolsa(r);
+  if ($("neg-box")) {
+    sb.rpc("negativo_calculo", { p_reserva: r.id }).then(({ data }) => { const c = data && data[0]; if (!c) return;
+      $("neg-valor").value = c.o_valor;
+      $("neg-calc").textContent = `Negativo calculado: ${clp(c.o_valor)} = $5.000 (incluye 15 min de espera)` + (c.o_minutos ? ` + ${c.o_minutos} min de espera × ${clp(c.o_tarifa)}.` : ". Informado dentro de la espera incluida.") + " Puede ajustar el valor."; });
+    const resolver = async ok => {
+      const v = $("neg-valor").value === "" ? null : Number($("neg-valor").value);
+      const { error } = await sb.rpc("staff_resolver_negativo", { p_reserva: r.id, p_autorizar: ok, p_valor: ok ? v : null, p_nota: $("neg-nota").value.trim() || null });
+      if (error) return msg("d-msg", errText(error), "err");
+      $("det").close(); refrescar();
+    };
+    $("neg-ok").onclick = () => resolver(true);
+    $("neg-no").onclick = () => resolver(false);
+  }
+  if ($("neg-cerrar")) $("neg-cerrar").onclick = async () => {
+    const { error } = await sb.rpc("conductor_cerrar_negativo", { p_reserva: r.id });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar();
+  };
   if ($("a-bolsa")) $("a-bolsa").onclick = () => $("d-bolsa").click();
   if ($("a-bolsa-x")) $("a-bolsa-x").onclick = () => $("d-bolsa-x").click();
   if ($("d-bolsa-x")) $("d-bolsa-x").onclick = async () => {
@@ -2285,6 +2313,7 @@ function alertasDe(r, extra) {
   const sinAsig = !r.conductor_id && !r.derivado_a, a = [];
   const antesDeSalir = ["recibida", "confirmada", "asignada"].includes(r.estado);
   if (r.estado === "recibida") a.push({ n: 3, c: "roja", t: "Por confirmar" });
+  if (r.negativo_estado === "solicitado" && ["en_lugar", "en_camino"].includes(r.estado)) a.push({ n: 3, c: "roja", t: "🚫 Pasajero no presentado: autorice el negativo" });
   if (r.convenio_aviso && antesDeSalir) a.push({ n: 2, c: "amarilla", t: "💰 " + r.convenio_aviso });
   // Bolsa: mientras falte más de 1 hora es normal que esté sin conductor; a 1 hora o menos, hay que asignarla a mano
   if (r.en_bolsa) a.push(min <= 60 ? { n: 3, c: "roja", t: "⚠ Nadie la tomó desde Reservas: asigne a mano" } : { n: 1, c: "gris", t: "📢 En Reservas (conductores)" + (r.bono_bolsa ? " · bono " + clp(r.bono_bolsa) : "") });
@@ -2453,7 +2482,7 @@ function pintarDespacho() {
       <td><b>${esc(r.nombre_pasajero)}</b> ${etqHtml(etqDe[r.cliente_id])}${r.solicitante_nombre ? `<br><span class="small muted">paga: ${esc(r.solicitante_nombre)}</span>` : ""}<br><span class="muted small">${esc(r.pasajeros || 1)} pax${r.maletas != null ? " · " + esc(r.maletas) + " mal." : ""}</span>${r.vehiculo && r.vehiculo !== "auto" ? ` <span class="alerta gris">${esc(PIDE[r.vehiculo] || r.vehiculo)}</span>` : ""}</td>
       <td class="tray" title="${esc(r.origen)} → ${esc(r.destino)}">${corto(r.origen)}<br><span class="muted">→ ${(r.paradas || []).length ? `🛑${r.paradas.length} → ` : ""}${corto(r.destino)}</span></td>
       <td class="nowrap">${vueloLink(r.vuelo)}</td>
-      <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${semClave(r) ? `<br>${semaforo(r)}` : ""}${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
+      <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${semClave(r) ? `<br>${semaforo(r)}` : ""}${r.negativo_estado === "solicitado" && r.estado !== "finalizada" ? '<br><span class="sem" style="background:#e5533d;color:#fff">🚫 Negativo por autorizar</span>' : r.no_presentado ? '<br><span class="sem" style="background:#9aa0a6;color:#17191c">🚫 No presentado</span>' : ""}${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
       <td class="nowrap">${r.tipo_cobro === "taximetro" && r.estado !== "finalizada" ? '<span class="muted small">Taxímetro</span>' : clp(r.precio ?? r.tarifa_web)}<br><span class="small ${r.pagado ? "muted" : ""}">${r.pagado ? "Pagado" : "Por cobrar"}</span></td>
       <td>${r._al.map(x => `<span class="alerta ${x.c}">${esc(x.t)}</span>`).join(" ") || '<span class="muted small">—</span>'}</td>
     </tr>`).join("") : `<tr><td colspan="8" class="muted">No hay servicios en este filtro.</td></tr>`;

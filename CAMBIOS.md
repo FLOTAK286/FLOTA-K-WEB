@@ -1,5 +1,12 @@
 # Cambios
 
+## 20 nov 2026 · Pasajero no presentado (negativo) con autorización de la central
+- App del conductor: con el servicio "en el lugar", botón **"🚫 Pasajero no presentado"** (con detalle opcional). El servicio **no se cierra**: queda "esperando autorización de la central". Si la central autoriza, aparece **"Cerrar como no presentado ($X)"**; si no, el aviso "⛔ Negativo no autorizado". Aviso con sonido al responder la central.
+- Valor del negativo: **$5.000** (incluye los 15 min de gracia) **+ espera después de la gracia** hasta que lo informó ($180/min auto, $270/min SUV o van), igual que la espera de los punto a punto (`negativo_calculo`).
+- Panel: alerta roja "🚫 Pasajero no presentado: autorice el negativo" (suena); en la ficha, recuadro con el cálculo, valor editable, nota, **✅ Autorizar negativo** / **⛔ No autorizar**, y luego "Cerrar ahora como no presentado". Despacho: etiqueta "🚫 Negativo por autorizar" / "🚫 No presentado". Aviso a Operaciones también con la app cerrada (tipo `negativo`).
+- Al cerrar: servicio **finalizado**, tarifa fija = valor del negativo, `no_presentado = true` (reportes y billetera lo cuentan).
+- Base de datos (etapa 61, ya aplicada): columnas `negativo_estado`, `negativo_solicitado_en`, `negativo_valor`, `negativo_resuelto_por/_en`, `no_presentado`; `conductor_pedir_negativo`, `staff_resolver_negativo`, `conductor_cerrar_negativo`.
+
 ## 20 nov 2026 · Corregir el valor de un servicio finalizado directamente en la ficha
 - Pedido del dueño (facturación, cobros de más, etc.): en la ficha de un servicio finalizado el campo pasa a llamarse **"Valor final cobrado"**, muestra el valor real (el del taxímetro o la tarifa fija) y el administrador lo cambia y toca **"Guardar cambios"**. El guardado usa `admin_corregir_valor` (queda en el historial con el valor anterior y la nota escrita como motivo). Se quitó el botón separado "✏️ Corregir valor". Para otros roles el campo es de solo lectura.
 
