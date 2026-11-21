@@ -1368,7 +1368,8 @@ async function abrir(id) {
   if ($("neg-box")) {
     sb.rpc("negativo_calculo", { p_reserva: r.id }).then(({ data }) => { const c = data && data[0]; if (!c) return;
       $("neg-valor").value = c.o_valor;
-      $("neg-calc").textContent = `Negativo calculado: ${clp(c.o_valor)} = $5.000 (incluye 15 min de espera)` + (c.o_minutos ? ` + ${c.o_minutos} min de espera × ${clp(c.o_tarifa)}.` : ". Informado dentro de la espera incluida.") + " Puede ajustar el valor."; });
+      const base = c.o_valor - c.o_minutos * c.o_tarifa;
+      $("neg-calc").textContent = `Negativo calculado: ${clp(c.o_valor)} = ${clp(base)} según tarifario (incluye la espera: ${r.tipo_servicio === "regreso" ? "45 min en el aeropuerto" : "15 min"})` + (c.o_minutos ? ` + ${c.o_minutos} min de espera × ${clp(c.o_tarifa)}.` : ". Informado dentro de la espera incluida.") + " Si es fuera de Santiago (60 % del servicio), ajuste el valor."; });
     const resolver = async ok => {
       const v = $("neg-valor").value === "" ? null : Number($("neg-valor").value);
       const { error } = await sb.rpc("staff_resolver_negativo", { p_reserva: r.id, p_autorizar: ok, p_valor: ok ? v : null, p_nota: $("neg-nota").value.trim() || null });

@@ -1,5 +1,9 @@
 # Cambios
 
+## 21 nov 2026 · Negativo según tarifario y conductores en el mapa
+- Valor del negativo según el tarifario 2026 (etapa 62, ya aplicada, `negativo_calculo`): **domicilio $5.000** con 15 min de espera incluida, **regreso desde el aeropuerto $15.000** con **45 min**, **van $19.000**; más la espera después del tiempo incluido ($180/min auto, $270/min SUV o van). Fuera de Santiago (60 % del servicio): la central ajusta el valor en la ficha (el texto lo recuerda).
+- App del conductor (Inicio): además del mapa de calor, se ven los **otros conductores conectados** (🚗 azul disponible, gris en servicio), en zona aproximada (~1 km) y sin nombres, con el conteo en la leyenda (`mapa_conductores`, etapa 62b ya aplicada). Se actualiza cada ~2 min.
+
 ## 20 nov 2026 · Pasajero no presentado (negativo) con autorización de la central
 - App del conductor: con el servicio "en el lugar", botón **"🚫 Pasajero no presentado"** (con detalle opcional). El servicio **no se cierra**: queda "esperando autorización de la central". Si la central autoriza, aparece **"Cerrar como no presentado ($X)"**; si no, el aviso "⛔ Negativo no autorizado". Aviso con sonido al responder la central.
 - Valor del negativo: **$5.000** (incluye los 15 min de gracia) **+ espera después de la gracia** hasta que lo informó ($180/min auto, $270/min SUV o van), igual que la espera de los punto a punto (`negativo_calculo`).

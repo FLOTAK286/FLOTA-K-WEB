@@ -140,6 +140,8 @@ body.drv { overscroll-behavior-y: contain; }
 .coment { margin: 4px 0 0; font-style: italic; }
 .bolsa-item { gap: 6px; border-left: 4px solid var(--gold); }
 .bolsa-item.no-apto { opacity: .6; border-left-color: var(--line); }
+.otro-cond span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #2563eb; border: 2px solid #fff; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.otro-cond.ocupado span { background: #9aa0a6; }
 .bolsa-item .req { font-size: .9rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .bolsa-item .req-chip { border: 1px solid var(--gold); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: .8rem; font-weight: 700; }
 .bolsa-item .bono { font-weight: 700; color: #17130a; background: var(--gold); border-radius: 6px; padding: 4px 8px; justify-self: start; }
@@ -557,7 +559,7 @@ async function geocodificar(dir) {
     const j = await r.json(); if (!j[0]) return null; const c = [Number(j[0].lat), Number(j[0].lon)]; try { localStorage.setItem(k, JSON.stringify(c)); } catch (_) {} return c; } catch (_) { return null; }
 }
 // Mapa de calor: dónde hay servicios en las próximas 12 horas (zona aproximada) y cuánto falta
-let capaCalor = null, calorT = 0;
+let capaCalor = null, capaConds = null, calorT = 0;
 async function pintarCalorInicio(forzar) {
   if (!mapaIni || !window.FKMapa || (!forzar && Date.now() - calorT < 120000)) return;
   calorT = Date.now();
@@ -565,8 +567,14 @@ async function pintarCalorInicio(forzar) {
   if (error) return;
   const pts = (data || []).map(x => ({ lat: x.o_lat, lng: x.o_lng, min: x.o_minutos }));
   capaCalor = FKMapa.calor(mapaIni, capaCalor, pts);
+  // Otros conductores conectados (zona aproximada, sin nombres): dónde hay más y menos conductores
+  const { data: cs } = await sb.rpc("mapa_conductores");
+  if (!capaConds) capaConds = L.layerGroup().addTo(mapaIni); else capaConds.clearLayers();
+  (cs || []).forEach(c => L.marker([c.o_lat, c.o_lng], { icon: L.divIcon({ className: "otro-cond" + (c.o_ocupado ? " ocupado" : ""), html: "<span>🚗</span>", iconSize: [26, 26], iconAnchor: [13, 13] }), interactive: true, zIndexOffset: -50 })
+    .bindPopup(c.o_ocupado ? "Otro conductor en servicio (zona aproximada)" : "Otro conductor disponible (zona aproximada)").addTo(capaConds));
+  const libres = (cs || []).filter(c => !c.o_ocupado).length, ocup = (cs || []).length - libres;
   $("calor-ley").hidden = false;
-  $("calor-ley").innerHTML = `🔥 <b>Próximos servicios (12 h)</b>: ${pts.length ? pts.length + " en el mapa" : "no hay por ahora"}<br>${FKMapa.leyendaCalor()}`;
+  $("calor-ley").innerHTML = `🔥 <b>Próximos servicios (12 h)</b>: ${pts.length ? pts.length + " en el mapa" : "no hay por ahora"}<br>${FKMapa.leyendaCalor()}<br>🚗 <b>Otros conductores conectados</b>: ${libres} disponible(s)${ocup ? `, ${ocup} en servicio (gris)` : ""}${(cs || []).length ? " · zona aproximada" : ""}`;
 }
 setInterval(() => { if (vista === "inicio" && !document.hidden) pintarCalorInicio(); }, 130000);
 async function mapaInicio(r) {
@@ -1484,7 +1492,7 @@ function pintar() {
     });
     card.querySelector(".no")?.addEventListener("click", () => { pendiente = null; pintar(); });
     card.querySelector(".neg-pedir")?.addEventListener("click", async () => {
-      if (!confirm(`¿Informar que el pasajero de ${r.codigo} no se presentó?\n\nEl servicio sigue abierto: la central debe autorizar el negativo. Valor: $5.000 (incluye 15 min de espera) más la espera después de esos 15 minutos.`)) return;
+      if (!confirm(`¿Informar que el pasajero de ${r.codigo} no se presentó?\n\nEl servicio sigue abierto: la central debe autorizar el negativo. Valor según tarifario (domicilio $5.000, aeropuerto $15.000, van $19.000) más la espera después del tiempo incluido.`)) return;
       const nota = prompt("Detalle para la central (opcional): por ejemplo, si llamó al pasajero y no contestó.", "") || null;
       const { data: v, error } = await sb.rpc("conductor_pedir_negativo", { p_reserva: id, p_nota: nota });
       if (error) return alert(errText(error));
