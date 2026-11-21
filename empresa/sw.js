@@ -1,6 +1,6 @@
 // Portal de empresas: permite instalarlo como app. Siempre intenta primero la red (datos al día);
 // sin conexión muestra la última versión guardada de la página.
-const CACHE = "fk-empresa-v4";
+const CACHE = "fk-empresa-v5";
 const BASE = ["/empresa/", "/assets/site.css", "/assets/app.css", "/assets/app.js", "/assets/config.js", "/assets/tarifas.js",
   "/assets/lugar.js", "/assets/mapa.js", "/assets/vendor/supabase-2.45.4.js", "/assets/img/icono-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE)).catch(() => {})); self.skipWaiting(); });

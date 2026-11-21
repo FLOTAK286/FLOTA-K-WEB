@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     const correo = String(b.correo ?? "").trim().toLowerCase(), nombre = String(b.nombre ?? "").trim(), rol = String(b.rol ?? ""), clave = String(b.clave ?? "");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return json({ error: "Correo no válido" }, 400);
     if (nombre.length < 2) return json({ error: "Ingrese el nombre" }, 400);
-    if (!["admin", "despachador", "telefonista", "conductor", "propietario"].includes(rol)) return json({ error: "Rol no válido" }, 400);
+    if (!["admin", "despachador", "telefonista", "conductor", "propietario", "facturacion"].includes(rol)) return json({ error: "Rol no válido" }, 400);
     if (clave.length < 8) return json({ error: "La contraseña provisoria debe tener al menos 8 caracteres" }, 400);
 
     let existia = false;

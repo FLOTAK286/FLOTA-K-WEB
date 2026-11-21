@@ -159,6 +159,7 @@
       <!-- AGENDAR -->
       <div data-p="agendar" class="panel">
         <h2>Agendar un traslado</h2>
+        <div id="ag-carga" class="enc" hidden style="margin-bottom:8px"></div>
         <div class="ag"><div class="ag-form" style="display:grid;gap:12px;min-width:0">
         <div class="f enc" id="b-para"><label for="para">Pasajero</label><select id="para"></select></div>
         <div class="chips" id="modo"><button type="button" class="chip on" data-m="hab">Servicio habitual</button><button type="button" class="chip" data-m="otro">Otro traslado</button></div>
@@ -235,6 +236,11 @@
 
       <!-- FACTURACIÓN (encargado) -->
       <div data-p="fact" class="panel" hidden>
+        <div id="ec-box" style="display:grid;gap:8px;margin-bottom:14px">
+          <h2 style="margin:0">Estado de cuenta</h2>
+          <div class="actions"><label for="ec-per">Período</label><select id="ec-per"><option value="mes">Este mes</option><option value="ant">Mes anterior</option><option value="3m">Últimos 3 meses</option></select></div>
+          <div id="ec-res" class="small muted">Cargando…</div>
+        </div>
         <h2 id="f-tit">Datos de facturación</h2>
         <p class="small muted" style="margin:0" id="f-help">Con estos datos emitimos la factura mensual de su empresa.</p>
         <form id="f-f" novalidate style="display:grid;gap:12px">
@@ -264,9 +270,12 @@
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/lugar.js"></script>
+<script src="/assets/carga.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="/assets/paradas.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText } = FK;
+document.addEventListener("change", e => { if (e.target && e.target.id === "ec-per") pintarEstadoCuenta(); });
 
 // ---------- Vista previa para el equipo de Flota-K (/empresa/?como=<persona>) ----------
 // Muestra el portal tal como lo ve esa persona, sin entrar a su cuenta y SOLO PARA LEER:
@@ -382,7 +391,7 @@ function pintar() {
     if (enc()) { ir("fact"); pintarFact(); return; }
   } else $("pend").hidden = true;
   prepararAgendar();
-  if (enc()) { pintarEquipo(); pintarFact(); }
+  if (enc()) { pintarEquipo(); pintarFact(); montarCargaEmpresa(); }
   ir(location.hash === "#viajes" ? "viajes" : "agendar");
 }
 function ir(t) {
@@ -443,6 +452,24 @@ function precioOtro() {
   if (!zona) return null;
   return veh === "van" ? zona[3] : tipo === "regreso" ? zona[2] : zona[1];
 }
+// Punto a punto: valor aproximado con el taxímetro de la empresa (igual que la web y la app). No se guarda como tarifa:
+// Flota-K lo confirma al reservar.
+let tarPub = null, estKey = "", estRes = null;
+async function estimarPaP() {
+  const a = lugDom && lugDom.get(), b = lugDest && lugDest.get(); if (!a || !b || !window.FKLugar) return;
+  const k = [a.lat, a.lng, b.lat, b.lng, veh].join(",");
+  if (k === estKey) { if (estRes) { $("precio-l").textContent = estRes[0]; $("precio-v").textContent = estRes[1]; } return; }
+  estKey = k; estRes = null;
+  if (!tarPub) { const { data } = await sb.rpc("cotizador_publico"); tarPub = data || { bajada: 2400, cada_200m: 180, minimo: 5000, minimo_van: 25000 }; }
+  if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) { if (estKey === k) { $("precio-l").textContent = "Para el aeropuerto elija Ida o Regreso: tienen tarifa fija"; } return; }
+  $("precio-l").textContent = "Calculando la ruta…";
+  const r = await FKLugar.ruta(a, b); if (estKey !== k || tipo !== "punto_a_punto") return;
+  if (!r) { $("precio-l").textContent = "Valor: se lo confirmamos al reservar"; return; }
+  const auto = Math.max(tarPub.minimo || 0, tarPub.bajada + Math.ceil(r.km * 5) * tarPub.cada_200m);
+  const v = Math.ceil((veh === "van" ? Math.max(tarPub.minimo_van || 25000, auto * 1.35) : auto) / 500) * 500;
+  estRes = [`Valor aproximado · ${String(r.km).replace(".", ",")} km · ~${r.min} min (se confirma al reservar)`, clp(v) + " aprox."];
+  $("precio-l").textContent = estRes[0]; $("precio-v").textContent = estRes[1];
+}
 function precioActual() { return modo === "hab" ? (habSel ? habSel.precio : null) : precioOtro(); }
 function ajustar() {
   const aero = tipo !== "punto_a_punto";
@@ -454,6 +481,7 @@ function ajustar() {
   const p = precioActual();
   $("precio-l").textContent = modo === "hab" ? (habSel ? habSel.nombre + " · tarifa fija" : "Elija un servicio habitual") : p != null ? "Tarifa fija" : parE && parE.cantidad() ? "Con paradas: el valor se lo confirmamos" : tipo === "punto_a_punto" ? "Valor: se lo confirmamos" : "Elija el sector para ver la tarifa";
   $("precio-v").textContent = p != null ? clp(p) : "—";
+  if (p == null && modo !== "hab" && tipo === "punto_a_punto" && !(parE && parE.cantidad())) estimarPaP();
   // Presupuesto de quien viaja
   const para = $("para").value, u = para ? (D.equipo || []).find(x => x.id === para) : { presupuesto: D.yo.presupuesto, gasto_mes: D.yo.gasto_mes, nombre: "usted" };
   const lineas = [];
@@ -614,7 +642,41 @@ async function recargar() {
 }
 
 // ---------- Facturación (encargado) ----------
+
+// Carga masiva desde Excel (encargado de convenio): cada fila se agenda con las mismas reglas que una reserva normal
+function montarCargaEmpresa() {
+  if (!window.FKCarga || D.particular || $("ag-carga").dataset.listo) return;
+  $("ag-carga").dataset.listo = "1"; $("ag-carga").hidden = false;
+  FKCarga.montar($("ag-carga"), {
+    titulo: "Agendar varios traslados desde Excel",
+    nota: "Para eventos, visitas o los traslados de toda una semana: descargue la plantilla, llénela (una reserva por fila) y súbala. Revisamos cada fila antes de agendar. Las de aeropuerto toman la tarifa fija del sector; las demás se las confirmamos.",
+    crear: async x => {
+      const { error } = await sb.rpc("crear_reserva_convenio", { p_habitual: null, p_para: null, p_fecha_hora: FK.chileLocalToISO(x.fh), p_tipo_servicio: x.tipo,
+        p_origen: x.origen, p_destino: x.destino, p_origen_lat: x.o_lat, p_origen_lng: x.o_lng, p_destino_lat: x.d_lat, p_destino_lng: x.d_lng,
+        p_vehiculo: x.veh, p_tarifa: x.tarifa, p_comuna: x.sector, p_vuelo: x.tipo === "punto_a_punto" ? null : x.vuelo, p_pasajeros: x.pax, p_maletas: x.maletas,
+        p_centro_costo: x.cc, p_comentarios: [`Pasajero: ${x.pasajero}${x.telefono ? " · " + x.telefono : ""}`, x.com].filter(Boolean).join(" · ") });
+      return { error };
+    },
+    alListo: n => { if (n && typeof cargarViajes === "function") cargarViajes(); }
+  });
+}
+// Estado de cuenta: viajes finalizados del período (con su factura) y facturas emitidas
+async function pintarEstadoCuenta() {
+  const p = $("ec-per").value, hoy = new Date(), y = hoy.getFullYear(), m = hoy.getMonth(), iso = d => d.toISOString().slice(0, 10);
+  const [d, h] = p === "mes" ? [new Date(Date.UTC(y, m, 1)), new Date(Date.UTC(y, m + 1, 0))] : p === "ant" ? [new Date(Date.UTC(y, m - 1, 1)), new Date(Date.UTC(y, m, 0))] : [new Date(Date.UTC(y, m - 2, 1)), new Date(Date.UTC(y, m + 1, 0))];
+  $("ec-res").innerHTML = "Cargando…";
+  const { data, error } = await sb.rpc("convenio_estado_cuenta", { p_desde: iso(d), p_hasta: iso(h) });
+  if (error) { $("ec-res").textContent = errText(error); return; }
+  const vs = data.viajes || [], fs = data.facturas || [], tot = vs.reduce((a, v) => a + (v.total || 0), 0);
+  const fact = vs.filter(v => v.factura).reduce((a, v) => a + (v.total || 0), 0), pend = vs.filter(v => !v.pagado).reduce((a, v) => a + (v.total || 0), 0);
+  const fch = iso => new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  $("ec-res").innerHTML = `<div class="small" style="color:inherit"><b>${vs.length} viaje(s) · ${clp(tot)}</b> · facturado ${clp(fact)} · por facturar ${clp(tot - fact)} · por pagar ${clp(pend)}</div>
+    ${vs.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Pasajero</th><th>Trayecto</th><th>Centro de costo</th><th>Total</th><th>Factura</th></tr></thead><tbody>
+      ${vs.map(v => `<tr><td class="nowrap">${esc(fch(v.fecha))}<br><span class="code small">${esc(v.codigo)}</span></td><td>${esc(v.pasajero || "")}</td><td class="small">${esc(v.origen)} → ${esc(v.destino)}${v.no_presentado ? " · no presentado" : ""}</td><td>${esc(v.centro_costo || "—")}</td><td>${clp(v.total)}</td><td>${v.factura ? "N° " + esc(v.factura) : "Por facturar"}${v.pagado ? " · pagado" : ""}</td></tr>`).join("")}</tbody></table></div>` : '<p class="small muted" style="margin:0">No hay viajes finalizados en este período.</p>'}
+    ${fs.length ? `<h3 style="margin:8px 0 4px">Facturas</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>N°</th><th>Fecha</th><th>Viajes</th><th>Monto</th><th>Estado</th></tr></thead><tbody>${fs.map(f => `<tr><td><b>${esc(f.numero)}</b></td><td>${esc(f.fecha)}</td><td>${f.viajes}</td><td>${clp(f.monto)}</td><td>${f.pagada ? "✅ Pagada" : "Por pagar"}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
+}
 function pintarFact() {
+  if (D.empresa && D.empresa.datos_completos) pintarEstadoCuenta(); else $("ec-box").hidden = true;
   const e = D.empresa;
   $("f-tit").textContent = e.datos_completos ? "Datos de facturación" : "Paso obligatorio: datos de facturación";
   $("f-rs").value = e.razon_social || ""; $("f-rut").value = e.rut || ""; $("f-giro").value = e.giro || ""; $("f-com").value = e.comuna || ""; $("f-dir").value = e.direccion || "";

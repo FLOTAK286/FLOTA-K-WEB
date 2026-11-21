@@ -79,6 +79,8 @@ details.paso > summary { cursor: pointer; }
       <button role="tab" data-tab="reportes" aria-selected="false" id="tab-reportes" hidden>Reportes</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="cuentas" aria-selected="false" id="tab-cuentas" hidden>Cuentas de clientes</button>
+      <button role="tab" data-tab="fact" aria-selected="false" id="tab-fact" hidden>Facturación</button>
+      <button role="tab" data-tab="ventas" aria-selected="false" id="tab-ventas" hidden>Ventas</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
     <nav class="mnav" aria-label="Menú rápido">
@@ -163,6 +165,7 @@ details.paso > summary { cursor: pointer; }
     <div data-pane="nueva" class="panel" style="margin-top:14px" hidden>
       <h2>Nueva reserva</h2>
       <p class="muted" style="margin-top:0">5 pasos cortos. Lo que falta aparece abajo, junto al botón Guardar.</p>
+      <div id="n-carga" class="confirm" style="margin-bottom:8px"></div>
       <details class="confirm" id="n-rapida"><summary><b>⚡ ¿Llegó por WhatsApp? Pegue el mensaje y se completa solo</b></summary>
         <div class="list" style="margin-top:8px">
           <textarea id="n-pegar" rows="4" placeholder="Ej.: Hola, necesito un traslado mañana a las 6:00 desde Las Condes al aeropuerto, vuelo LA800, somos 2 pasajeros con 3 maletas. Soy Fernando Chacana +56 9 9222 6063"></textarea>
@@ -302,6 +305,11 @@ details.paso > summary { cursor: pointer; }
     </div>
 
     <div data-pane="reportes" class="panel" style="margin-top:14px" hidden>
+      <div class="pay" id="rs-box" style="margin-bottom:10px">
+        <div class="actions" style="justify-content:space-between"><b>📊 Resumen de la semana</b><select id="rs-sem" aria-label="Semana"><option value="0">Esta semana</option><option value="1" selected>Semana anterior</option><option value="2">Hace 2 semanas</option></select></div>
+        <div id="rs-res" class="small">Cargando…</div>
+        <span class="small muted">Cada lunes cerca de las 9:00 llega este resumen como aviso a Operaciones.</span>
+      </div>
       <div class="actions" style="align-items:flex-end">
         <div class="f"><label for="rp-per">Período</label><select id="rp-per"><option value="mes">Este mes</option><option value="mesant">Mes anterior</option><option value="30">Últimos 30 días</option><option value="anio">Este año</option></select></div>
         <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
@@ -399,7 +407,7 @@ details.paso > summary { cursor: pointer; }
       <form id="inv" class="row3" novalidate>
         <div class="f"><label for="i-mail">Correo o usuario</label><input id="i-mail" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="usuario o nombre@correo.cl" required></div>
         <div class="f"><label for="i-nombre">Nombre</label><input id="i-nombre" required></div>
-        <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="propietario">Propietario de vehículo (ve reportes de sus autos)</option><option value="admin">Administrador</option></select></div>
+        <div class="f"><label for="i-rol">Rol</label><select id="i-rol"><option value="despachador">Despachador</option><option value="telefonista">Telefonista</option><option value="conductor">Conductor</option><option value="propietario">Propietario de vehículo (ve reportes de sus autos)</option><option value="facturacion">Facturación (solo ve la facturación de empresas)</option><option value="admin">Administrador</option></select></div>
         <div class="f"><label for="i-clave">Contraseña provisoria</label><input id="i-clave" minlength="8" maxlength="72" autocomplete="off"></div>
         <div class="actions"><button class="btn" type="submit">Crear cuenta</button></div>
       </form>
@@ -431,6 +439,39 @@ details.paso > summary { cursor: pointer; }
       <div id="t-msg" class="msg" hidden></div>
       <p class="small muted">Vehículos, fotos y documentos de conductores y autos: pestaña <b>Flota</b>.</p>
       <p class="muted small">Qué puede hacer cada rol: <b>Administrador</b> todo, incluido el equipo. <b>Despachador</b> y <b>Telefonista</b> ven y gestionan reservas. <b>Conductor</b> solo verá sus servicios asignados (en la app del conductor, próxima etapa).</p>
+    </div>
+
+    <div data-pane="ventas" class="panel" style="margin-top:14px" hidden>
+      <h2>Ventas: empresas por contactar</h2>
+      <div id="vt-kpi" class="rp-kpis"></div>
+      <details class="confirm" id="vt-nueva"><summary><b>➕ Agregar empresa</b></summary>
+        <form id="vt-form" class="row3" novalidate style="margin-top:8px">
+          <div class="f"><label for="vt-emp">Empresa</label><input id="vt-emp" maxlength="200" required></div>
+          <div class="f"><label for="vt-rub">Rubro</label><input id="vt-rub" maxlength="100" list="vt-rubros" placeholder="Ej.: minería, abogados"><datalist id="vt-rubros"><option value="Minería y energía"><option value="Estudio de abogados"><option value="Auditora / consultora"><option value="Tecnología"><option value="Clínica / salud"><option value="Constructora / inmobiliaria"><option value="Universidad / eventos"><option value="Cámara de comercio"></datalist></div>
+          <div class="f"><label for="vt-con">Contacto</label><input id="vt-con" maxlength="200" placeholder="Nombre"></div>
+          <div class="f"><label for="vt-car">Cargo</label><input id="vt-car" maxlength="100" placeholder="Ej.: asistente de gerencia"></div>
+          <div class="f"><label for="vt-mail">Correo</label><input id="vt-mail" type="email" maxlength="200"></div>
+          <div class="f"><label for="vt-tel">Teléfono</label><input id="vt-tel" maxlength="40"></div>
+          <div class="f"><label for="vt-li">LinkedIn (enlace)</label><input id="vt-li" maxlength="300"></div>
+          <div class="f"><label for="vt-prox">Próximo contacto</label><input id="vt-prox" type="date"></div>
+          <div class="f"><label for="vt-not">Notas</label><input id="vt-not" maxlength="500"></div>
+          <div class="actions"><button class="btn" type="submit">Agregar</button></div>
+        </form></details>
+      <div class="actions" style="margin-top:8px"><label for="vt-filtro">Mostrar</label><select id="vt-filtro"><option value="activos">Activos (sin convenio ni descartados)</option><option value="hoy">Seguimientos para hoy o atrasados</option><option value="todos">Todos</option></select>
+        <input id="vt-buscar" type="search" placeholder="Buscar empresa o contacto" style="max-width:220px"></div>
+      <div id="vt-lista" style="margin-top:8px"></div>
+      <div class="msg" id="vt-msg" hidden></div>
+    </div>
+
+    <div data-pane="fact" class="panel" style="margin-top:14px" hidden>
+      <h2>Facturación de empresas con convenio</h2>
+      <p class="muted small" style="margin:0">Viajes finalizados de cada empresa en el período. Marque los viajes que incluye cada factura con su número: así ningún viaje se factura dos veces ni queda sin facturar.</p>
+      <div class="actions" style="margin-top:8px"><label for="fa-per">Período</label>
+        <select id="fa-per"><option value="mes">Este mes</option><option value="ant" selected>Mes anterior</option><option value="otro">Otro…</option></select>
+        <input id="fa-desde" type="date" hidden><input id="fa-hasta" type="date" hidden><button class="btn ghost sm" type="button" id="fa-ver">Ver</button></div>
+      <div id="fa-resumen" style="margin-top:8px"></div>
+      <div id="fa-detalle" style="margin-top:10px"></div>
+      <div class="msg" id="fa-msg" hidden></div>
     </div>
 
     <div data-pane="cuentas" class="panel" style="margin-top:14px" hidden>
@@ -490,6 +531,7 @@ details.paso > summary { cursor: pointer; }
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/autos.js"></script>
 <script src="/assets/lugar.js"></script>
+<script src="/assets/carga.js"></script>
 <script src="/assets/paradas.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText, ESTADOS, ROLES, SERVICIOS } = FK;
@@ -675,6 +717,13 @@ async function iniciar(session) {
   }
   yo = data;
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
+  $("tab-fact").hidden = !["admin", "facturacion"].includes(data.rol);
+  $("tab-ventas").hidden = data.rol !== "admin";
+  if (data.rol === "facturacion") { // solo facturación: sin despacho ni datos operativos
+    document.querySelectorAll('.tabs [role="tab"]').forEach(t => { if (t.dataset.tab !== "fact" && t.dataset.tab !== "reportar") t.hidden = true; });
+    const mn = document.querySelector(".mnav"); if (mn) mn.hidden = true; if ($("gbuscar")) $("gbuscar").closest(".gsearch").hidden = true;
+    $("app").hidden = false; $("tab-fact").click(); return;
+  }
   if (data.rol === "admin") sb.from("perfiles").select("id", { count: "exact", head: true }).eq("postulacion", "pendiente")
     .then(({ count }) => { if (count) $("tab-equipo").textContent = `Equipo y roles (🆕 ${count})`; });
   $("tab-equipo").hidden = data.rol !== "admin"; $("tab-cuentas").hidden = data.rol !== "admin"; $("tab-reportes").hidden = data.rol !== "admin"; $("tab-flota").hidden = data.rol !== "admin"; $("op-eliminadas").hidden = data.rol !== "admin";
@@ -809,11 +858,14 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "mapa") { cargarMapa(); timerMapa = setInterval(cargarMapa, 15000); }
   if (b.dataset.tab === "reservas") cargarReservas();
   if (b.dataset.tab === "despacho") cargarDespacho();
-  if (b.dataset.tab === "reportes") cargarReportes();
+  if (b.dataset.tab === "reportes") { cargarReportes(); cargarResumenSemana(); }
   if (b.dataset.tab === "flota") cargarFlota();
   if (b.dataset.tab === "central") cargarCentral();
   if (b.dataset.tab === "nueva") cargarBaseClientes();
   if (b.dataset.tab === "equipo") cargarEquipo();
+  if (b.dataset.tab === "fact") cargarFacturacion();
+  if (b.dataset.tab === "ventas") cargarVentas();
+  if (b.dataset.tab === "nueva") montarCargaPanel();
   if (b.dataset.tab === "cuentas") cargarCuentasClientes();
   if (b.dataset.tab === "agenda") cargarAgenda();
   if (b.dataset.tab === "clientes") { $("cl-ficha").hidden = true; $("em-lista").hidden = true; $("cl-lista").hidden = false; $("cl-ver-per").classList.add("on"); $("cl-ver-emp").classList.remove("on"); cargarClientes(); }
@@ -1345,11 +1397,20 @@ async function abrir(id) {
     <div class="actions" style="border-top:1px solid var(--line, #ddd);padding-top:10px">
       ${!r.en_bolsa && ["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost sm" type="button" id="d-bolsa">📢 Publicar en Reservas</button>' : ""}
       ${r.en_bolsa ? '<button class="btn ghost sm" type="button" id="d-bolsa-x">↩ Quitar de Reservas</button>' : ""}
+      ${r.estado !== "cancelada" ? '<button class="btn ghost sm" type="button" id="d-repetir">🔁 Repetir</button>' : ""}
       ${r.estado !== "cancelada" && r.estado !== "finalizada" ? '<button class="btn ghost sm" type="button" id="d-cancelar">✕ Cancelar reserva</button>' : ""}
       ${yo && yo.rol === "admin" ? '<button class="btn ghost sm" type="button" id="d-eliminar" style="color:#b42318">🗑 Eliminar</button>' : ""}
     </div>
     ${r.en_bolsa ? `<p class="small" style="margin:6px 0 0">📢 Publicada en Reservas · <b>Requisitos:</b> ${esc(textoRequisitos(r))}</p>` : ""}
     <div id="d-bolsa-form" class="pay" hidden></div>
+    ${r.serie_id ? `<p class="small" style="margin:6px 0 0">🔁 Esta reserva es parte de una serie que se repite. <button class="linkbtn" type="button" id="d-serie-x">Cancelar las próximas de la serie</button></p>` : ""}
+    <div id="d-rep-form" class="pay" hidden>
+      <b>🔁 Repetir esta reserva</b> <span class="small muted">a la misma hora (${esc(hora(r.fecha_hora))}), con los mismos datos</span>
+      <div class="actions small">${["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d, i) => `<label class="chk"><input type="checkbox" class="rep-dia" value="${i + 1}" ${i + 1 === Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Santiago", weekday: "short" }).format(new Date(r.fecha_hora)).replace(/Mon|Tue|Wed|Thu|Fri|Sat|Sun/, m => ({ Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 })[m])) ? "checked" : ""}> ${d}</label>`).join("")}</div>
+      <div class="actions small"><label for="rep-hasta">Hasta el</label><input id="rep-hasta" type="date" max="${new Date(Date.now() + 92 * 864e5).toISOString().slice(0, 10)}">
+        ${r.conductor_id ? '<label class="chk"><input type="checkbox" id="rep-cond"> Con el mismo conductor</label>' : ""}</div>
+      <div class="actions"><button class="btn sm" type="button" id="rep-ok">Crear las reservas</button><button class="btn ghost sm" type="button" id="rep-x">Cancelar</button></div>
+      <span class="small muted">Máximo 3 meses. Si un día ya tiene su reserva de la serie, no se duplica.</span></div>
     <div id="cobro-box"></div>
     <div id="calif-box"></div>
     <h3 style="margin:6px 0 0">Mensajes del viaje (pasajero y conductor)</h3>
@@ -1365,11 +1426,31 @@ async function abrir(id) {
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
   if ($("d-bolsa")) $("d-bolsa").onclick = () => formularioBolsa(r);
+  if ($("d-repetir")) $("d-repetir").onclick = () => { $("d-rep-form").hidden = false; $("d-rep-form").scrollIntoView({ behavior: "smooth", block: "center" }); };
+  if ($("rep-x")) $("rep-x").onclick = () => { $("d-rep-form").hidden = true; };
+  if ($("rep-ok")) $("rep-ok").onclick = async () => {
+    const dias = [...document.querySelectorAll(".rep-dia:checked")].map(x => Number(x.value));
+    if (!dias.length) return msg("d-msg", "Elija al menos un día de la semana.", "err");
+    if (!$("rep-hasta").value) return msg("d-msg", "Elija hasta qué fecha se repite.", "err");
+    $("rep-ok").disabled = true;
+    const { data: n, error } = await sb.rpc("repetir_reserva", { p_reserva: r.id, p_dias: dias, p_hasta: $("rep-hasta").value, p_mismo_conductor: !!($("rep-cond") && $("rep-cond").checked) });
+    $("rep-ok").disabled = false;
+    if (error) return msg("d-msg", errText(error), "err");
+    msg("d-msg", n ? `Listo: ${n} reserva(s) creadas. Las ve en la Agenda.` : "No se creó ninguna: esas fechas ya tienen su reserva o no hay días que calcen.", n ? "ok" : "err");
+    if (n) refrescar();
+  };
+  if ($("d-serie-x")) $("d-serie-x").onclick = async () => {
+    if (!confirm("¿Cancelar todas las reservas futuras de esta serie que aún no empiezan?")) return;
+    const { data: n, error } = await sb.rpc("cancelar_serie", { p_reserva: r.id });
+    if (error) return msg("d-msg", errText(error), "err");
+    $("det").close(); refrescar(); alert(`${n} reserva(s) de la serie canceladas.`);
+  };
   if ($("neg-box")) {
-    sb.rpc("negativo_calculo", { p_reserva: r.id }).then(({ data }) => { const c = data && data[0]; if (!c) return;
+    Promise.all([sb.rpc("negativo_calculo", { p_reserva: r.id }), sb.rpc("negativo_detalle", { p_reserva: r.id })]).then(([{ data }, { data: det }]) => { const c = data && data[0]; if (!c) return;
+      if (det) { $("neg-valor").value = c.o_valor; $("neg-calc").textContent = `Negativo calculado: ${clp(c.o_valor)} · ${det}. Puede ajustar el valor.`; return; }
       $("neg-valor").value = c.o_valor;
       const base = c.o_valor - c.o_minutos * c.o_tarifa;
-      $("neg-calc").textContent = `Negativo calculado: ${clp(c.o_valor)} = ${clp(base)} según tarifario (incluye la espera: ${r.tipo_servicio === "regreso" ? "45 min en el aeropuerto" : "15 min"})` + (c.o_minutos ? ` + ${c.o_minutos} min de espera × ${clp(c.o_tarifa)}.` : ". Informado dentro de la espera incluida.") + " Si es fuera de Santiago (60 % del servicio), ajuste el valor."; });
+      $("neg-calc").textContent = `Negativo calculado: ${clp(c.o_valor)} = ${clp(base)} según tarifario (incluye la espera: ${r.tipo_servicio === "regreso" ? "45 min en el aeropuerto" : "15 min"})` + (c.o_minutos ? ` + ${c.o_minutos} min de espera × ${clp(c.o_tarifa)}.` : ". Informado dentro de la espera incluida.") + " Puede ajustar el valor."; });
     const resolver = async ok => {
       const v = $("neg-valor").value === "" ? null : Number($("neg-valor").value);
       const { error } = await sb.rpc("staff_resolver_negativo", { p_reserva: r.id, p_autorizar: ok, p_valor: ok ? v : null, p_nota: $("neg-nota").value.trim() || null });
@@ -3525,6 +3606,178 @@ $("cc-form").addEventListener("submit", async ev => {
   $("cc-form").reset(); $("cc-emp").value = elegido; $("cc-clave").value = claveProvisoria(); verRolCuenta();
   cargarCuentasClientes();
 });
+
+
+
+
+
+// ---- Resumen semanal (tarjeta de Reportes)
+async function cargarResumenSemana() {
+  const d = new Date(hoyChile() + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7 * Number($("rs-sem").value || 0));
+  const desde = d.toISOString().slice(0, 10);
+  const { data: j, error } = await sb.rpc("mi_resumen_semana", { p_desde: desde });
+  if (error) { $("rs-res").textContent = errText(error); return; }
+  const dif = j.ingresos_ant > 0 ? Math.round((j.ingresos / j.ingresos_ant - 1) * 100) : null;
+  const ORI = Object.entries(j.origen || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k === "sin_dato" ? "sin dato" : (CONOCIO[k] || k))}: ${n}`).join(" · ");
+  const fd = x => new Date(x + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" });
+  $("rs-res").innerHTML = `<div class="rp-kpis" style="margin:6px 0">
+    <div class="pay"><small class="muted">Servicios (${fd(j.desde)} – ${fd(j.hasta)})</small><b>${j.finalizados}</b><span class="small muted">semana anterior: ${j.finalizados_ant}</span></div>
+    <div class="pay"><small class="muted">Ingresos</small><b>${clp(j.ingresos)}</b><span class="small muted">${dif == null ? "sin comparación" : (dif >= 0 ? "+" : "") + dif + " % vs. semana anterior"}</span></div>
+    <div class="pay"><small class="muted">Por cobrar</small><b>${clp(j.por_cobrar)}</b><span class="small muted">${j.convenio} de empresas con convenio</span></div>
+    <div class="pay"><small class="muted">No presentados / cancelados</small><b>${j.negativos} / ${j.cancelados}</b><span class="small muted">en la semana</span></div>
+    <div class="pay"><small class="muted">Ventas</small><b>${j.prospectos_nuevos} / 10</b><span class="small muted">empresas nuevas contactadas${j.convenios_nuevos ? ` · ${j.convenios_nuevos} convenio(s)` : ""}</span></div></div>
+    <span>¿Cómo nos conocieron? ${ORI || "sin datos"}</span>`;
+}
+document.addEventListener("change", e => { if (e.target && e.target.id === "rs-sem") cargarResumenSemana(); });
+
+// ---- Ventas: empresas por contactar (meta: 10 contactos nuevos por semana)
+const VT_EST = { por_contactar: ["Por contactar", "#9aa0a6"], contactado: ["Contactado", "#56ccf2"], respondio: ["Respondió", "#2563eb"], propuesta: ["Propuesta enviada", "#f2c94c"],
+  prueba: ["Viaje de prueba", "#f2994a"], convenio: ["Convenio activo", "#2e9e5f"], descartado: ["No por ahora", "#555b65"] };
+let vtLista = [];
+async function cargarVentas() {
+  const { data, error } = await sb.from("prospectos").select("*").order("proximo_contacto", { ascending: true, nullsFirst: false }).order("creado_en", { ascending: false });
+  if (error) return msg("vt-msg", errText(error), "err");
+  vtLista = data || []; pintarVentas();
+}
+function pintarVentas() {
+  const hoy = hoyChile(), lunes = (() => { const d = new Date(hoy + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+  const semana = vtLista.filter(x => x.creado_en.slice(0, 10) >= lunes || (x.estado !== "por_contactar" && x.actualizado_en.slice(0, 10) >= lunes && x.creado_en.slice(0, 10) < lunes)).length;
+  const nuevosSemana = vtLista.filter(x => (x.creado_en.slice(0, 10) >= lunes)).length;
+  const pend = vtLista.filter(x => x.proximo_contacto && x.proximo_contacto <= hoy && !["convenio", "descartado"].includes(x.estado)).length;
+  const cuenta = k => vtLista.filter(x => x.estado === k).length;
+  $("vt-kpi").innerHTML = `<div class="pay"><small class="muted">Agregadas esta semana</small><b>${nuevosSemana} / 10</b><span class="small muted">meta: 10 por semana</span></div>
+    <div class="pay"><small class="muted">Seguimientos para hoy</small><b>${pend}</b><span class="small muted">incluye atrasados</span></div>
+    <div class="pay"><small class="muted">En conversación</small><b>${cuenta("respondio") + cuenta("propuesta") + cuenta("prueba")}</b><span class="small muted">respondió, propuesta o prueba</span></div>
+    <div class="pay"><small class="muted">Convenios logrados</small><b>${cuenta("convenio")}</b><span class="small muted">de ${vtLista.length} empresas</span></div>`;
+  const f = $("vt-filtro").value, q = (($("vt-buscar").value || "").toLowerCase());
+  const xs = vtLista.filter(x => (f === "todos" || (f === "activos" ? !["convenio", "descartado"].includes(x.estado) : (x.proximo_contacto && x.proximo_contacto <= hoy && !["convenio", "descartado"].includes(x.estado))))
+    && (!q || [x.empresa, x.contacto, x.rubro].join(" ").toLowerCase().includes(q)));
+  $("vt-lista").innerHTML = xs.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Contacto</th><th>Estado</th><th>Próximo contacto</th><th>Notas</th></tr></thead><tbody>
+    ${xs.map(x => { const atr = x.proximo_contacto && x.proximo_contacto < hoy && !["convenio", "descartado"].includes(x.estado), hoyQ = x.proximo_contacto === hoy;
+      return `<tr data-vt="${x.id}"><td><b>${esc(x.empresa)}</b>${x.rubro ? `<br><span class="small muted">${esc(x.rubro)}</span>` : ""}</td>
+      <td>${esc(x.contacto || "—")}${x.cargo ? `<br><span class="small muted">${esc(x.cargo)}</span>` : ""}<br><span class="small">${[x.correo ? `<a href="mailto:${esc(x.correo)}">${esc(x.correo)}</a>` : "", x.telefono ? `<a href="https://wa.me/${esc(x.telefono.replace(/\D/g, "").replace(/^9(\d{8})$/, "569$1"))}" target="_blank" rel="noopener">${esc(x.telefono)}</a>` : "", x.linkedin ? `<a href="${esc(x.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>` : ""].filter(Boolean).join(" · ")}</span></td>
+      <td><select class="vt-est" aria-label="Estado de ${esc(x.empresa)}" style="border-left:4px solid ${VT_EST[x.estado][1]}">${Object.entries(VT_EST).map(([k, v]) => `<option value="${k}" ${k === x.estado ? "selected" : ""}>${v[0]}</option>`).join("")}</select></td>
+      <td><input type="date" class="vt-prox" value="${esc(x.proximo_contacto || "")}" aria-label="Próximo contacto">${atr ? '<br><span class="alerta roja">Atrasado</span>' : hoyQ ? '<br><span class="alerta amarilla">Hoy</span>' : ""}</td>
+      <td><textarea class="vt-not" rows="2" maxlength="3000" aria-label="Notas" style="min-width:180px">${esc(x.notas || "")}</textarea></td></tr>`; }).join("")}</tbody></table></div>`
+    : '<p class="muted">No hay empresas en esta vista. Agregue las de la semana con "➕ Agregar empresa" (el kit de venta tiene los rubros y los mensajes).</p>';
+  $("vt-lista").querySelectorAll("tr[data-vt]").forEach(tr => {
+    const id = Number(tr.dataset.vt), guardar = async cambio => { const { error } = await sb.from("prospectos").update(cambio).eq("id", id); if (error) return msg("vt-msg", errText(error), "err"); const x = vtLista.find(y => y.id === id); Object.assign(x, cambio, { actualizado_en: new Date().toISOString() }); };
+    tr.querySelector(".vt-est").onchange = async e => { await guardar({ estado: e.target.value }); pintarVentas(); };
+    tr.querySelector(".vt-prox").onchange = async e => { await guardar({ proximo_contacto: e.target.value || null }); pintarVentas(); };
+    tr.querySelector(".vt-not").onchange = e => guardar({ notas: e.target.value.trim() || null });
+  });
+}
+$("vt-filtro").addEventListener("change", pintarVentas);
+$("vt-buscar").addEventListener("input", pintarVentas);
+$("vt-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!$("vt-emp").value.trim()) return msg("vt-msg", "Escriba el nombre de la empresa.", "err");
+  const v = id => $(id).value.trim() || null;
+  const { error } = await sb.from("prospectos").insert({ empresa_id: yo.empresa_id, empresa: v("vt-emp"), rubro: v("vt-rub"), contacto: v("vt-con"), cargo: v("vt-car"), correo: v("vt-mail"),
+    telefono: v("vt-tel"), linkedin: v("vt-li"), proximo_contacto: v("vt-prox"), notas: v("vt-not"), creado_por: yo.id });
+  if (error) return msg("vt-msg", errText(error), "err");
+  $("vt-form").reset(); msg("vt-msg", "Empresa agregada.", "ok"); cargarVentas();
+});
+
+// ---- Carga masiva de reservas desde Excel (panel)
+function montarCargaPanel() {
+  if (!window.FKCarga || !$("n-carga") || $("n-carga").dataset.listo) return;
+  $("n-carga").dataset.listo = "1";
+  FKCarga.montar($("n-carga"), {
+    titulo: "Cargar varias reservas desde Excel (eventos, delegaciones, una semana completa)",
+    extraHtml: `<div class="actions small"><label for="nc-conv">Se cobran a</label><select id="nc-conv"><option value="">Particular (paga cada pasajero)</option>${cuentas.filter(c => c.activa).map(c => `<option value="${esc(c.id)}">Convenio: ${esc(c.razon_social)}</option>`).join("")}</select></div>`,
+    crear: async x => {
+      const conv = $("nc-conv").value || null;
+      const fila = { empresa_id: yo.empresa_id, nombre_pasajero: x.pasajero, telefono: x.telefono || "", fecha_hora: FK.chileLocalToISO(x.fh),
+        origen: x.origen, destino: x.destino, origen_lat: x.o_lat, origen_lng: x.o_lng, destino_lat: x.d_lat, destino_lng: x.d_lng,
+        vuelo: x.tipo === "punto_a_punto" ? null : x.vuelo, pasajeros: x.pax, maletas: x.maletas, tipo_servicio: x.tipo, vehiculo: x.veh,
+        canal: "otro", tipo_cobro: "fija", precio: x.tarifa, comentarios: ["Carga masiva", x.com].filter(Boolean).join(" · "), estado: "confirmada",
+        cuenta_corporativa_id: conv, centro_costo: conv ? x.cc : null };
+      const { error } = await sb.from("reservas").insert(fila);
+      return { error };
+    },
+    alListo: n => { if (n) { refrescar(); msg("n-msg", `${n} reserva(s) creadas desde el Excel. Revíselas en Reservas o en la Agenda.`, "ok"); } }
+  });
+}
+
+// ---- Facturación mensual por empresa (admin o rol facturación)
+let faCuenta = null, faViajes = [];
+function faRango() {
+  const p = $("fa-per").value, hoy = new Date(hoyChile() + "T12:00:00"), y = hoy.getFullYear(), m = hoy.getMonth();
+  const iso = d => d.toISOString().slice(0, 10);
+  if (p === "mes") return [iso(new Date(Date.UTC(y, m, 1))), iso(new Date(Date.UTC(y, m + 1, 0)))];
+  if (p === "ant") return [iso(new Date(Date.UTC(y, m - 1, 1))), iso(new Date(Date.UTC(y, m, 0)))];
+  return [$("fa-desde").value, $("fa-hasta").value];
+}
+$("fa-per").addEventListener("change", () => { const o = $("fa-per").value === "otro"; $("fa-desde").hidden = !o; $("fa-hasta").hidden = !o; if (!o) cargarFacturacion(); });
+$("fa-ver").addEventListener("click", () => cargarFacturacion());
+async function cargarFacturacion() {
+  const [d, h] = faRango(); if (!d || !h) return msg("fa-msg", "Elija las fechas del período.", "err");
+  $("fa-msg").hidden = true; $("fa-resumen").innerHTML = '<p class="muted">Cargando…</p>';
+  const { data, error } = await sb.rpc("facturacion_resumen", { p_desde: d, p_hasta: h });
+  if (error) { $("fa-resumen").innerHTML = ""; return msg("fa-msg", errText(error), "err"); }
+  const t = k => (data || []).reduce((a, x) => a + (x[k] || 0), 0);
+  $("fa-resumen").innerHTML = (data || []).length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Viajes</th><th>Total</th><th>Facturado</th><th>Por facturar</th><th>Por cobrar</th><th></th></tr></thead><tbody>
+    ${data.map(x => `<tr><td><b>${esc(x.o_razon)}</b><br><span class="small muted">${esc(x.o_rut || "")}</span></td><td>${x.o_viajes}</td><td>${clp(x.o_total)}</td><td>${clp(x.o_facturado)}</td>
+      <td>${x.o_por_facturar ? `<b style="color:#c9772b">${clp(x.o_por_facturar)}</b>` : "—"}</td><td>${x.o_por_cobrar ? clp(x.o_por_cobrar) : "—"}</td>
+      <td><button class="btn ghost sm" type="button" data-fa="${esc(x.o_cuenta)}">Ver viajes</button></td></tr>`).join("")}
+    <tr><td><b>Total</b></td><td>${t("o_viajes")}</td><td><b>${clp(t("o_total"))}</b></td><td>${clp(t("o_facturado"))}</td><td><b>${clp(t("o_por_facturar"))}</b></td><td>${clp(t("o_por_cobrar"))}</td><td></td></tr></tbody></table></div>`
+    : '<p class="muted">No hay viajes finalizados de empresas con convenio en este período.</p>';
+  $("fa-resumen").querySelectorAll("[data-fa]").forEach(b => b.onclick = () => faDetalle(b.dataset.fa, (data.find(x => x.o_cuenta === b.dataset.fa) || {}).o_razon));
+  if (faCuenta && (data || []).some(x => x.o_cuenta === faCuenta)) faDetalle(faCuenta); else $("fa-detalle").innerHTML = "";
+}
+async function faDetalle(cuenta, razon) {
+  faCuenta = cuenta; const [d, h] = faRango();
+  const [{ data: vs, error }, { data: fs }] = await Promise.all([sb.rpc("facturacion_viajes", { p_cuenta: cuenta, p_desde: d, p_hasta: h }), sb.rpc("facturas_de", { p_cuenta: cuenta })]);
+  if (error) return msg("fa-msg", errText(error), "err");
+  faViajes = vs || [];
+  const nom = razon || (cuentas.find(c => c.id === cuenta) || {}).razon_social || "Empresa";
+  const fch = iso => new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const porCC = {}; faViajes.forEach(v => { const k = v.o_centro_costo || "Sin centro de costo"; porCC[k] = (porCC[k] || 0) + v.o_total; });
+  $("fa-detalle").innerHTML = `<h3 style="margin:0">${esc(nom)} · ${faViajes.length} viaje(s) · ${clp(faViajes.reduce((a, v) => a + v.o_total, 0))}</h3>
+    <p class="small muted" style="margin:2px 0 6px">Por centro de costo: ${Object.entries(porCC).map(([k, v]) => `${esc(k)} ${clp(v)}`).join(" · ") || "—"}</p>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th><input type="checkbox" id="fa-todos" aria-label="Marcar todos los por facturar"></th><th>Fecha</th><th>Código</th><th>Pasajero</th><th>Trayecto</th><th>Centro de costo</th><th>Total</th><th>Factura</th></tr></thead><tbody>
+    ${faViajes.map(v => `<tr><td>${v.o_factura_id ? "" : `<input type="checkbox" class="fa-sel" value="${esc(v.o_id)}" checked>`}</td><td class="nowrap">${esc(fch(v.o_fecha))}</td><td class="code">${esc(v.o_codigo)}</td>
+      <td>${esc(v.o_pasajero || "")}${v.o_solicitante ? `<br><span class="small muted">pidió ${esc(v.o_solicitante)}</span>` : ""}</td><td class="small">${esc(v.o_origen)} → ${esc(v.o_destino)}${v.o_no_presentado ? " · 🚫 no presentado" : ""}</td>
+      <td>${esc(v.o_centro_costo || "—")}</td><td>${clp(v.o_total)}${v.o_gastos ? `<br><span class="small muted">incl. gastos ${clp(v.o_gastos)}</span>` : ""}</td>
+      <td>${v.o_factura_numero ? `N° ${esc(v.o_factura_numero)}` : '<span style="color:#c9772b">Por facturar</span>'}${v.o_pagado ? " · pagado" : ""}</td></tr>`).join("")}</tbody></table></div>
+    <div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="fa-xlsx">⬇ Excel del detalle</button></div>
+    ${faViajes.some(v => !v.o_factura_id) ? `<div class="pay" style="margin-top:8px"><b>Facturar los viajes marcados</b> <span class="small muted" id="fa-selt"></span>
+      <div class="row3"><div class="f"><label for="fa-num">N° de factura</label><input id="fa-num" maxlength="40"></div><div class="f"><label for="fa-fecha">Fecha</label><input id="fa-fecha" type="date" value="${hoyChile()}"></div><div class="f"><label for="fa-nota">Nota (opcional)</label><input id="fa-nota" maxlength="200" placeholder="Ej.: OC 4500123"></div></div>
+      <div class="actions"><button class="btn sm" type="button" id="fa-ok">Guardar factura</button></div></div>` : ""}
+    <h3 style="margin:10px 0 4px">Facturas de esta empresa</h3>
+    ${(fs || []).length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>N°</th><th>Fecha</th><th>Período</th><th>Viajes</th><th>Monto</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${fs.map(f => `<tr><td><b>${esc(f.o_numero)}</b></td><td>${esc(f.o_fecha)}</td><td class="small">${esc(f.o_desde || "")} → ${esc(f.o_hasta || "")}</td><td>${f.o_viajes}</td><td>${clp(f.o_monto)}</td>
+        <td>${f.o_anulada ? `<span class="muted">Anulada${f.o_nota ? ": " + esc(f.o_nota) : ""}</span>` : f.o_pagada ? "✅ Pagada" : "Por cobrar"}</td>
+        <td>${f.o_anulada ? "" : `${f.o_pagada ? "" : `<button class="btn ghost sm" type="button" data-fp="${f.o_id}">Marcar pagada</button>`} <button class="btn ghost sm" type="button" data-fx="${f.o_id}">Anular</button>`}</td></tr>`).join("")}</tbody></table></div>` : '<p class="small muted">Aún no hay facturas registradas.</p>'}`;
+  const selT = () => { const ids = [...document.querySelectorAll(".fa-sel:checked")].map(x => x.value); if ($("fa-selt")) $("fa-selt").textContent = `${ids.length} viaje(s) · ${clp(faViajes.filter(v => ids.includes(v.o_id)).reduce((a, v) => a + v.o_total, 0))}`; return ids; };
+  document.querySelectorAll(".fa-sel").forEach(x => x.onchange = selT); selT();
+  if ($("fa-todos")) { $("fa-todos").checked = true; $("fa-todos").onchange = e => { document.querySelectorAll(".fa-sel").forEach(x => x.checked = e.target.checked); selT(); }; }
+  $("fa-xlsx").onclick = () => {
+    if (!window.XLSX) return alert("No se pudo cargar el generador de planillas. Revise su conexión.");
+    const aoa = [[`Flota-K · Detalle de viajes · ${nom}`], [`Período: ${d} a ${h}`], [], ["Fecha", "Código", "Pasajero", "Solicitado por", "Origen", "Destino", "Centro de costo", "Servicio", "Valor", "Gastos", "Total", "No presentado", "Factura", "Pagado"]];
+    faViajes.forEach(v => aoa.push([fch(v.o_fecha), v.o_codigo, v.o_pasajero || "", v.o_solicitante || "", v.o_origen, v.o_destino, v.o_centro_costo || "", SERVICIOS[v.o_servicio] || v.o_servicio, v.o_valor || 0, v.o_gastos || 0, v.o_total || 0, v.o_no_presentado ? "Sí" : "", v.o_factura_numero || "", v.o_pagado ? "Sí" : "No"]));
+    aoa.push([], ["", "", "", "", "", "", "", "", "", "Total", faViajes.reduce((a, v) => a + (v.o_total || 0), 0)]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Viajes");
+    XLSX.writeFile(wb, `Flota-K_${nom.replace(/[^\w]+/g, "_")}_${d}_${h}.xlsx`);
+  };
+  if ($("fa-ok")) $("fa-ok").onclick = async () => {
+    const ids = selT(); if (!ids.length) return msg("fa-msg", "Marque al menos un viaje.", "err");
+    if (!$("fa-num").value.trim()) return msg("fa-msg", "Escriba el número de la factura.", "err");
+    const { error } = await sb.rpc("facturar_viajes", { p_cuenta: cuenta, p_reservas: ids, p_numero: $("fa-num").value.trim(), p_fecha: $("fa-fecha").value || null, p_desde: d, p_hasta: h, p_nota: $("fa-nota").value.trim() || null });
+    if (error) return msg("fa-msg", errText(error), "err");
+    msg("fa-msg", `Factura N° ${$("fa-num").value.trim()} guardada con ${ids.length} viaje(s).`, "ok"); cargarFacturacion();
+  };
+  document.querySelectorAll("[data-fp]").forEach(b => b.onclick = async () => {
+    const { error } = await sb.rpc("factura_accion", { p_factura: Number(b.dataset.fp), p_accion: "pagada" });
+    if (error) return msg("fa-msg", errText(error), "err"); msg("fa-msg", "Factura marcada como pagada (sus viajes quedan pagados).", "ok"); cargarFacturacion();
+  });
+  document.querySelectorAll("[data-fx]").forEach(b => b.onclick = async () => {
+    const m = prompt("¿Anular esta factura? Sus viajes vuelven a quedar por facturar. Motivo:", ""); if (m === null) return;
+    const { error } = await sb.rpc("factura_accion", { p_factura: Number(b.dataset.fx), p_accion: "anular", p_motivo: m });
+    if (error) return msg("fa-msg", errText(error), "err"); msg("fa-msg", "Factura anulada.", "ok"); cargarFacturacion();
+  });
+}
 
 // ---- Equipo y roles (solo admin)
 async function cargarEquipo() {
