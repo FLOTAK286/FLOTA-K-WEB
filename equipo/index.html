@@ -538,7 +538,7 @@ function formularioBolsa(r) {
   const box = $("d-bolsa-form"), conv = !!r.cuenta_corporativa_id;
   box.hidden = false;
   box.innerHTML = `<b>📢 Publicar ${esc(r.codigo)} en Reservas para conductores</b>
-    <p class="small muted" style="margin:2px 0 6px">Solo la verán y podrán tomar los conductores que cumplan lo que marque. Sin marcar nada, la ven todos.${r.conductor_id ? ` Ojo: se le quita a ${esc(nombreConductor(r.conductor_id) || "el conductor asignado")}.` : ""}</p>
+    <p class="small muted" style="margin:2px 0 6px">Solo la verán y podrán tomar los conductores que cumplan lo que marque. Sin marcar nada, la ven todos.${r.estado === "recibida" ? " Al publicarla queda <b>confirmada</b>." : ""}${r.conductor_id ? ` Ojo: se le quita a ${esc(nombreConductor(r.conductor_id) || "el conductor asignado")}.` : ""}</p>
     <div class="f"><label>Tipos de vehículo que pueden tomarla <span class="muted small">(ninguno marcado = todos)</span></label>
       <div class="actions small">${Object.entries(CAT).map(([k, t]) => `<label class="chk"><input type="checkbox" class="bf-cat" value="${k}"> ${esc(t)}</label>`).join("")}</div></div>
     <label class="chk small"><input type="checkbox" id="bf-corp" ${conv ? "checked disabled" : ""}> 🏢 Solo vehículos corporativos${conv ? " (obligatorio: es de una empresa con convenio)" : ""}</label>
@@ -1222,8 +1222,8 @@ $("bulk-conf").addEventListener("click", async () => {
   $("bulk-msg").textContent = `${pend.length - malas} confirmada(s)` + (malas ? `, ${malas} con error` : "") + "."; selRes.clear(); cargarReservas();
 });
 $("bulk-bolsa").addEventListener("click", async () => {
-  const xs = cache.filter(r => selRes.has(r.id) && ["confirmada", "asignada"].includes(r.estado) && !r.en_bolsa && new Date(r.fecha_hora) > Date.now());
-  if (!xs.length) return ($("bulk-msg").textContent = "Seleccione reservas confirmadas y futuras (las por confirmar, en curso o pasadas no se liberan).");
+  const xs = cache.filter(r => selRes.has(r.id) && ["recibida", "confirmada", "asignada"].includes(r.estado) && !r.en_bolsa && new Date(r.fecha_hora) > Date.now());
+  if (!xs.length) return ($("bulk-msg").textContent = "Seleccione reservas futuras que aún no empiezan (las en curso o pasadas no se liberan; las por confirmar quedan confirmadas).");
   const conCond = xs.filter(r => r.conductor_id).length;
   if (!confirm(`¿Liberar ${xs.length} reserva(s) en Reservas para conductores?` + (conCond ? `\n${conCond} tienen conductor asignado: se les quitará.` : ""))) return;
   $("bulk-msg").textContent = "Liberando…"; let malas = 0;
@@ -1336,14 +1336,14 @@ async function abrir(id) {
     <p id="a-margen" class="small muted"></p>
     <div id="a-choque" class="msg err" hidden></div>
     <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button>
-      ${!r.en_bolsa && ["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost" id="a-bolsa" type="button">📢 Publicar en Reservas</button>' : ""}
+      ${!r.en_bolsa && ["recibida", "confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost" id="a-bolsa" type="button">📢 Publicar en Reservas</button>' : ""}
       ${r.en_bolsa ? '<button class="btn ghost" id="a-bolsa-x" type="button">↩ Quitar de Reservas</button>' : ""}
       ${r.estado === "recibida" ? '<span class="small muted" style="align-self:center">Para publicarla en Reservas, primero confirme la reserva (Estado → Confirmada → Guardar cambios).</span>' : ""}</div>
     <h3 style="margin:6px 0 0">Estado y cobro</h3>
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
     <div class="actions" style="border-top:1px solid var(--line, #ddd);padding-top:10px">
-      ${!r.en_bolsa && ["confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost sm" type="button" id="d-bolsa">📢 Publicar en Reservas</button>' : ""}
+      ${!r.en_bolsa && ["recibida", "confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost sm" type="button" id="d-bolsa">📢 Publicar en Reservas</button>' : ""}
       ${r.en_bolsa ? '<button class="btn ghost sm" type="button" id="d-bolsa-x">↩ Quitar de Reservas</button>' : ""}
       ${r.estado !== "cancelada" && r.estado !== "finalizada" ? '<button class="btn ghost sm" type="button" id="d-cancelar">✕ Cancelar reserva</button>' : ""}
       ${yo && yo.rol === "admin" ? '<button class="btn ghost sm" type="button" id="d-eliminar" style="color:#b42318">🗑 Eliminar</button>' : ""}

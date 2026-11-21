@@ -1,5 +1,10 @@
 # Cambios
 
+## 21 nov 2026 · Publicar en Reservas servicios por confirmar
+- Panel: el botón **"📢 Publicar en Reservas"** (ficha, acciones y selección en grupo) aparece también en las reservas **"Recibida"** (por confirmar). Al publicarlas quedan **confirmadas** solas; el historial dice "Confirmada y liberada a Reservas". Caso que lo motivó: vans FK-825588 y FK-139ABD que no se podían publicar.
+- Base de datos (etapa 68, ya aplicada): `liberar_a_bolsa` acepta el estado `recibida`.
+- Ojo: hoy ningún conductor de la plataforma tiene van; una van publicada la ven todos pero nadie puede tomarla (conviene derivarla a Servimóvil).
+
 ## 21 nov 2026 · Negativo según tarifario y conductores en el mapa
 - Valor del negativo según el tarifario 2026 (etapa 62, ya aplicada, `negativo_calculo`): **domicilio $5.000** con 15 min de espera incluida, **regreso desde el aeropuerto $15.000** con **45 min**, **van $19.000**; más la espera después del tiempo incluido ($180/min auto, $270/min SUV o van). Fuera de Santiago (60 % del servicio): la central ajusta el valor en la ficha (el texto lo recuerda).
 - App del conductor (Inicio): además del mapa de calor, se ven los **otros conductores conectados** (🚗 azul disponible, gris en servicio), en zona aproximada (~1 km) y sin nombres, con el conteo en la leyenda (`mapa_conductores`, etapa 62b ya aplicada). Se actualiza cada ~2 min.
