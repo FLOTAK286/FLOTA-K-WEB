@@ -1,5 +1,10 @@
 # Cambios
 
+## 21 nov 2026 · Publicar en Reservas servicios por confirmar
+- Panel: el botón **"📢 Publicar en Reservas"** (ficha, acciones y selección en grupo) aparece también en las reservas **"Recibida"** (por confirmar). Al publicarlas quedan **confirmadas** solas; el historial dice "Confirmada y liberada a Reservas". Caso que lo motivó: vans FK-825588 y FK-139ABD que no se podían publicar.
+- Base de datos (etapa 68, ya aplicada): `liberar_a_bolsa` acepta el estado `recibida`.
+- Ojo: hoy ningún conductor de la plataforma tiene van; una van publicada la ven todos pero nadie puede tomarla (conviene derivarla a Servimóvil).
+
 ## 21 nov 2026 · Facturación, carga masiva, repeticiones, ventas y resumen semanal
 - **Facturación mensual** (etapa 63): pestaña **Facturación** en el panel (admin y nuevo rol **"Facturación"**, que solo ve esa pestaña). Resumen por empresa del período (total, facturado, por facturar, por cobrar); detalle de viajes con centro de costo y solicitante; **Excel del detalle**; **marcar viajes como facturados** con N° de factura (no se factura dos veces); facturas con "Marcar pagada" (marca pagados sus viajes) y "Anular" (vuelven a por facturar). Portal de empresas → Facturación: **estado de cuenta** (viajes del período con su factura, facturas emitidas). Tablas/funciones: `facturas`, `reservas.factura_id`, `facturacion_resumen`, `facturacion_viajes`, `facturar_viajes`, `facturas_de`, `factura_accion`, `convenio_estado_cuenta`; `proteger_pago` acepta el rol facturación; `crear-miembro` acepta el rol.
 - **Cotizador punto a punto en el portal de empresas**: valor aproximado con la ruta (como la web y la app), no se guarda como tarifa: se confirma al reservar.
