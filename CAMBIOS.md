@@ -1,9 +1,11 @@
 # Cambios
 
-## 22 nov 2026 · Reserva por enlace para WhatsApp (rama `reserva-por-enlace`, sin publicar)
-- Página nueva **/reservar/** (sin cuenta, `noindex`): el agente de WhatsApp envía este enlace y el pasajero completa tipo de viaje, sector o ruta (punto en el mapa), fecha, vuelo, pasajeros, maletas, vehículo, nombre, teléfono, correo, "reservo para otra persona" y "¿cómo nos conoció?". Muestra la tarifa fija o el valor estimado. Al enviar: código, botón "Avisar por WhatsApp" con el código y "Ver mi reserva" (seguimiento). Admite `?tipo=regreso` o `?tipo=punto_a_punto`.
-- La reserva queda **"recibida"** (la central confirma), canal `whatsapp`, comentario "Formulario por enlace (WhatsApp)" y aviso "📅 Reserva nueva" a Operaciones.
-- Base de datos (etapa 70, **pendiente de aplicar con aprobación del dueño**): `crear_reserva_enlace` (usa `crear_reserva_app`, que sigue cerrada al público; máx. 6/h por teléfono y 30/h en total).
+## 22 nov 2026 · Reserva por enlace con pago antes de reservar (Flow) (rama `reserva-por-enlace`, sin publicar)
+- Página nueva **/reservar/** (sin cuenta, `noindex`) para el enlace que envía el agente de WhatsApp. El pasajero completa el viaje y sus datos (correo obligatorio: comprobante de Flow), ve el valor y toca **"Pagar y reservar"**. Admite `?tipo=regreso` o `?tipo=punto_a_punto`.
+- **La reserva se crea solo cuando Flow confirma el pago**: antes es una "solicitud de pago" (tabla `solicitudes_pago`, no aparece en el panel). Pagada → reserva(s) **confirmada(s) y pagada(s)** (canal `whatsapp`, comentario "PAGADA EN LÍNEA con Flow (orden …)", aviso "📅 Reserva nueva"). Ida y vuelta = dos reservas con un solo pago. Sin pago: vence a los 40 min (cron `flotak-solicitudes-vencer`).
+- **El precio lo calcula el servidor**: tablas `tarifas_aeropuerto` (tarifario 2026) y `tarifas_tramos` (Oriente ↔ costa); punto a punto con la ruta real (OSRM) y el taxímetro de la empresa; más de 120 km o sin ruta → WhatsApp. Si el valor de la página difiere, se muestra el del servidor antes de cobrar. Se verifica que el monto pagado sea exacto.
+- Edge Function **`flow`** (verify_jwt = false): `pagar`, `confirmar` (aviso de Flow), `volver` (regreso del pasajero → /reservar/?pago=<id>), `estado`. Secretos: `FLOW_API_KEY`, `FLOW_SECRET_KEY`, `FLOW_API_URL`.
+- Base de datos (etapa 70) y función: **pendientes de aplicar/publicar con aprobación del dueño**.
 
 ## 22 nov 2026 · Editar los datos de una reserva
 - Panel, ficha de la reserva: botón **"✏ Editar datos de la reserva"** (todas menos las canceladas). Se puede cambiar pasajero, teléfono, correo, vuelo, tipo de servicio, vehículo que pide, origen y destino (con punto en el mapa), indicaciones del retiro, pasajeros, maletas, centro de costo (convenio) y comentarios. La fecha/hora y las paradas siguen con sus botones propios.

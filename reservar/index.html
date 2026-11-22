@@ -79,7 +79,7 @@
             <div>
         <p class="eyebrow" style="margin:0" id="saludo">Traslado ejecutivo</p>
         <h1>Complete los datos de su traslado</h1>
-        <p class="small muted" style="margin:6px 0 0">Toma un par de minutos. Le confirmamos la reserva por WhatsApp.</p>
+        <p class="small muted" style="margin:6px 0 0">Toma un par de minutos. Paga en línea y su reserva queda confirmada.</p>
       </div>
 
       <form id="f" class="panel" novalidate>
@@ -138,7 +138,7 @@
           <div class="f"><label for="nom">Su nombre</label><input id="nom" type="text" maxlength="120" autocomplete="name" required></div>
           <div class="f"><label for="tel">Su teléfono (WhatsApp)</label><input id="tel" type="tel" maxlength="30" autocomplete="tel" placeholder="+56 9 …" required></div>
         </div>
-        <div class="f"><label for="mail">Correo (opcional, para la factura o el comprobante)</label><input id="mail" type="email" maxlength="200" autocomplete="email" inputmode="email"></div>
+        <div class="f"><label for="mail">Correo (le llega el comprobante de pago)</label><input id="mail" type="email" maxlength="200" autocomplete="email" inputmode="email" required></div>
         <label class="chk"><input type="checkbox" id="otro"> Reservo para otra persona</label>
         <div class="grid2" id="b-otro" hidden>
           <div class="f"><label for="o-nom">Nombre del pasajero</label><input id="o-nom" type="text" maxlength="120"></div>
@@ -149,18 +149,18 @@
         <div class="f"><label for="como">¿Cómo nos conoció? (opcional)</label><select id="como"><option value="">Elegir…</option><option value="google">Google</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Me lo recomendaron</option><option value="cliente_frecuente">Ya he viajado con Flota-K</option><option value="otro">Otro</option></select></div>
         <div class="precio" id="precio"><span id="precio-l" class="small">Valor</span><b id="precio-v">—</b></div>
         <div id="msg" class="msg" hidden></div>
-        <button class="btn" type="submit" id="enviar">Solicitar reserva</button>
-        <p class="small muted" style="margin:0">Le confirmamos cada reserva por WhatsApp. Antes del viaje le enviamos el enlace para ver a su conductor y su vehículo, y seguirlo en vivo. Para viajes en menos de 2 horas, escríbanos por WhatsApp.</p>
+        <button class="btn" type="submit" id="enviar">Pagar y reservar</button>
+        <p class="small muted" style="margin:0">Pago seguro con Flow (tarjeta de crédito, débito o transferencia). Su reserva queda confirmada al pagar y le llega el comprobante a su correo. Antes del viaje le enviamos el enlace para ver a su conductor y seguirlo en vivo. Para viajes en menos de 2 horas o fuera de Santiago, escríbanos por WhatsApp.</p>
       </form>
     </div>
   </section>
 
   <section id="v-ok" hidden>
     <div class="panel ok-box">
-      <p class="eyebrow" style="margin:0">Solicitud recibida</p>
+      <p class="eyebrow" style="margin:0" id="ok-t">Revisando su pago…</p>
       <div class="code" id="ok-cod"></div>
-      <p style="margin:0">Gracias. Revisaremos su solicitud y se la confirmaremos por WhatsApp.</p>
-      <div class="actions" style="justify-content:center"><a class="btn" id="ok-wa" href="#" target="_blank" rel="noopener">Avisar por WhatsApp</a><a class="btn ghost" id="ok-seg" href="#">Ver mi reserva</a><button class="btn ghost" type="button" id="ok-otra">Hacer otra reserva</button></div>
+      <p style="margin:0" id="ok-txt">Un momento, estamos confirmando el pago con Flow.</p>
+      <div class="actions" style="justify-content:center"><a class="btn" id="ok-seg" href="#" hidden>Ver mi reserva</a><a class="btn ghost" id="ok-wa" href="https://wa.me/56922275399" target="_blank" rel="noopener">WhatsApp</a><a class="btn ghost" href="/reservar/" id="ok-otra">Hacer otra reserva</a></div>
     </div>
   </section>
 </main>
@@ -173,7 +173,7 @@
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/lugar.js"></script>
 <script>
-const { sb, esc, clp, errText } = FK;
+const { esc, clp } = FK;
 const $ = id => document.getElementById(id);
 const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -181,6 +181,26 @@ const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } 
 const leer = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch (_) { return d; } };
 function msg(id, t, k) { const m = $(id); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; if (t && k === "err") m.scrollIntoView({ behavior: "smooth", block: "center" }); }
 const D = null;
+const FN = FK_CONFIG.url + "/functions/v1/flow";
+// Vuelta desde Flow: /reservar/?pago=<id>
+(async () => {
+  const id = new URLSearchParams(location.search).get("pago"); if (!id) return;
+  $("v-reservar").hidden = true; $("v-ok").hidden = false;
+  for (let i = 0; i < 20; i++) {
+    const j = await fetch(FN + "?accion=estado&id=" + encodeURIComponent(id), { headers: { apikey: FK_CONFIG.anonKey, Authorization: "Bearer " + FK_CONFIG.anonKey } }).then(r => r.json()).catch(() => ({}));
+    if (j.estado === "pagada") {
+      $("ok-t").textContent = "¡Pago recibido! Reserva confirmada"; $("ok-cod").textContent = (j.codigos || []).join(" · ");
+      $("ok-txt").textContent = `Pagó ${clp(j.monto)}. Le llega el comprobante a su correo. Antes del viaje le enviamos por WhatsApp los datos de su conductor.`;
+      if (j.token_seguimiento) { $("ok-seg").href = "/seguimiento/?t=" + j.token_seguimiento; $("ok-seg").hidden = false; }
+      $("ok-wa").href = "https://wa.me/56922275399?text=" + encodeURIComponent(`Hola Flota-K, pagué mi reserva ${(j.codigos || []).join(", ")}.`); return;
+    }
+    if (j.estado === "rechazada" || j.estado === "vencida" || j.estado === "error" || j.error) {
+      $("ok-t").textContent = "El pago no se completó"; $("ok-txt").textContent = "No se creó ninguna reserva ni se hizo ningún cobro. Puede intentarlo de nuevo o escribirnos por WhatsApp."; return;
+    }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  $("ok-t").textContent = "Su pago se está procesando"; $("ok-txt").textContent = "Si pagó, su reserva aparecerá confirmada en unos minutos y le escribiremos por WhatsApp. Si tiene dudas, escríbanos.";
+})();
 let tipo = "ida", veh = "auto", zona = null, ruta = null, rutaKey = "";
 const lugDom = FKLugar.montar($("dom"), { alCambiar: () => precio() });
 const lugDest = FKLugar.montar($("dest"), { alCambiar: () => precio() });
@@ -273,7 +293,9 @@ async function actualizarRuta() {
   const r = await FKLugar.ruta(a, b);
   if (rutaKey === k) { ruta = r; precio(); }
 }
+let montoAceptado = null; // valor que informó el servidor (si difiere del calculado aquí)
 function precio() {
+  montoAceptado = null;
   sugerirZona();
   if (tipo === "punto_a_punto") actualizarRuta();
   const p = calcular(), L = $("precio-l"), V = $("precio-v");
@@ -315,38 +337,28 @@ $("f").addEventListener("submit", async e => {
   const otro = $("otro").checked;
   if (otro && ($("o-nom").value.trim().length < 2 || $("o-tel").value.replace(/\D/g, "").length < 8)) return msg("msg", "Escriba el nombre y el teléfono de la persona que viaja.", "err");
 
-  const dom = lugDom.get(), dest = lugDest.get(), domTxt = $("dom").value.trim(), com = $("com").value.trim();
-  const base = { p_nombre: nom, p_telefono: tel, p_correo: mail || null, p_como_nos_conocio: $("como").value || null, p_vehiculo: veh, p_pasajeros: cont.pax, p_maletas: cont.mal, p_comuna: aero ? zona[0] : null,
-    p_pasajero_nombre: otro ? $("o-nom").value.trim() : null, p_pasajero_telefono: otro ? $("o-tel").value.trim() : null };
-  const tramos = [];
-  if (tipo === "ida") tramos.push({ ...base, p_tipo_servicio: "ida", p_fecha_hora: iso, p_origen: domTxt, p_destino: AERO.texto,
-    p_origen_lat: dom.lat, p_origen_lng: dom.lng, p_destino_lat: AERO.lat, p_destino_lng: AERO.lng, p_vuelo: $("vuelo").value.trim() || null,
-    p_tarifa: p.ida ?? null, p_retiro_detalle: $("det").value.trim() || null,
-    p_comentarios: [iv ? "Ida y vuelta (regreso al valor de la ida)." : "", com].filter(Boolean).join(" ") || null });
-  if (tipo === "regreso" || iv) tramos.push({ ...base, p_tipo_servicio: "regreso", p_fecha_hora: iv ? iso2 : iso, p_origen: AERO.texto, p_destino: domTxt,
-    p_origen_lat: AERO.lat, p_origen_lng: AERO.lng, p_destino_lat: dom.lat, p_destino_lng: dom.lng,
-    p_vuelo: (iv ? $("vuelo2") : $("vuelo")).value.trim() || null, p_tarifa: (iv ? p.regreso : p.ida) ?? null,
-    p_comentarios: [iv ? "Ida y vuelta (regreso al valor de la ida)." : "", "Hora indicada = aterrizaje.", com].filter(Boolean).join(" ") });
-  if (tipo === "punto_a_punto") tramos.push({ ...base, p_tipo_servicio: "punto_a_punto", p_fecha_hora: iso, p_origen: domTxt, p_destino: $("dest").value.trim(),
-    p_origen_lat: dom.lat, p_origen_lng: dom.lng, p_destino_lat: dest.lat, p_destino_lng: dest.lng,
-    p_tarifa: p.ida ?? null, p_tarifa_estimada: !!p.estimado, p_retiro_detalle: $("det").value.trim() || null, p_comentarios: com || null });
-
-  $("enviar").disabled = true; $("enviar").textContent = "Enviando…";
-  const codigos = [], tokens = [];
-  for (const t of tramos) {
-    const { data, error } = await sb.rpc("crear_reserva_enlace", t);
-    if (error) { $("enviar").disabled = false; $("enviar").textContent = "Solicitar reserva"; return msg("msg", (codigos.length ? `La ida quedó registrada (${codigos[0]}), pero el regreso no: ` : "") + errText(error), "err"); }
-    codigos.push(data[0].o_codigo); tokens.push(data[0].o_token);
-  }
-  $("enviar").disabled = false; $("enviar").textContent = "Solicitar reserva";
-  $("ok-cod").textContent = codigos.join(" · ");
-  $("v-reservar").hidden = true; $("v-ok").hidden = false; scrollTo(0, 0);
-  ["com", "vuelo", "vuelo2", "fh", "fh2"].forEach(k => $(k).value = "");
-  $("ok-seg").href = "/seguimiento/?t=" + tokens[0];
-  $("ok-wa").href = "https://wa.me/56922275399?text=" + encodeURIComponent(`Hola Flota-K, acabo de completar el formulario de reserva (${codigos.join(", ")}). Quedo atento a la confirmación.`);
+  const dom = lugDom.get(), dest = lugDest.get();
+  const total = p.ida != null ? p.ida + (p.regreso || 0) : null;
+  if (total == null) return msg("msg", p.lejos ? "Los viajes largos se los cotizamos por WhatsApp al +56 9 2227 5399." : "Espere a que aparezca el valor de su viaje.", "err");
+  if (!mail) { $("mail").focus(); return msg("msg", "Escriba su correo: ahí le llega el comprobante de pago.", "err"); }
+  const cuerpo = { nombre: nom, telefono: tel, correo: mail, como: $("como").value || null,
+    pasajero_nombre: otro ? $("o-nom").value.trim() : null, pasajero_telefono: otro ? $("o-tel").value.trim() : null,
+    tipo, vehiculo: veh, zona: aero ? zona[0] : null, ida_vuelta: iv, fecha_hora: iso, fecha_hora_regreso: iso2,
+    vuelo: $("vuelo").value.trim() || null, vuelo_regreso: $("vuelo2").value.trim() || null,
+    origen: { texto: $("dom").value.trim(), lat: dom.lat, lng: dom.lng },
+    destino: aero ? null : { texto: $("dest").value.trim(), lat: dest.lat, lng: dest.lng },
+    retiro_detalle: $("det").value.trim() || null, pasajeros: cont.pax, maletas: cont.mal, comentarios: $("com").value.trim() || null, monto_visto: montoAceptado ?? total };
   guardar("fk_reserva_datos", { nom, tel, mail });
+  $("enviar").disabled = true; $("enviar").textContent = "Conectando con Flow…";
+  try {
+    const r = await fetch(FN + "?accion=pagar", { method: "POST", headers: { "Content-Type": "application/json", apikey: FK_CONFIG.anonKey, Authorization: "Bearer " + FK_CONFIG.anonKey }, body: JSON.stringify(cuerpo) });
+    const j = await r.json().catch(() => ({}));
+    if (j.url) { location.href = j.url; return; }
+    if (j.cambio && j.monto) { montoAceptado = j.monto; $("precio-v").textContent = clp(j.monto); $("precio-l").textContent = "Valor confirmado por el sistema"; }
+    msg("msg", j.error || "No pudimos iniciar el pago. Intente de nuevo.", "err");
+  } catch (_) { msg("msg", "Sin conexión. Revise su internet e intente de nuevo.", "err"); }
+  $("enviar").disabled = false; $("enviar").textContent = "Pagar y reservar";
 });
-$("ok-otra").addEventListener("click", () => { $("v-ok").hidden = true; $("v-reservar").hidden = false; scrollTo(0, 0); });
 // Datos de la última reserva en este teléfono (para no escribirlos de nuevo)
 (() => { const d = leer("fk_reserva_datos", null); if (d) { $("nom").value = d.nom || ""; $("tel").value = d.tel || ""; $("mail").value = d.mail || ""; } })();
 // El enlace puede traer el tipo: /reservar/?tipo=regreso | punto_a_punto
