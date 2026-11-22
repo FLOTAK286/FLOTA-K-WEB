@@ -53,6 +53,55 @@ async function flow(metodo: "GET" | "POST", ruta: string, p: Record<string, stri
   return j;
 }
 
+// ---------- Pórticos TAG (OpenStreetMap, tabla osm_datos clave "porticos") ----------
+type Portico = { id: number; nombre: string; lat: number; lng: number; rumbo: number | null; caseta: boolean };
+let PORTICOS: Portico[] | null = null, porticosCargados = 0;
+const rumbo = (a: number[], b: number[]) => { // grados, a y b = [lat, lng]
+  const r = (x: number) => x * Math.PI / 180, y = Math.sin(r(b[1] - a[1])) * Math.cos(r(b[0]));
+  const x = Math.cos(r(a[0])) * Math.sin(r(b[0])) - Math.sin(r(a[0])) * Math.cos(r(b[0])) * Math.cos(r(b[1] - a[1]));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+};
+async function porticos(sb: ReturnType<typeof db>) {
+  if (PORTICOS && Date.now() - porticosCargados < 3600e3) return PORTICOS;
+  const { data } = await sb.from("osm_datos").select("datos").eq("clave", "porticos").maybeSingle();
+  const els: any[] = data?.datos?.elements ?? [];
+  const vias = els.filter((e) => e.type === "way");
+  PORTICOS = els.filter((e) => e.type === "node").map((n) => {
+    let rb: number | null = null;
+    for (const w of vias) {
+      const i = (w.nodes || []).indexOf(n.id); if (i < 0 || !w.geometry) continue;
+      const ow = w.tags?.oneway, uni = ow === "yes" || ow === "-1" || w.tags?.highway === "motorway" || w.tags?.junction === "roundabout";
+      if (!uni) break; // vía de doble sentido: cuenta en ambos sentidos
+      const g = w.geometry, a = g[Math.max(0, i - 1)], b = g[Math.min(g.length - 1, i + 1)];
+      rb = rumbo([a.lat, a.lon], [b.lat, b.lon]); if (ow === "-1") rb = (rb + 180) % 360;
+      break;
+    }
+    return { id: n.id, nombre: n.tags?.name || n.tags?.ref || "Pórtico", lat: n.lat, lng: n.lon, rumbo: rb, caseta: n.tags?.barrier === "toll_booth" };
+  });
+  porticosCargados = Date.now();
+  return PORTICOS;
+}
+// Pórticos por los que pasa la ruta (a menos de 25 m de la calzada y en el mismo sentido de circulación)
+function porticosEnRuta(ruta: number[][], lista: Portico[]) { // ruta = [[lng, lat], ...]
+  const res: Portico[] = [];
+  const cosLat = Math.cos(-33.45 * Math.PI / 180), M = 111320;
+  for (const p of lista) {
+    let mejor = Infinity, rbRuta = 0;
+    for (let i = 1; i < ruta.length; i++) {
+      const [x1, y1] = [(ruta[i - 1][0] - p.lng) * M * cosLat, (ruta[i - 1][1] - p.lat) * M];
+      const [x2, y2] = [(ruta[i][0] - p.lng) * M * cosLat, (ruta[i][1] - p.lat) * M];
+      const dx = x2 - x1, dy = y2 - y1, L = dx * dx + dy * dy;
+      const t = L ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L)) : 0;
+      const d = Math.hypot(x1 + t * dx, y1 + t * dy);
+      if (d < mejor) { mejor = d; rbRuta = rumbo([ruta[i - 1][1], ruta[i - 1][0]], [ruta[i][1], ruta[i][0]]); }
+    }
+    if (mejor > 25) continue;
+    if (p.rumbo != null) { const dif = Math.abs(((rbRuta - p.rumbo) + 540) % 360 - 180); if (dif > 60) continue; }
+    res.push(p);
+  }
+  return res;
+}
+
 // ---------- Precio (servidor) ----------
 type Tramo = Record<string, unknown>;
 async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<string, unknown>) {
@@ -74,20 +123,25 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const tf = (tramos || []).find((x: any) => (tiene(to, x.lado_a) && tiene(td, x.lado_b)) || (tiene(to, x.lado_b) && tiene(td, x.lado_a)));
   if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre };
   // Ruta real (OSRM). Si no responde, no se cobra en línea: mejor confirmar el valor por WhatsApp.
-  let km: number | null = null;
+  let km: number | null = null, min = 0, geo: number[][] = [];
   try {
-    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=false`, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(8000) });
     const x = ((await r.json()).routes || [])[0];
-    if (x) km = Math.round(x.distance / 100) / 10;
+    if (x) { km = Math.round(x.distance / 100) / 10; min = Math.max(1, Math.ceil(x.duration * 1.25 / 60)); geo = x.geometry?.coordinates ?? []; }
   } catch (_) { /* sin ruta */ }
   if (km == null) throw new Error("No pudimos calcular la ruta en este momento. Intente de nuevo en unos minutos o escríbanos por WhatsApp.");
   if (km > 120) throw new Error(`Viaje largo (${km} km): se lo cotizamos por WhatsApp al +56 9 2227 5399.`);
-  const { data: e } = await sb.from("empresas").select("taxi_bajada, taxi_cada_200m").eq("id", empresaId).single();
+  const { data: e } = await sb.from("empresas").select("taxi_bajada, taxi_cada_200m, valor_tag").eq("id", empresaId).single();
   const { data: T } = await sb.from("tarifas_aeropuerto").select("ida, van").eq("empresa_id", empresaId);
   const fs = (T || []).map((r: any) => r.van / r.ida).filter((x: number) => x > 1 && x < 3).sort((a: number, b: number) => a - b);
   const factorVan = fs.length ? fs[Math.floor(fs.length / 2)] : 1.35;
   const auto = Math.max(5000, (e?.taxi_bajada ?? 2400) + Math.ceil(km * 5) * (e?.taxi_cada_200m ?? 180));
-  return { zona: null, ida: redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto), regreso: null, estimado: true, km };
+  // TAG: pórticos de la ruta x valor por pórtico (hoy $900, criterio Servimóvil). Las casetas de peaje troncal se informan aparte.
+  const enRuta = geo.length > 1 ? porticosEnRuta(geo, await porticos(sb)) : [];
+  const nPort = enRuta.filter((p) => !p.caseta).length, casetas = enRuta.filter((p) => p.caseta).map((p) => p.nombre);
+  const tag = nPort * (e?.valor_tag ?? 900);
+  const base = redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto);
+  return { zona: null, ida: base + tag, regreso: null, estimado: true, km, min, base, porticos: nPort, tag, casetas, nombres_porticos: enRuta.filter((p) => !p.caseta).map((p) => p.nombre) };
 }
 
 // ---------- Acciones ----------
@@ -143,7 +197,10 @@ async function pagar(req: Request) {
       monto: p.regreso ?? p.ida, comentarios: [ivTxt, "Hora indicada = aterrizaje.", base.comentarios].filter(Boolean).join(" ") });
   }
   if (tipo === "punto_a_punto") tramos.push({ ...base, tipo_servicio: "punto_a_punto", fecha_hora: fh.toISOString(), origen: txt(o.texto, 300), origen_lat: +o.lat, origen_lng: +o.lng,
-    destino: txt(d.texto, 300), destino_lat: +d.lat, destino_lng: +d.lng, retiro_detalle: txt(b.retiro_detalle, 200), monto: p.ida, estimado: p.estimado, km: p.km });
+    destino: txt(d.texto, 300), destino_lat: +d.lat, destino_lng: +d.lng, retiro_detalle: txt(b.retiro_detalle, 200), monto: p.ida, estimado: p.estimado, km: p.km,
+    porticos: (p as any).porticos ?? 0, tag: (p as any).tag ?? 0,
+    comentarios: [base.comentarios, (p as any).porticos ? `Incluye TAG: ${(p as any).porticos} pórtico(s) = $${(p as any).tag}.` : "",
+      (p as any).casetas?.length ? `Ruta con peaje troncal: ${(p as any).casetas.join(", ")} (no incluido).` : ""].filter(Boolean).join(" ") });
 
   const orden = "FKW-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
   const { data: sol, error } = await sb.from("solicitudes_pago").insert({ empresa_id: emp!.id, orden, datos: { contacto: c, tramos }, monto: total, telefono: tel, correo: c.correo }).select("id").single();
@@ -196,6 +253,11 @@ Deno.serve(async (req) => {
   const u = new URL(req.url), accion = u.searchParams.get("accion");
   try {
     if (accion === "pagar" && req.method === "POST") return await pagar(req);
+    if (accion === "cotizar" && req.method === "POST") {
+      const sb = db(), b = await req.json().catch(() => ({}));
+      const { data: emp } = await sb.from("empresas").select("id").eq("slug", "flota-k").single();
+      try { return json(await cotizar(sb, emp!.id, b)); } catch (e) { return json({ error: (e as Error).message }, 400); }
+    }
     if (accion === "confirmar") {
       const token = await tokenDe(req);
       if (!token) return new Response("sin token", { status: 400 });

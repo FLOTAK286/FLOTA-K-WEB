@@ -272,18 +272,34 @@ function cotizarRuta(km) {
 function calcular() {
   if (tipo === "punto_a_punto") {
     const a = lugDom.get(), b = lugDest.get(); if (!a || !b) return null;
-    const costa = viajeCosta(a, b);
-    if (costa) return { ida: veh === "van" ? costa.van : costa.auto, nota: costa.nombre + " · tarifa fija por tramo", km: ruta && ruta.km };
     if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) return { aeropuerto: true };
-    if (!ruta) return { calculando: true };
-    if (ruta.km > 120) return { lejos: true, km: ruta.km };
-    return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""}` };
+    if (!cotServ || cotServ.key !== claveCot()) return { calculando: true };
+    if (cotServ.error) return { error: cotServ.error };
+    const c = cotServ;
+    const nota = c.estimado ? `${String(c.km).replace(".", ",")} km · ~${c.min} min` + (c.porticos ? ` · incluye TAG: ${c.porticos} pórtico${c.porticos > 1 ? "s" : ""} (${clp(c.tag)})` : " · sin pórticos TAG")
+      : (c.nota || "Tarifa fija por tramo");
+    return { ida: c.ida, estimado: false, nota, km: c.km };
   }
   if (!zona) return null;
   const iv = tipo === "ida" && $("iv").checked;
   if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null };
   if (tipo === "regreso") return { ida: zona[2] };
   return { ida: zona[1], regreso: iv ? zona[1] : null };
+}
+// Valor punto a punto: lo calcula el servidor (ruta real + pórticos TAG), el mismo que se cobra
+let cotServ = null;
+const claveCot = () => { const a = lugDom.get(), b = lugDest.get(); return a && b ? [a.lat, a.lng, b.lat, b.lng, veh, $("dom").value.trim(), $("dest").value.trim()].join("|") : ""; };
+async function cotizarServidor() {
+  const k = claveCot(); if (!k || (cotServ && cotServ.key === k) || cotizarServidor.k === k) return;
+  cotizarServidor.k = k;
+  const a = lugDom.get(), b = lugDest.get();
+  try {
+    const r = await fetch(FN + "?accion=cotizar", { method: "POST", headers: { "Content-Type": "application/json", apikey: FK_CONFIG.anonKey, Authorization: "Bearer " + FK_CONFIG.anonKey },
+      body: JSON.stringify({ tipo: "punto_a_punto", vehiculo: veh, origen: { texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, destino: { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng } }) });
+    const j = await r.json().catch(() => ({}));
+    if (claveCot() === k) { cotServ = { ...j, key: k }; precio(); }
+  } catch (_) { if (claveCot() === k) { cotServ = { error: "Sin conexión para calcular el valor. Revise su internet.", key: k }; precio(); } }
+  cotizarServidor.k = null;
 }
 async function actualizarRuta() {
   const a = lugDom.get(), b = lugDest.get();
@@ -297,10 +313,11 @@ let montoAceptado = null; // valor que informó el servidor (si difiere del calc
 function precio() {
   montoAceptado = null;
   sugerirZona();
-  if (tipo === "punto_a_punto") actualizarRuta();
+  if (tipo === "punto_a_punto") cotizarServidor();
   const p = calcular(), L = $("precio-l"), V = $("precio-v");
   if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
   if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
+  if (p.error) { L.textContent = p.error; V.textContent = "—"; return; }
   if (p.aeropuerto) { L.innerHTML = "Su viaje es desde o hacia el aeropuerto: elija <b>Al aeropuerto</b> o <b>Desde el aeropuerto</b> para su tarifa fija."; V.textContent = "—"; return; }
   if (p.lejos) { L.textContent = `Viaje largo (${String(p.km).replace(".", ",")} km): le confirmamos el valor después de solicitarlo.`; V.textContent = "A cotizar"; return; }
   const total = p.ida + (p.regreso || 0);
@@ -340,7 +357,7 @@ $("f").addEventListener("submit", async e => {
 
   const dom = lugDom.get(), dest = lugDest.get();
   const total = p.ida != null ? p.ida + (p.regreso || 0) : null;
-  if (total == null) return msg("msg", p.lejos ? "Los viajes largos se los cotizamos por WhatsApp al +56 9 2227 5399." : "Espere a que aparezca el valor de su viaje.", "err");
+  if (total == null) return msg("msg", p.error || "Espere a que aparezca el valor de su viaje.", "err");
   if (!mail) { $("mail").focus(); return msg("msg", "Escriba su correo: ahí le llega el comprobante de pago.", "err"); }
   const cuerpo = { nombre: nom, telefono: tel, correo: mail, como: $("como").value || null,
     pasajero_nombre: otro ? $("o-nom").value.trim() : null, pasajero_telefono: otro ? $("o-tel").value.trim() : null,

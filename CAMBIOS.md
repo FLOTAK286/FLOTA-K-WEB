@@ -1,5 +1,11 @@
 # Cambios
 
+## 22 nov 2026 · TAG automático en el punto a punto (en curso)
+- Pórticos TAG desde OpenStreetMap (tabla `osm_datos`, etapa 71a aplicada; Edge Function `importar-osm`, abrir `?que=porticos` / `?que=divisiones`): 157 pórticos + 13 casetas en la RM, con el sentido de cada calzada.
+- Función `flow` v6: el punto a punto suma **$900 por pórtico** (`empresas.valor_tag`, criterio Servimóvil) que la ruta cruza (a < 25 m y en el mismo sentido). Las casetas de peaje troncal se anotan en la reserva pero no se cobran. Nueva acción `cotizar`: la página /reservar muestra el valor del servidor (km, minutos y TAG). Página: **pendiente de publicar**.
+- Pendiente: sector de tarifa según el punto del mapa (comunas con varias tarifas) y TAG prellenado en el cierre del conductor.
+
+
 ## 22 nov 2026 · Reserva por enlace con pago antes de reservar (Flow) (rama `reserva-por-enlace`, sin publicar)
 - Página nueva **/reservar/** (sin cuenta, `noindex`) para el enlace que envía el agente de WhatsApp. El pasajero completa el viaje y sus datos (correo obligatorio: comprobante de Flow), ve el valor y toca **"Pagar y reservar"**. Admite `?tipo=regreso` o `?tipo=punto_a_punto`.
 - **La reserva se crea solo cuando Flow confirma el pago**: antes es una "solicitud de pago" (tabla `solicitudes_pago`, no aparece en el panel). Pagada → reserva(s) **confirmada(s) y pagada(s)** (canal `whatsapp`, comentario "PAGADA EN LÍNEA con Flow (orden …)", aviso "📅 Reserva nueva"). Ida y vuelta = dos reservas con un solo pago. Sin pago: vence a los 40 min (cron `flotak-solicitudes-vencer`).
