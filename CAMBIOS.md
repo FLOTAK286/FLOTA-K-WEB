@@ -1,5 +1,12 @@
 # Cambios
 
+## 22 nov 2026 · Editar los datos de una reserva
+- Panel, ficha de la reserva: botón **"✏ Editar datos de la reserva"** (todas menos las canceladas). Se puede cambiar pasajero, teléfono, correo, vuelo, tipo de servicio, vehículo que pide, origen y destino (con punto en el mapa), indicaciones del retiro, pasajeros, maletas, centro de costo (convenio) y comentarios. La fecha/hora y las paradas siguen con sus botones propios.
+- Si cambia el recorrido se recalculan distancia y duración y se pide revisar el precio. Si se cambia el texto de una dirección sin mover el punto, pregunta si es el mismo lugar.
+- Al conductor asignado le llega "✏️ Servicio modificado" si cambian origen, destino o vuelo (aviso que ya existía).
+- Historial de cambios (etapa 69, ya aplicada): registra también pasajero, teléfono, correo, servicio, indicaciones, maletas y comentarios.
+- Se quitó el texto "primero confirme la reserva" junto a Publicar en Reservas (desde la etapa 68 ya no hace falta).
+
 ## 21 nov 2026 · Publicar en Reservas servicios por confirmar
 - Panel: el botón **"📢 Publicar en Reservas"** (ficha, acciones y selección en grupo) aparece también en las reservas **"Recibida"** (por confirmar). Al publicarlas quedan **confirmadas** solas; el historial dice "Confirmada y liberada a Reservas". Caso que lo motivó: vans FK-825588 y FK-139ABD que no se podían publicar.
 - Base de datos (etapa 68, ya aplicada): `liberar_a_bolsa` acepta el estado `recibida`.

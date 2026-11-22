@@ -1068,7 +1068,7 @@ async function estadoGps(r) {
     : `<span class="muted">El pasajero verá el mapa cuando el conductor marque «En camino». GPS del conductor: ${min <= 15 ? "activo (" + esc(hace) + ")" : u ? "sin señal (" + esc(hace) + ")" : "nunca ha enviado ubicación"}.</span>`;
 }
 // ---- Historial de cambios (quién cambió qué)
-const CAMPOS = { fecha_hora: "Fecha y hora", origen: "Origen", destino: "Destino", precio: "Precio", forma_pago: "Forma de pago", tipo_cobro: "Tipo de cobro", conductor_id: "Conductor", vehiculo_id: "Vehículo", derivado_a: "Derivado a", pagado: "Pagado", vehiculo: "Vehículo que pide", pasajeros: "Pasajeros", vuelo: "Vuelo", centro_costo: "Centro de costo" };
+const CAMPOS = { fecha_hora: "Fecha y hora", origen: "Origen", destino: "Destino", precio: "Precio", forma_pago: "Forma de pago", tipo_cobro: "Tipo de cobro", conductor_id: "Conductor", vehiculo_id: "Vehículo", derivado_a: "Derivado a", pagado: "Pagado", vehiculo: "Vehículo que pide", pasajeros: "Pasajeros", vuelo: "Vuelo", centro_costo: "Centro de costo", nombre_pasajero: "Pasajero", telefono: "Teléfono", correo: "Correo", tipo_servicio: "Servicio", retiro_detalle: "Indicaciones", maletas: "Maletas", comentarios: "Comentarios" };
 async function pintarCambios(r) {
   const { data } = await sb.from("reserva_cambios").select("campo, antes, despues, usuario_id, creado_en").eq("reserva_id", r.id).order("id", { ascending: false }).limit(50);
   if (!data || !data.length) return;
@@ -1076,7 +1076,7 @@ async function pintarCambios(r) {
   const { data: us } = ids.length ? await sb.from("perfiles").select("id, nombre").in("id", ids) : { data: [] };
   const quien = id => id ? ((us || []).find(u => u.id === id) || {}).nombre || "Equipo" : "Sistema";
   const val = (c, v) => v == null || v === "" ? "—" : c === "conductor_id" ? (etiquetaConductor(v) || "Conductor") : c === "vehiculo_id" ? ((vehiculos.find(x => x.id === v) || {}).patente || "Vehículo") :
-    c === "fecha_hora" ? fecha(v) : c === "precio" ? clp(Number(v)) : c === "pagado" ? (v === "true" ? "Sí" : "No") : c === "vehiculo" ? (PIDE[v] || v) : v;
+    c === "fecha_hora" ? fecha(v) : c === "precio" ? clp(Number(v)) : c === "pagado" ? (v === "true" ? "Sí" : "No") : c === "vehiculo" ? (PIDE[v] || v) : c === "tipo_servicio" ? (SERVICIOS[v] || v) : v;
   $("d-cambios").innerHTML = "<b>Cambios:</b><ul class=\"timeline\">" + data.map(x => `<li>${esc(fecha(x.creado_en))} · <b>${esc(quien(x.usuario_id))}</b>: ${esc(CAMPOS[x.campo] || x.campo)} ${esc(val(x.campo, x.antes))} → <b>${esc(val(x.campo, x.despues))}</b></li>`).join("") + "</ul>";
 }
 
@@ -1358,6 +1358,7 @@ async function abrir(id) {
       <dt>¿Cómo nos conoció?</dt><dd><select id="d-conocio" aria-label="Cómo nos conoció">${CONOCIO_OPC.replace(`value="${r.como_nos_conocio || ""}"`, `value="${r.como_nos_conocio || ""}" selected`)}</select></dd>
       <dt>Seguimiento</dt><dd><span class="small">${esc(seg)}</span> <button class="btn ghost sm" type="button" id="cp">⧉ Copiar mensaje</button> <button class="btn ghost sm" type="button" id="cp-wa">📲 Compartir por WhatsApp</button> <a class="btn ghost sm" href="${esc(seg)}" target="_blank" rel="noopener">👁 Ver lo que ve el pasajero</a><div id="d-gps" class="small" style="margin-top:4px"></div></dd>
     </dl>
+    ${r.estado !== "cancelada" ? '<div class="actions"><button class="btn ghost sm" type="button" id="d-edit">✏ Editar datos de la reserva</button></div><div id="d-edit-box" class="pay" hidden></div>' : ""}
     <div class="row2">
       <div class="f"><label for="d-precio">${r.estado === "finalizada" ? "Valor final cobrado" : "Precio final"}</label><input id="d-precio" type="number" min="0" step="100" value="${esc(r.estado === "finalizada" ? (valorFinal(r) ?? "") : (r.precio ?? ""))}" ${r.estado === "finalizada" && !(yo && yo.rol === "admin") ? 'readonly title="Solo el administrador corrige el valor de un servicio finalizado"' : ""}></div>
       <div class="f"><label for="d-pago">Forma de pago</label><select id="d-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
@@ -1389,8 +1390,7 @@ async function abrir(id) {
     <div id="a-choque" class="msg err" hidden></div>
     <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button>
       ${!r.en_bolsa && ["recibida", "confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost" id="a-bolsa" type="button">📢 Publicar en Reservas</button>' : ""}
-      ${r.en_bolsa ? '<button class="btn ghost" id="a-bolsa-x" type="button">↩ Quitar de Reservas</button>' : ""}
-      ${r.estado === "recibida" ? '<span class="small muted" style="align-self:center">Para publicarla en Reservas, primero confirme la reserva (Estado → Confirmada → Guardar cambios).</span>' : ""}</div>
+      ${r.en_bolsa ? '<button class="btn ghost" id="a-bolsa-x" type="button">↩ Quitar de Reservas</button>' : ""}</div>
     <h3 style="margin:6px 0 0">Estado y cobro</h3>
     <div class="actions"><button class="btn" id="d-save" type="button">Guardar cambios</button><button class="btn ghost" id="d-close" type="button">Cerrar</button></div>
     <div id="d-msg" class="msg" hidden></div>
@@ -1495,6 +1495,7 @@ async function abrir(id) {
   if ($("wa-sol")) $("wa-sol").onclick = () => enviarConfirmacion(r, true, $("wa-tipo").value);
   $("d-copiar").onclick = () => copiarReserva(r);
   montarEdicionParadas(r);
+  montarEdicionDatos(r);
   $("d-regreso").onclick = () => copiarReserva(r, true);
   estadoGps(r);
   if (!r.conductor_id && !r.derivado_a && r.estado !== "finalizada") sugerirConductor(r);
@@ -1601,6 +1602,82 @@ async function abrir(id) {
   };
 }
 
+// Editar los datos de una reserva ya creada: pasajero, contacto, servicio, direcciones, vuelo, pasajeros, maletas, etc.
+// Queda en el historial (reserva_cambios) y, si cambian origen, destino o vuelo, al conductor le llega "Servicio modificado".
+function montarEdicionDatos(r) {
+  const btn = $("d-edit"); if (!btn) return;
+  const box = $("d-edit-box"), fin = r.estado === "finalizada";
+  let lugO = null, lugD = null;
+  const opt = (obj, val) => Object.entries(obj).map(([k, t]) => `<option value="${k}" ${k === val ? "selected" : ""}>${esc(t)}</option>`).join("");
+  btn.onclick = () => {
+    btn.hidden = true; box.hidden = false;
+    box.innerHTML = `<b>✏ Editar datos de ${esc(r.codigo)}</b>
+      <p class="small muted" style="margin:2px 0 6px">Cambie lo que necesite y toque "Guardar datos". Los cambios quedan en el historial.${r.conductor_id && !fin ? " Si cambia el origen, el destino o el vuelo, al conductor le llega el aviso \"Servicio modificado\"." : ""} La fecha, la hora y las paradas se cambian con sus propios botones.</p>
+      <div class="row2"><div class="f"><label for="e-nom">Pasajero</label><input id="e-nom" maxlength="120"></div>
+        <div class="f"><label for="e-tel">Teléfono</label><input id="e-tel" maxlength="30" inputmode="tel"></div></div>
+      <div class="row2"><div class="f"><label for="e-cor">Correo</label><input id="e-cor" type="email" maxlength="200"></div>
+        <div class="f"><label for="e-vue">Vuelo</label><input id="e-vue" maxlength="20" placeholder="Ej.: LA 800"></div></div>
+      <div class="row2"><div class="f"><label for="e-tipo">Servicio</label><select id="e-tipo">${opt(SERVICIOS, r.tipo_servicio)}</select></div>
+        <div class="f"><label for="e-veh">Vehículo que pide</label><select id="e-veh">${opt(PIDE, r.vehiculo || "auto")}</select></div></div>
+      <div class="f"><label for="e-ori">Origen</label><input id="e-ori" maxlength="300"></div>
+      <div class="f"><label for="e-ret">Indicaciones para el retiro</label><input id="e-ret" maxlength="300" placeholder="Ej.: torre B, conserjería"></div>
+      <div class="f"><label for="e-des">Destino</label><input id="e-des" maxlength="300"></div>
+      <div class="row3"><div class="f"><label for="e-pas">Pasajeros</label><input id="e-pas" type="number" min="1" max="50"></div>
+        <div class="f"><label for="e-mal">Maletas</label><input id="e-mal" type="number" min="0" max="50"></div>
+        ${r.cuenta_corporativa_id ? '<div class="f"><label for="e-cc">Centro de costo</label><input id="e-cc" maxlength="80"></div>' : ""}</div>
+      <div class="f"><label for="e-com">Comentarios</label><textarea id="e-com" rows="2" maxlength="1000"></textarea></div>
+      <p class="small warn" id="e-ruta" style="margin:4px 0 0"></p>
+      <div class="actions" style="margin-top:6px"><button class="btn sm" type="button" id="e-ok">Guardar datos</button><button class="btn ghost sm" type="button" id="e-x">Volver</button></div>`;
+    const val = { "e-nom": r.nombre_pasajero, "e-tel": r.telefono, "e-cor": r.correo, "e-vue": r.vuelo, "e-ret": r.retiro_detalle, "e-pas": r.pasajeros, "e-mal": r.maletas, "e-cc": r.centro_costo, "e-com": r.comentarios };
+    Object.entries(val).forEach(([id, v]) => { if ($(id)) $(id).value = v ?? ""; });
+    const cambiaPunto = (p, la, ln) => p && (p.lat !== la || p.lng !== ln);
+    const avisarRuta = () => {
+      $("e-ruta").textContent = cambiaPunto(lugO.get(), r.origen_lat, r.origen_lng) || cambiaPunto(lugD.get(), r.destino_lat, r.destino_lng)
+        ? "Cambió el recorrido: al guardar se recalculan la distancia y el tiempo. Revise después el precio final." : "";
+    };
+    lugO = FKLugar.montar($("e-ori"), { alCambiar: avisarRuta }); lugD = FKLugar.montar($("e-des"), { alCambiar: avisarRuta });
+    lugO.set(r.origen, r.origen_lat, r.origen_lng); lugD.set(r.destino, r.destino_lat, r.destino_lng);
+    $("e-x").onclick = () => { box.hidden = true; box.innerHTML = ""; btn.hidden = false; };
+    $("e-ok").onclick = async () => {
+      const t = id => ($(id) ? $(id).value.trim() : "");
+      const nom = t("e-nom"), tel = t("e-tel"), cor = t("e-cor");
+      if (nom.length < 2) return msg("d-msg", "Escriba el nombre del pasajero.", "err");
+      if (tel.replace(/\D/g, "").length < 8) return msg("d-msg", "Revise el teléfono.", "err");
+      if (cor && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cor)) return msg("d-msg", "Revise el correo.", "err");
+      if (!t("e-ori") || !t("e-des")) return msg("d-msg", "Escriba el origen y el destino.", "err");
+      if (!lugO.exigir() || !lugD.exigir()) return msg("d-msg", "Marque en el mapa el punto exacto del origen y del destino.", "err");
+      // Texto cambiado pero el pin sigue en el mismo lugar: el conductor iría al punto antiguo
+      for (const [id, txt, p, la, ln, nom2] of [["e-ori", r.origen, lugO.get(), r.origen_lat, r.origen_lng, "origen"], ["e-des", r.destino, lugD.get(), r.destino_lat, r.destino_lng, "destino"]]) {
+        if (t(id) !== (txt || "") && !cambiaPunto(p, la, ln) && !confirm(`Cambió el texto del ${nom2}, pero el punto en el mapa sigue en el mismo lugar.\n\nSi es otra dirección, toque Cancelar y elija la sugerencia (o mueva el pin). ¿Es el mismo lugar?`)) return;
+      }
+      const pas = Math.max(1, Number(t("e-pas")) || 1), mal = t("e-mal") === "" ? null : Number(t("e-mal"));
+      if ($("e-veh").value !== "van" && pas > 4 && !confirm(`Son ${pas} pasajeros y no pide van. ¿Guardar igual?`)) return;
+      const o = lugO.get(), d = lugD.get(), nuevo = {
+        nombre_pasajero: nom, telefono: tel, correo: cor || null, vuelo: t("e-vue").toUpperCase() || null,
+        tipo_servicio: $("e-tipo").value, vehiculo: $("e-veh").value, origen: t("e-ori"), origen_lat: o.lat, origen_lng: o.lng,
+        retiro_detalle: t("e-ret") || null, destino: t("e-des"), destino_lat: d.lat, destino_lng: d.lng,
+        pasajeros: pas, maletas: mal, comentarios: t("e-com") || null };
+      if (r.cuenta_corporativa_id) nuevo.centro_costo = t("e-cc") || null;
+      const cambio = {};
+      Object.entries(nuevo).forEach(([k, v]) => { if (String(v ?? "") !== String(r[k] ?? "")) cambio[k] = v; });
+      if (!Object.keys(cambio).length) return msg("d-msg", "No cambió ningún dato.", "err");
+      const rutaCambia = ["origen_lat", "origen_lng", "destino_lat", "destino_lng"].some(k => k in cambio);
+      $("e-ok").disabled = true; msg("d-msg", "Guardando…");
+      if (rutaCambia) {
+        try {
+          const ru = await FKLugar.ruta(o, d, r.paradas || []);
+          if (ru) { cambio.km_ida = ru.km; cambio.duracion_min = ru.min + ((cambio.tipo_servicio || r.tipo_servicio) === "regreso" ? 30 : 10); }
+        } catch (_) { /* sin ruta: se guarda igual */ }
+      }
+      const { error } = await sb.from("reservas").update(cambio).eq("id", r.id);
+      $("e-ok").disabled = false;
+      if (error) return msg("d-msg", errText(error), "err");
+      Object.assign(r, cambio);
+      $("det").close(); await abrir(r.id); refrescar();
+      msg("d-msg", "Datos guardados." + (rutaCambia ? " Cambió el recorrido: revise el precio final." : ""), "ok");
+    };
+  };
+}
 // Editar las paradas de una reserva ya creada (solo panel del despacho)
 function montarEdicionParadas(r) {
   const ver = $("d-par-esp");
