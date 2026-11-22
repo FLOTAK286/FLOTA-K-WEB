@@ -82,8 +82,12 @@ async function porticos(sb: ReturnType<typeof db>) {
   porticosCargados = Date.now();
   return PORTICOS;
 }
-// Pórticos por los que pasa la ruta (a menos de 25 m de la calzada y en el mismo sentido de circulación)
-function porticosEnRuta(ruta: number[][], lista: Portico[]) { // ruta = [[lng, lat], ...]
+// Pórticos por los que pasa la ruta.
+// Método exacto (preferido): OSRM entrega los nodos de OpenStreetMap por los que pasa la ruta (annotations=nodes) y el pórtico
+// es un nodo de la calzada; así solo se cuenta el pórtico de la calzada y el sentido que se recorren (las dos calzadas de una
+// autopista quedan a 15-20 m y antes se cobraban ambas). Si no hay nodos, se usa la cercanía (< 8 m) como respaldo.
+function porticosEnRuta(ruta: number[][], lista: Portico[], nodos: number[] = []) { // ruta = [[lng, lat], ...]
+  if (nodos.length) { const set = new Set(nodos); return lista.filter((p) => set.has(p.id)); }
   const res: Portico[] = [];
   const cosLat = Math.cos(-33.45 * Math.PI / 180), M = 111320;
   for (const p of lista) {
@@ -96,7 +100,7 @@ function porticosEnRuta(ruta: number[][], lista: Portico[]) { // ruta = [[lng, l
       const d = Math.hypot(x1 + t * dx, y1 + t * dy);
       if (d < mejor) { mejor = d; rbRuta = rumbo([ruta[i - 1][1], ruta[i - 1][0]], [ruta[i][1], ruta[i][0]]); }
     }
-    if (mejor > 25) continue;
+    if (mejor > 8) continue;
     if (p.rumbo != null) { const dif = Math.abs(((rbRuta - p.rumbo) + 540) % 360 - 180); if (dif > 60) continue; }
     res.push(p);
   }
@@ -172,11 +176,12 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const tf = (tramos || []).find((x: any) => (tiene(to, x.lado_a) && tiene(td, x.lado_b)) || (tiene(to, x.lado_b) && tiene(td, x.lado_a)));
   if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre, vehiculo: veh, van_forzada: vanForzada };
   // Ruta real (OSRM). Si no responde, no se cobra en línea: mejor confirmar el valor por WhatsApp.
-  let km: number | null = null, min = 0, geo: number[][] = [];
+  let km: number | null = null, min = 0, geo: number[][] = [], nodos: number[] = [];
   try {
-    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&annotations=nodes`, { signal: AbortSignal.timeout(8000) });
     const x = ((await r.json()).routes || [])[0];
-    if (x) { km = Math.round(x.distance / 100) / 10; min = Math.max(1, Math.ceil(x.duration * 1.25 / 60)); geo = x.geometry?.coordinates ?? []; }
+    if (x) { km = Math.round(x.distance / 100) / 10; min = Math.max(1, Math.ceil(x.duration * 1.25 / 60)); geo = x.geometry?.coordinates ?? [];
+      nodos = (x.legs || []).flatMap((l: any) => l.annotation?.nodes ?? []); }
   } catch (_) { /* sin ruta */ }
   if (km == null) throw new Error("No pudimos calcular la ruta en este momento. Intente de nuevo en unos minutos o escríbanos por WhatsApp.");
   if (km > 120) throw new Error(`Viaje largo (${km} km): se lo cotizamos por WhatsApp al +56 9 2227 5399.`);
@@ -186,7 +191,7 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const factorVan = fs.length ? fs[Math.floor(fs.length / 2)] : 1.35;
   const auto = Math.max(5000, (e?.taxi_bajada ?? 2400) + Math.ceil(km * 5) * (e?.taxi_cada_200m ?? 180));
   // TAG: pórticos de la ruta x valor por pórtico (hoy $900, criterio Servimóvil). Las casetas de peaje troncal se informan aparte.
-  const enRuta = geo.length > 1 ? porticosEnRuta(geo, await porticos(sb)) : [];
+  const enRuta = geo.length > 1 || nodos.length ? porticosEnRuta(geo, await porticos(sb), nodos) : [];
   const nPort = enRuta.filter((p) => !p.caseta).length, casetas = enRuta.filter((p) => p.caseta).map((p) => p.nombre);
   const tag = nPort * (e?.valor_tag ?? 900);
   const base = redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto);

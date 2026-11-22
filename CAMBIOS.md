@@ -1,5 +1,10 @@
 # Cambios
 
+## 22 nov 2026 · TAG exacto y el mismo valor en todos los cotizadores
+- **Error corregido en el cobro de TAG** (función `flow` v14, ya publicada): las calles guardadas de `porticos` no traen la lista de nodos, así que nunca se sabía el sentido de cada pórtico y se cobraba todo pórtico a menos de 25 m de la ruta, incluido el de la calzada contraria (15-20 m). Ejemplo: Vitacura → Maipú cobraba 8 pórticos ($7.200) y son 4 ($3.600). Ahora se usa el método exacto: OSRM entrega los nodos de OpenStreetMap de la ruta (`annotations=nodes`) y se cuentan los pórticos que son esos nodos (solo la calzada y el sentido recorridos). Respaldo si faltan nodos: cercanía < 8 m. Probado: Vitacura → Maipú 4, Maipú → Vitacura 6, Las Condes → Quilicura 3; sector al aeropuerto sin cambios (Apoquindo → "Las Condes hasta Manquehue").
+- **Portada, app del pasajero y portal de empresas** cotizan los punto a punto con el servidor (`assets/cotizar.js`, `FKCotizar.puntoAPunto` → `flow?accion=cotizar`): mismo valor que /reservar, con "incluye N pórticos TAG ($X)". Si el servidor no responde, valor local con "más TAG según los pórticos de la ruta". En la app, la reserva lleva el comentario "Incluye TAG: N pórtico(s) = $X".
+- Se descartó la rama `etapa-70` (TAG calculado en el navegador con Overpass): el otro chat ya había guardado los pórticos en la base.
+
 ## 22 nov 2026 · Tarifa al aeropuerto a prueba de "elegir la más barata"
 - **El pasajero ya no elige el sector:** el valor lo decide siempre el punto marcado en el mapa, que es donde lo retira el conductor. Si mueve el punto para pagar menos, lo pasamos a buscar ahí.
 - Datos nuevos en `osm_datos`: `comunas_compactas` (límites de las 52 comunas de la RM + Valparaíso, Viña, Rancagua y Los Andes, ~2 MB), `localidades_sur` (Champa, Huelquén, etc.) y 192 tramos de calles límite agregados a `divisiones` (Camino Otoñal, San Damián, Av. La Plaza, El Golf de Manquehue, P. L. Urquieta, B. Larraín Cotapos, Av. Chicureo, Lo Arcaya, Esmeralda, Virginia Subercaseaux). `comunas_rm` (versión completa, 8 MB) quedó guardada pero no se usa: era demasiado lenta.

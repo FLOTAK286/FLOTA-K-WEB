@@ -269,6 +269,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
+<script src="/assets/cotizar.js"></script>
 <script src="/assets/lugar.js"></script>
 <script src="/assets/carga.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
@@ -463,11 +464,20 @@ async function estimarPaP() {
   if (!tarPub) { const { data } = await sb.rpc("cotizador_publico"); tarPub = data || { bajada: 2400, cada_200m: 180, minimo: 5000, minimo_van: 25000 }; }
   if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) { if (estKey === k) { $("precio-l").textContent = "Para el aeropuerto elija Ida o Regreso: tienen tarifa fija"; } return; }
   $("precio-l").textContent = "Calculando la ruta…";
+  // Valor del servidor (el mismo de /reservar): ruta real + $900 por pórtico TAG
+  const sv = await FKCotizar.puntoAPunto({ texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng }, veh);
+  if (estKey !== k || tipo !== "punto_a_punto") return;
+  if (sv && sv.error) { estRes = [sv.error, "A cotizar"]; $("precio-l").textContent = estRes[0]; $("precio-v").textContent = estRes[1]; return; }
+  if (sv && sv.ida) {
+    estRes = [sv.km != null ? `Valor aproximado · ${String(sv.km).replace(".", ",")} km · ~${sv.min} min · ${FKCotizar.textoTag(sv)} (se confirma al reservar)` : (sv.nota || "Tarifa fija por tramo"),
+      clp(sv.ida) + (sv.estimado ? " aprox." : "")];
+    $("precio-l").textContent = estRes[0]; $("precio-v").textContent = estRes[1]; return;
+  }
   const r = await FKLugar.ruta(a, b); if (estKey !== k || tipo !== "punto_a_punto") return;
   if (!r) { $("precio-l").textContent = "Valor: se lo confirmamos al reservar"; return; }
   const auto = Math.max(tarPub.minimo || 0, tarPub.bajada + Math.ceil(r.km * 5) * tarPub.cada_200m);
   const v = Math.ceil((veh === "van" ? Math.max(tarPub.minimo_van || 25000, auto * 1.35) : auto) / 500) * 500;
-  estRes = [`Valor aproximado · ${String(r.km).replace(".", ",")} km · ~${r.min} min (se confirma al reservar)`, clp(v) + " aprox."];
+  estRes = [`Valor aproximado · ${String(r.km).replace(".", ",")} km · ~${r.min} min · más TAG según los pórticos (se confirma al reservar)`, clp(v) + " aprox."];
   $("precio-l").textContent = estRes[0]; $("precio-v").textContent = estRes[1];
 }
 function precioActual() { return modo === "hab" ? (habSel ? habSel.precio : null) : precioOtro(); }

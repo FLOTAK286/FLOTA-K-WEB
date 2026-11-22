@@ -308,6 +308,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
+<script src="/assets/cotizar.js"></script>
 <script src="/assets/lugar.js"></script>
 <script src="/assets/recuperar.js"></script>
 <script>
@@ -495,8 +496,13 @@ function calcular() {
     if (costa) return { ida: veh === "van" ? costa.van : costa.auto, nota: costa.nombre + " · tarifa fija por tramo", km: ruta && ruta.km };
     if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) return { aeropuerto: true };
     if (!ruta) return { calculando: true };
+    // Valor del servidor (el mismo de /reservar): ruta real + $900 por pórtico TAG
+    const sv = ruta.srv;
+    if (sv && sv.error) return { srvError: sv.error };
+    if (sv && sv.ida) return { ida: sv.ida, estimado: !!sv.estimado, km: sv.km, porticos: sv.porticos || 0, tag: sv.tag || 0,
+      nota: sv.km != null ? `${String(sv.km).replace(".", ",")} km · ~${sv.min} min · ${FKCotizar.textoTag(sv)}` : (sv.nota || "Tarifa fija por tramo") };
     if (ruta.km > 120) return { lejos: true, km: ruta.km };
-    return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""}` };
+    return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""} · más TAG según los pórticos de la ruta` };
   }
   if (!zona) return null;
   const iv = tipo === "ida" && $("iv").checked;
@@ -506,11 +512,12 @@ function calcular() {
 }
 async function actualizarRuta() {
   const a = lugDom.get(), b = lugDest.get();
-  const k = a && b ? [a.lat, a.lng, b.lat, b.lng].join(",") : "";
+  const k = a && b ? [a.lat, a.lng, b.lat, b.lng, veh].join(",") : "";
   if (k === rutaKey) return; rutaKey = k; ruta = null;
   if (!k) return;
-  const r = await FKLugar.ruta(a, b);
-  if (rutaKey === k) { ruta = r; precio(); }
+  const [r, sv] = await Promise.all([FKLugar.ruta(a, b),
+    FKCotizar.puntoAPunto({ texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng }, veh)]);
+  if (rutaKey === k) { ruta = { ...r, srv: sv && !sv.red ? sv : null }; precio(); }
 }
 function precio() {
   sugerirZona();
@@ -519,6 +526,7 @@ function precio() {
   if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
   if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
   if (p.aeropuerto) { L.innerHTML = "Su viaje es desde o hacia el aeropuerto: elija <b>Al aeropuerto</b> o <b>Desde el aeropuerto</b> para su tarifa fija."; V.textContent = "—"; return; }
+  if (p.srvError) { L.textContent = p.srvError; V.textContent = "A cotizar"; return; }
   if (p.lejos) { L.textContent = `Viaje largo (${String(p.km).replace(".", ",")} km): le confirmamos el valor después de solicitarlo.`; V.textContent = "A cotizar"; return; }
   const total = p.ida + (p.regreso || 0);
   L.innerHTML = p.regreso ? `Ida ${clp(p.ida)} + regreso ${clp(p.regreso)}<br><span class="muted">Regreso al mismo valor de la ida</span>`
@@ -580,7 +588,8 @@ $("f").addEventListener("submit", async e => {
     p_comentarios: [iv ? "Ida y vuelta (regreso al valor de la ida)." : "", "Hora indicada = aterrizaje.", com].filter(Boolean).join(" ") });
   if (tipo === "punto_a_punto") tramos.push({ ...base, p_tipo_servicio: "punto_a_punto", p_fecha_hora: iso, p_origen: domTxt, p_destino: $("dest").value.trim(),
     p_origen_lat: dom.lat, p_origen_lng: dom.lng, p_destino_lat: dest.lat, p_destino_lng: dest.lng,
-    p_tarifa: p.ida ?? null, p_tarifa_estimada: !!p.estimado, p_km: p.km ?? null, p_retiro_detalle: $("det").value.trim() || null, p_comentarios: com || null });
+    p_tarifa: p.ida ?? null, p_tarifa_estimada: !!p.estimado, p_km: p.km ?? null, p_retiro_detalle: $("det").value.trim() || null,
+    p_comentarios: [p.porticos ? `Incluye TAG: ${p.porticos} pórtico(s) = $${p.tag}.` : "", com].filter(Boolean).join(" ") || null });
 
   $("enviar").disabled = true; $("enviar").textContent = "Enviando…";
   const codigos = [];
