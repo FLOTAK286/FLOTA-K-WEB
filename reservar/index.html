@@ -175,9 +175,7 @@
 <script>
 const { esc, clp } = FK;
 const $ = id => document.getElementById(id);
-const T = (window.FK_TARIFAS || []).slice(), AERO = FKLugar.AERO;
-// Zona de prueba (solo con ?prueba=1; debe existir también en la tabla tarifas_aeropuerto mientras dure la prueba)
-if (new URLSearchParams(location.search).get("prueba") === "1") T.unshift(["PRUEBA Flota-K (no reservar)", 1000, 1000, 1000]);
+const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
 const leer = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch (_) { return d; } };
