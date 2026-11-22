@@ -482,7 +482,7 @@ footer .wrap { display: grid; gap: 14px; }
     return 2 * R * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2)); };
   const T = window.FK_TARIFAS || [];
   const FACTOR_VAN = (() => { const f = T.map(r => r[3] / r[1]).filter(x => x > 1 && x < 3).sort((a, b) => a - b); return f.length ? f[Math.floor(f.length / 2)] : 1.35; })();
-  let tagTxt = "";
+  let tagTxt = "", sinAuto = false; // sinAuto: el pasajero eligió la ruta sin autopista
   let tar = { bajada: 2400, cada_200m: 180, minimo: 5000, minimo_van: 25000 }, veh = "auto", pts = { a: null, b: null }, n = 0;
   const C = window.FK_CONFIG;
   fetch(C.url + "/rest/v1/rpc/cotizador_publico", { method: "POST", headers: { apikey: C.anonKey, Authorization: "Bearer " + C.anonKey, "Content-Type": "application/json" }, body: "{}" })
@@ -508,7 +508,7 @@ footer .wrap { display: grid; gap: 14px; }
       }, 350);
     });
     sug.addEventListener("click", e => { const b = e.target.closest("button[data-i]"); if (!b) return; const x = lista[+b.dataset.i];
-      pts[k] = x; inp.value = x.completo; sug.hidden = true; calcular(); });
+      pts[k] = x; inp.value = x.completo; sug.hidden = true; sinAuto = false; calcular(); });
     document.addEventListener("click", e => { if (!e.target.closest("#pp-" + k) && !e.target.closest("#pp-" + k + "-sug")) sug.hidden = true; });
   }
   campo("a"); campo("b");
@@ -531,9 +531,13 @@ footer .wrap { display: grid; gap: 14px; }
       if (yo !== n) return;
       if (sv && sv.error) return pinta(`<b>Le cotizamos por WhatsApp</b><small>${escH(sv.error)}</small>` + boton(null));
       if (sv && sv.ida) {
-        tagTxt = sv.km != null ? FKCotizar.textoTag(sv) : "";
-        const d2 = sv.km != null ? `${String(sv.km).replace(".", ",")} km · ~${sv.min} min con tráfico${tagTxt ? " · " + tagTxt : ""}` : (sv.nota || "Tarifa fija por tramo");
-        return pinta(`<small>${sv.estimado ? "Valor estimado · " : ""}${sv.vehiculo === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(sv.ida)}${sv.estimado ? ' <small style="font-size:1rem">aprox.</small>' : ""}</span><small>${escH(d2)}.${sv.estimado ? " Valor referencial: se confirma al reservar." : ""}</small>` + boton(sv.ida));
+        // Con o sin autopista (el pasajero elige); el mapa muestra la ruta y los pórticos TAG
+        const o = FKCotizar.opcion(sv, sinAuto), esSin = !!(sinAuto && sv.alternativas && sv.alternativas.sin);
+        tagTxt = o.km != null ? (esSin ? "ruta sin autopista, " : "") + FKCotizar.textoTag(o) : "";
+        const d2 = o.km != null ? `${String(o.km).replace(".", ",")} km · ~${o.min} min con tráfico${tagTxt ? " · " + tagTxt : ""}` : (sv.nota || "Tarifa fija por tramo");
+        pinta(`<small>${sv.estimado ? "Valor estimado · " : ""}${sv.vehiculo === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(o.ida)}${sv.estimado ? ' <small style="font-size:1rem">aprox.</small>' : ""}</span><small>${escH(d2)}.${sv.estimado ? " Valor referencial: se confirma al reservar." : ""}</small><div id="pp-vista" hidden></div>` + boton(o.ida));
+        FKCotizar.vista(document.getElementById("pp-vista"), sv, { sin: sinAuto, alElegir: s => { sinAuto = s; calcular(); } });
+        return;
       }
       // Sin respuesta del servidor: cálculo local (sin TAG) y se avisa
       let km = null, min = null;

@@ -155,6 +155,7 @@
 
         <div class="f"><label for="como">¿Cómo nos conoció? (opcional)</label><select id="como"><option value="">Elegir…</option><option value="google">Google</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Me lo recomendaron</option><option value="cliente_frecuente">Ya he viajado con Flota-K</option><option value="otro">Otro</option></select></div>
         <div class="precio" id="precio"><span id="precio-l" class="small">Valor</span><b id="precio-v">—</b></div>
+        <div id="ruta-vista" hidden></div>
         <div id="msg" class="msg" hidden></div>
         <button class="btn" type="submit" id="enviar">Pagar y reservar</button>
         <p class="small muted" style="margin:0">Pago seguro con Flow (tarjeta de crédito, débito o transferencia). Su reserva queda confirmada al pagar y le llega el comprobante a su correo. Antes del viaje le enviamos el enlace para ver a su conductor y seguirlo en vivo. Para viajes en menos de 2 horas o fuera de Santiago, escríbanos por WhatsApp.</p>
@@ -178,6 +179,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
+<script src="/assets/cotizar.js"></script>
 <script src="/assets/lugar.js"></script>
 <script>
 const { esc, clp } = FK;
@@ -209,6 +211,7 @@ const FN = FK_CONFIG.url + "/functions/v1/flow";
   $("ok-t").textContent = "Su pago se está procesando"; $("ok-txt").textContent = "Si pagó, su reserva aparecerá confirmada en unos minutos y le escribiremos por WhatsApp. Si tiene dudas, escríbanos.";
 })();
 let tipo = "ida", veh = "auto", zona = null, ruta = null, rutaKey = "";
+let sinAuto = false, vistaKey = ""; // punto a punto: el pasajero eligió la ruta sin autopista (se cobra esa)
 const lugDom = FKLugar.montar($("dom"), { alCambiar: () => precio() });
 const lugDest = FKLugar.montar($("dest"), { alCambiar: () => precio() });
 const cont = { pax: 1, mal: 1 };
@@ -282,10 +285,10 @@ function calcular() {
     if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) return { aeropuerto: true };
     if (!cotServ || cotServ.key !== claveCot()) return { calculando: true };
     if (cotServ.error) return { error: cotServ.error };
-    const c = cotServ;
-    const nota = c.estimado ? `${String(c.km).replace(".", ",")} km · ~${c.min} min` + (c.porticos ? ` · incluye TAG: ${c.porticos} pórtico${c.porticos > 1 ? "s" : ""} (${clp(c.tag)})` : " · sin pórticos TAG")
-      : (c.nota || "Tarifa fija por tramo");
-    return { ida: c.ida, estimado: false, nota: (c.van_forzada ? "Valor de van (más de 4 pasajeros) · " : "") + nota, km: c.km };
+    const c = FKCotizar.opcion(cotServ, sinAuto), esSin = !!(sinAuto && cotServ.alternativas && cotServ.alternativas.sin);
+    const nota = cotServ.estimado ? `${esSin ? "Sin autopista · " : ""}${String(c.km).replace(".", ",")} km · ~${c.min} min` + (c.porticos ? ` · incluye TAG: ${c.porticos} pórtico${c.porticos > 1 ? "s" : ""} (${clp(c.tag)})` : " · sin pórticos TAG")
+      : (cotServ.nota || "Tarifa fija por tramo");
+    return { ida: c.ida, estimado: false, nota: (cotServ.van_forzada ? "Valor de van (más de 4 pasajeros) · " : "") + nota, km: c.km, sinAuto: esSin };
   }
   // Con la dirección marcada, el valor es el que calcula el servidor según el punto del mapa (el mismo que se cobra)
   if (lugDom.get()) {
@@ -341,6 +344,7 @@ async function cotizarServidor() {
         $("zona-ayuda").textContent = j.zona ? `Sector según el punto marcado en el mapa: ${j.zona}${j.motivo && j.motivo !== j.zona ? ` (${j.motivo})` : ""}. Lo retiramos exactamente en ese punto.`
           : "El sector lo definimos según el punto que marque en el mapa.";
       }
+      if (!cotServ || cotServ.key !== claveCot()) sinAuto = false;
       cotServ = { ...j, key: claveCot() }; precio();
     }
   } catch (_) { if (claveCot() === k) { cotServ = { error: "Sin conexión para calcular el valor. Revise su internet.", key: k }; precio(); } }
@@ -360,6 +364,9 @@ function precio() {
   sugerirZona();
   cotizarServidor();
   const p = calcular(), L = $("precio-l"), V = $("precio-v");
+  // Mapa con la ruta, los pórticos TAG y la opción sin autopista (punto a punto)
+  const sv = tipo === "punto_a_punto" && cotServ && cotServ.key === claveCot() && cotServ.alternativas ? cotServ : null, vk = sv ? sv.key + "|" + sinAuto : "";
+  if (vk !== vistaKey) { vistaKey = vk; FKCotizar.vista($("ruta-vista"), sv, { sin: sinAuto, alElegir: s => { sinAuto = s; precio(); } }); }
   if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
   if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
   if (p.error) { L.textContent = p.error; V.textContent = "—"; return; }
@@ -410,7 +417,8 @@ $("f").addEventListener("submit", async e => {
     vuelo: $("vuelo").value.trim() || null, vuelo_regreso: $("vuelo2").value.trim() || null,
     origen: { texto: $("dom").value.trim(), lat: dom.lat, lng: dom.lng },
     destino: aero ? null : { texto: $("dest").value.trim(), lat: dest.lat, lng: dest.lng },
-    retiro_detalle: $("det").value.trim() || null, pasajeros: cont.pax, maletas: cont.mal, comentarios: $("com").value.trim() || null, monto_visto: montoAceptado ?? total };
+    retiro_detalle: $("det").value.trim() || null, pasajeros: cont.pax, maletas: cont.mal, comentarios: $("com").value.trim() || null, monto_visto: montoAceptado ?? total,
+    sin_autopista: tipo === "punto_a_punto" && !!(sinAuto && cotServ && cotServ.alternativas && cotServ.alternativas.sin) };
   guardar("fk_reserva_datos", { nom, tel, mail });
   $("enviar").disabled = true; $("enviar").textContent = "Conectando con Flow…";
   try {

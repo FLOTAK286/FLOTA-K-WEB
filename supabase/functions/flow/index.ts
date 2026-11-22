@@ -68,14 +68,19 @@ async function porticos(sb: ReturnType<typeof db>) {
   const els: any[] = data?.datos?.elements ?? [];
   const vias = els.filter((e) => e.type === "way");
   PORTICOS = els.filter((e) => e.type === "node").map((n) => {
-    let rb: number | null = null;
+    // Sentido del pórtico: el del tramo de calzada (vía de un sentido) que pasa por el pórtico (a menos de 3 m)
+    let rb: number | null = null, dMin = 3;
+    const cosLat = Math.cos(n.lat * Math.PI / 180), M = 111320;
     for (const w of vias) {
-      const i = (w.nodes || []).indexOf(n.id); if (i < 0 || !w.geometry) continue;
+      const g = w.geometry; if (!g || g.length < 2) continue;
       const ow = w.tags?.oneway, uni = ow === "yes" || ow === "-1" || w.tags?.highway === "motorway" || w.tags?.junction === "roundabout";
-      if (!uni) break; // vía de doble sentido: cuenta en ambos sentidos
-      const g = w.geometry, a = g[Math.max(0, i - 1)], b = g[Math.min(g.length - 1, i + 1)];
-      rb = rumbo([a.lat, a.lon], [b.lat, b.lon]); if (ow === "-1") rb = (rb + 180) % 360;
-      break;
+      if (!uni) continue; // vía de doble sentido: no define sentido
+      for (let i = 1; i < g.length; i++) {
+        const x1 = (g[i - 1].lon - n.lon) * M * cosLat, y1 = (g[i - 1].lat - n.lat) * M, x2 = (g[i].lon - n.lon) * M * cosLat, y2 = (g[i].lat - n.lat) * M;
+        const dx = x2 - x1, dy = y2 - y1, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L)) : 0;
+        const dd = Math.hypot(x1 + t * dx, y1 + t * dy);
+        if (dd < dMin) { dMin = dd; rb = rumbo([g[i - 1].lat, g[i - 1].lon], [g[i].lat, g[i].lon]); if (ow === "-1") rb = (rb + 180) % 360; }
+      }
     }
     return { id: n.id, nombre: n.tags?.name || n.tags?.ref || "Pórtico", lat: n.lat, lng: n.lon, rumbo: rb, caseta: n.tags?.barrier === "toll_booth" };
   });
@@ -105,6 +110,51 @@ function porticosEnRuta(ruta: number[][], lista: Portico[], nodos: number[] = []
     res.push(p);
   }
   return res;
+}
+
+// ---------- Rutas ----------
+// Polyline de Valhalla (precisión 6) → [[lng, lat], ...]
+function decodificar6(str: string) {
+  let i = 0, lat = 0, lng = 0; const out: number[][] = [];
+  while (i < str.length) {
+    let b = 0, sh = 0, r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+    lat += (r & 1) ? ~(r >> 1) : (r >> 1);
+    sh = 0; r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lng / 1e6, lat / 1e6]);
+  }
+  return out;
+}
+// Ruta para dibujar en el mapa: como máximo ~300 puntos, [[lat, lng], ...] con 5 decimales
+function rutaParaMapa(geo: number[][]) {
+  const paso = Math.max(1, Math.ceil(geo.length / 300)), out: number[][] = [];
+  for (let i = 0; i < geo.length; i += paso) out.push([+geo[i][1].toFixed(5), +geo[i][0].toFixed(5)]);
+  const u = geo[geo.length - 1]; if (u) out.push([+u[1].toFixed(5), +u[0].toFixed(5)]);
+  return out;
+}
+type Ruta = { km: number; min: number; geo: number[][]; nodos: number[] };
+// Ruta más rápida (OSRM, usa autopistas). puntos = [{lat, lng}, ...] (origen, paradas, destino)
+async function rutaOsrm(puntos: { lat: number; lng: number }[]): Promise<Ruta | null> {
+  try {
+    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${puntos.map((x) => `${x.lng},${x.lat}`).join(";")}?overview=full&geometries=geojson&annotations=nodes`, { signal: AbortSignal.timeout(8000) });
+    const x = ((await r.json()).routes || [])[0];
+    if (!x) return null;
+    return { km: Math.round(x.distance / 100) / 10, min: Math.max(1, Math.ceil(x.duration * 1.25 / 60)), geo: x.geometry?.coordinates ?? [],
+      nodos: (x.legs || []).flatMap((l: any) => l.annotation?.nodes ?? []) };
+  } catch (_) { return null; }
+}
+// Ruta evitando autopistas con peaje (Valhalla de OpenStreetMap, gratis)
+async function rutaSinAutopista(puntos: { lat: number; lng: number }[]): Promise<Ruta | null> {
+  try {
+    const r = await fetch("https://valhalla1.openstreetmap.de/route", { method: "POST", signal: AbortSignal.timeout(10000), headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locations: puntos.map((x) => ({ lat: x.lat, lon: x.lng })), costing: "auto", costing_options: { auto: { use_tolls: 0, use_highways: 0 } }, units: "kilometers", directions_type: "none" }) });
+    const t = (await r.json()).trip;
+    if (!t?.summary) return null;
+    const geo = (t.legs || []).flatMap((l: any) => decodificar6(l.shape || ""));
+    return { km: Math.round(t.summary.length * 10) / 10, min: Math.max(1, Math.ceil(t.summary.time * 1.15 / 60)), geo, nodos: [] };
+  } catch (_) { return null; }
 }
 
 // ---------- Sector de tarifa según el punto del mapa (todas las comunas; el pasajero no elige) ----------
@@ -175,28 +225,34 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const to = norm(o.texto), td = norm(d.texto), tiene = (t: string, l: string[]) => l.some((c) => t.includes(c));
   const tf = (tramos || []).find((x: any) => (tiene(to, x.lado_a) && tiene(td, x.lado_b)) || (tiene(to, x.lado_b) && tiene(td, x.lado_a)));
   if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre, vehiculo: veh, van_forzada: vanForzada };
-  // Ruta real (OSRM). Si no responde, no se cobra en línea: mejor confirmar el valor por WhatsApp.
-  let km: number | null = null, min = 0, geo: number[][] = [], nodos: number[] = [];
-  try {
-    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&annotations=nodes`, { signal: AbortSignal.timeout(8000) });
-    const x = ((await r.json()).routes || [])[0];
-    if (x) { km = Math.round(x.distance / 100) / 10; min = Math.max(1, Math.ceil(x.duration * 1.25 / 60)); geo = x.geometry?.coordinates ?? [];
-      nodos = (x.legs || []).flatMap((l: any) => l.annotation?.nodes ?? []); }
-  } catch (_) { /* sin ruta */ }
-  if (km == null) throw new Error("No pudimos calcular la ruta en este momento. Intente de nuevo en unos minutos o escríbanos por WhatsApp.");
-  if (km > 120) throw new Error(`Viaje largo (${km} km): se lo cotizamos por WhatsApp al +56 9 2227 5399.`);
+  // Dos opciones: con autopista (la más rápida, OSRM) y sin autopista (evita peajes, Valhalla).
+  // Si no hay ruta, no se cobra en línea: mejor confirmar el valor por WhatsApp.
+  const pts = [{ lat: +o.lat, lng: +o.lng }, { lat: +d.lat, lng: +d.lng }];
+  const con = await rutaOsrm(pts);
+  if (!con) throw new Error("No pudimos calcular la ruta en este momento. Intente de nuevo en unos minutos o escríbanos por WhatsApp.");
+  if (con.km > 120) throw new Error(`Viaje largo (${con.km} km): se lo cotizamos por WhatsApp al +56 9 2227 5399.`);
   const { data: e } = await sb.from("empresas").select("taxi_bajada, taxi_cada_200m, valor_tag").eq("id", empresaId).single();
   const { data: T } = await sb.from("tarifas_aeropuerto").select("ida, van").eq("empresa_id", empresaId);
   const fs = (T || []).map((r: any) => r.van / r.ida).filter((x: number) => x > 1 && x < 3).sort((a: number, b: number) => a - b);
   const factorVan = fs.length ? fs[Math.floor(fs.length / 2)] : 1.35;
-  const auto = Math.max(5000, (e?.taxi_bajada ?? 2400) + Math.ceil(km * 5) * (e?.taxi_cada_200m ?? 180));
-  // TAG: pórticos de la ruta x valor por pórtico (hoy $900, criterio Servimóvil). Las casetas de peaje troncal se informan aparte.
-  const enRuta = geo.length > 1 || nodos.length ? porticosEnRuta(geo, await porticos(sb), nodos) : [];
-  const nPort = enRuta.filter((p) => !p.caseta).length, casetas = enRuta.filter((p) => p.caseta).map((p) => p.nombre);
-  const tag = nPort * (e?.valor_tag ?? 900);
-  const base = redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto);
-  return { zona: null, ida: base + tag, regreso: null, estimado: true, km, min, base, porticos: nPort, tag, casetas, nombres_porticos: enRuta.filter((p) => !p.caseta).map((p) => p.nombre),
-    vehiculo: veh, van_forzada: vanForzada };
+  const lista = await porticos(sb), valorTag = e?.valor_tag ?? 900;
+  // Valor de una ruta: taxímetro por km + TAG ($900 por pórtico; las casetas de peaje troncal se informan aparte)
+  const valorar = (ru: Ruta) => {
+    const auto = Math.max(5000, (e?.taxi_bajada ?? 2400) + Math.ceil(ru.km * 5) * (e?.taxi_cada_200m ?? 180));
+    const enRuta = ru.geo.length > 1 || ru.nodos.length ? porticosEnRuta(ru.geo, lista, ru.nodos) : [];
+    const pp = enRuta.filter((p) => !p.caseta), nPort = pp.length, tag = nPort * valorTag;
+    const base = redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto);
+    return { ida: base + tag, km: ru.km, min: ru.min, base, porticos: nPort, tag, casetas: enRuta.filter((p) => p.caseta).map((p) => p.nombre),
+      nombres_porticos: pp.map((p) => p.nombre), porticos_mapa: pp.map((p) => ({ n: p.nombre, lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) })), ruta: rutaParaMapa(ru.geo) };
+  };
+  const vCon = valorar(con);
+  // La opción sin autopista solo se calcula si la ruta rápida tiene pórticos
+  let vSin: ReturnType<typeof valorar> | null = null;
+  if (vCon.porticos > 0) { const sin = await rutaSinAutopista(pts); if (sin && sin.km <= 120) { const vs = valorar(sin); if (vs.porticos < vCon.porticos) vSin = vs; } }
+  const eligeSin = b.sin_autopista === true && vSin != null;
+  const v = eligeSin ? vSin! : vCon;
+  return { zona: null, ...v, regreso: null, estimado: true, sin_autopista: eligeSin,
+    alternativas: { con: vCon, sin: vSin }, vehiculo: veh, van_forzada: vanForzada };
 }
 
 // ---------- Acciones ----------
@@ -256,7 +312,8 @@ async function pagar(req: Request) {
   if (tipo === "punto_a_punto") tramos.push({ ...base, tipo_servicio: "punto_a_punto", fecha_hora: fh.toISOString(), origen: txt(o.texto, 300), origen_lat: +o.lat, origen_lng: +o.lng,
     destino: txt(d.texto, 300), destino_lat: +d.lat, destino_lng: +d.lng, retiro_detalle: txt(b.retiro_detalle, 200), monto: p.ida, estimado: p.estimado, km: p.km,
     porticos: (p as any).porticos ?? 0, tag: (p as any).tag ?? 0,
-    comentarios: [base.comentarios, (p as any).porticos ? `Incluye TAG: ${(p as any).porticos} pórtico(s) = $${(p as any).tag}.` : "",
+    comentarios: [(p as any).sin_autopista ? "RUTA SIN AUTOPISTAS: el pasajero eligió y pagó el viaje sin autopistas (no usar autopistas con TAG)." : "",
+      base.comentarios, (p as any).porticos ? `Incluye TAG: ${(p as any).porticos} pórtico(s) = $${(p as any).tag} (${((p as any).nombres_porticos || []).join(", ")}).` : "",
       (p as any).casetas?.length ? `Ruta con peaje troncal: ${(p as any).casetas.join(", ")} (no incluido).` : ""].filter(Boolean).join(" ") });
 
   const orden = "FKW-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
@@ -314,6 +371,17 @@ Deno.serve(async (req) => {
       const sb = db(), b = await req.json().catch(() => ({}));
       const { data: emp } = await sb.from("empresas").select("id").eq("slug", "flota-k").single();
       try { return json(await cotizar(sb, emp!.id, b)); } catch (e) { return json({ error: (e as Error).message }, 400); }
+    }
+    if (accion === "porticos" && req.method === "POST") {
+      // { puntos: [{lat, lng}, ...] } (origen, paradas, destino) → pórticos de la ruta más rápida
+      const b = await req.json().catch(() => ({})) as any;
+      const puntos = (Array.isArray(b.puntos) ? b.puntos : []).map((x: any) => ({ lat: +x.lat, lng: +x.lng })).filter((x: any) => enChile(x.lat, x.lng)).slice(0, 12);
+      if (puntos.length < 2) return json({ error: "Faltan el origen y el destino" }, 400);
+      const ru = await rutaOsrm(puntos);
+      if (!ru) return json({ error: "No pudimos calcular la ruta" }, 502);
+      const sb = db(), pp = porticosEnRuta(ru.geo, await porticos(sb), ru.nodos).filter((p) => !p.caseta);
+      const { data: e } = await sb.from("empresas").select("valor_tag").eq("slug", "flota-k").single();
+      return json({ porticos: pp.length, valor_tag: e?.valor_tag ?? 900, tag: pp.length * (e?.valor_tag ?? 900), km: ru.km, nombres: pp.map((p) => p.nombre) });
     }
     if (accion === "sector") {
       const lat = Number(u.searchParams.get("lat")), lng = Number(u.searchParams.get("lng"));

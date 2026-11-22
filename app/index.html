@@ -205,6 +205,7 @@
         <div class="f"><label for="com">Comentarios (opcional)</label><textarea id="com" rows="2" maxlength="500" placeholder="Mascota en canil, silla de ruedas plegable, etc."></textarea></div>
 
         <div class="precio" id="precio"><span id="precio-l" class="small">Valor</span><b id="precio-v">—</b></div>
+        <div id="ruta-vista" hidden></div>
         <div id="msg" class="msg" hidden></div>
         <button class="btn" type="submit" id="enviar">Solicitar reserva</button>
         <p class="small muted" style="margin:0">Le confirmamos cada reserva. Antes del viaje verá aquí a su conductor y su vehículo, y podrá seguirlo en vivo. Para viajes en menos de 2 horas, escríbanos por WhatsApp.</p>
@@ -422,6 +423,7 @@ document.querySelectorAll(".px-nav button").forEach(b => b.addEventListener("cli
 
 // ================= RESERVAR =================
 let tipo = "ida", veh = "auto", zona = null, ruta = null, rutaKey = "";
+let sinAuto = false, vistaKey = ""; // punto a punto: el pasajero eligió la ruta sin autopista
 const lugDom = FKLugar.montar($("dom"), { alCambiar: () => precio() });
 const lugDest = FKLugar.montar($("dest"), { alCambiar: () => precio() });
 const cont = { pax: 1, mal: 1 };
@@ -499,8 +501,11 @@ function calcular() {
     // Valor del servidor (el mismo de /reservar): ruta real + $900 por pórtico TAG
     const sv = ruta.srv;
     if (sv && sv.error) return { srvError: sv.error };
-    if (sv && sv.ida) return { ida: sv.ida, estimado: !!sv.estimado, km: sv.km, porticos: sv.porticos || 0, tag: sv.tag || 0,
-      nota: sv.km != null ? `${String(sv.km).replace(".", ",")} km · ~${sv.min} min · ${FKCotizar.textoTag(sv)}` : (sv.nota || "Tarifa fija por tramo") };
+    if (sv && sv.ida) {
+      const o = FKCotizar.opcion(sv, sinAuto), esSin = !!(sinAuto && sv.alternativas && sv.alternativas.sin);
+      return { ida: o.ida, estimado: !!sv.estimado, km: o.km, porticos: o.porticos || 0, tag: o.tag || 0, nombres: o.nombres_porticos || [], sinAuto: esSin,
+        nota: o.km != null ? `${esSin ? "Sin autopista · " : ""}${String(o.km).replace(".", ",")} km · ~${o.min} min · ${FKCotizar.textoTag(o)}` : (sv.nota || "Tarifa fija por tramo") };
+    }
     if (ruta.km > 120) return { lejos: true, km: ruta.km };
     return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""} · más TAG según los pórticos de la ruta` };
   }
@@ -513,7 +518,7 @@ function calcular() {
 async function actualizarRuta() {
   const a = lugDom.get(), b = lugDest.get();
   const k = a && b ? [a.lat, a.lng, b.lat, b.lng, veh].join(",") : "";
-  if (k === rutaKey) return; rutaKey = k; ruta = null;
+  if (k === rutaKey) return; rutaKey = k; ruta = null; sinAuto = false;
   if (!k) return;
   const [r, sv] = await Promise.all([FKLugar.ruta(a, b),
     FKCotizar.puntoAPunto({ texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng }, veh)]);
@@ -523,6 +528,9 @@ function precio() {
   sugerirZona();
   if (tipo === "punto_a_punto") actualizarRuta();
   const p = calcular(), L = $("precio-l"), V = $("precio-v");
+  // Mapa con la ruta, los pórticos TAG y la opción sin autopista (solo punto a punto con valor del servidor)
+  const sv = tipo === "punto_a_punto" && ruta && ruta.srv && ruta.srv.alternativas ? ruta.srv : null, vk = sv ? rutaKey + "|" + sinAuto : "";
+  if (vk !== vistaKey) { vistaKey = vk; FKCotizar.vista($("ruta-vista"), sv, { sin: sinAuto, alElegir: s => { sinAuto = s; precio(); } }); }
   if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
   if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
   if (p.aeropuerto) { L.innerHTML = "Su viaje es desde o hacia el aeropuerto: elija <b>Al aeropuerto</b> o <b>Desde el aeropuerto</b> para su tarifa fija."; V.textContent = "—"; return; }
@@ -589,7 +597,8 @@ $("f").addEventListener("submit", async e => {
   if (tipo === "punto_a_punto") tramos.push({ ...base, p_tipo_servicio: "punto_a_punto", p_fecha_hora: iso, p_origen: domTxt, p_destino: $("dest").value.trim(),
     p_origen_lat: dom.lat, p_origen_lng: dom.lng, p_destino_lat: dest.lat, p_destino_lng: dest.lng,
     p_tarifa: p.ida ?? null, p_tarifa_estimada: !!p.estimado, p_km: p.km ?? null, p_retiro_detalle: $("det").value.trim() || null,
-    p_comentarios: [p.porticos ? `Incluye TAG: ${p.porticos} pórtico(s) = $${p.tag}.` : "", com].filter(Boolean).join(" ") || null });
+    p_comentarios: [p.sinAuto ? "RUTA SIN AUTOPISTAS: el pasajero eligió el viaje sin autopistas (no usar autopistas con TAG)." : "",
+      p.porticos ? `Incluye TAG: ${p.porticos} pórtico(s) = $${p.tag} (${(p.nombres || []).join(", ")}).` : "", com].filter(Boolean).join(" ") || null });
 
   $("enviar").disabled = true; $("enviar").textContent = "Enviando…";
   const codigos = [];

@@ -531,6 +531,7 @@ details.paso > summary { cursor: pointer; }
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/autos.js"></script>
 <script src="/assets/lugar.js"></script>
+<script src="/assets/cotizar.js"></script>
 <script src="/assets/carga.js"></script>
 <script src="/assets/paradas.js"></script>
 <script>
@@ -2771,7 +2772,8 @@ async function pintarCobro(r) {
     ${c.observacion_conductor && !c.observacion_revisada ? `<div class="actions"><button class="btn ghost sm" id="obs-ok" type="button">Marcar observación como revisada</button></div>` : ""}
     <div class="row3">
       <div class="f"><label for="g-tipo">Agregar gasto</label><select id="g-tipo"><option value="tag">TAG (${clp(t.valor_tag)} c/u)</option><option value="peaje">Peaje</option><option value="estacionamiento">Estacionamiento</option><option value="otro">Otro</option></select></div>
-      <div class="f"><label for="g-monto">Monto o cantidad de TAG</label><input id="g-monto" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="f"><label for="g-monto">Monto o cantidad de TAG</label><input id="g-monto" type="number" min="0" step="1" inputmode="numeric">
+        <button class="btn ghost sm" type="button" id="g-tag-ruta" style="margin-top:4px">🛣 Calcular TAG de la ruta</button><span class="small muted" id="g-tag-info"></span></div>
       <div class="f"><label for="g-desc">Detalle</label><input id="g-desc" maxlength="200"></div>
     </div>
     <div class="actions"><button class="btn ghost sm" id="g-add" type="button">Agregar gasto</button></div>
@@ -2791,6 +2793,15 @@ async function pintarCobro(r) {
     const { error } = await sb.from("reserva_gastos").delete().eq("id", b.dataset.g);
     if (error) return msg("c-msg", errText(error), "err"); recargar();
   }));
+  // Pórticos de la ruta (origen, paradas, destino) según el mapa de pórticos de la base
+  $("g-tag-ruta")?.addEventListener("click", async () => {
+    $("g-tag-info").textContent = " Calculando…";
+    const j = window.FKCotizar ? await FKCotizar.porticosRuta(FKCotizar.puntosReserva(r)) : null;
+    if (!j) { $("g-tag-info").textContent = " No se pudo calcular (revise que origen y destino tengan punto en el mapa)."; return; }
+    $("g-tipo").value = "tag"; $("g-monto").value = j.porticos;
+    $("g-tag-info").textContent = j.porticos ? ` ${j.porticos} pórtico(s): ${j.nombres.join(", ")}. Toque "Agregar" para guardarlo.` : " La ruta no pasa por pórticos TAG.";
+    if (!$("g-desc").value) $("g-desc").value = j.porticos ? "Según la ruta: " + j.nombres.join(", ") : "";
+  });
   $("g-add").addEventListener("click", async () => {
     const tipo = $("g-tipo").value, n = Number($("g-monto").value);
     if (!(n > 0)) return msg("c-msg", tipo === "tag" ? "Indique cuántos pórticos TAG." : "Indique el monto.", "err");
