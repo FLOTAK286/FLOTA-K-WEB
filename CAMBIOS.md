@@ -1,5 +1,13 @@
 # Cambios
 
+## 22 nov 2026 · Revisión general del sistema
+- Revisado: alertas de seguridad y rendimiento de Supabase, registros de errores de 24 h (base, funciones, API), sintaxis de las 27 páginas y archivos JS, enlaces internos, las 104 funciones de la base que llaman las páginas (existen y con los datos correctos), funciones del servidor, tareas programadas y consistencia de reservas y pagos.
+- **Corregido (seguridad):** la Edge Function `importar-osm` estaba abierta al público y cualquiera podía reemplazar los datos de mapa (`osm_datos`) que usa el cobro en línea. Quedó desactivada (v7, responde 410); los datos se reimportan desde la base con `pg_net`. Se verificó que los datos siguen intactos.
+- Etapa 72 (`etapa72_ajustes_revision`): `search_path` fijo en `negativo_texto` y `distancia_km`; se quitó el índice duplicado `reservas_conductor`; índices en `reserva_id` de `avisos_equipo`, `avisos_conductor` y `bolsa_avisos`.
+- **Pendiente (requiere aprobación del dueño):** la tarea `flotak-purgar-eliminadas` falla cada hora porque `purgar_reservas_eliminadas` no borra antes los avisos (`avisos_equipo`, `avisos_conductor`, `bolsa_avisos`) ni `reserva_paradas_espera`. Hay 4 reservas canceladas en la papelera (FK-9D57CC, FK-F2F9FF, FK-F36810, FK-277E6D). Corregirla las borraría definitivamente.
+- Sin cambios (revisado, está bien): las funciones con permisos elevados verifican quién llama (convenio, pasajero, admin); las tablas sin políticas (`osm_datos`, `solicitudes_pago`, etc.) están cerradas a propósito; el registro de pasajeros sigue activo, pero sin acceso de Flota-K no se puede reservar (bloqueo de la etapa 42).
+- Recomendado al dueño (gratis): activar en Supabase → Authentication → "Leaked password protection".
+
 ## 22 nov 2026 · Tarifa al aeropuerto a prueba de "elegir la más barata"
 - **El pasajero ya no elige el sector:** el valor lo decide siempre el punto marcado en el mapa, que es donde lo retira el conductor. Si mueve el punto para pagar menos, lo pasamos a buscar ahí.
 - Datos nuevos en `osm_datos`: `comunas_compactas` (límites de las 52 comunas de la RM + Valparaíso, Viña, Rancagua y Los Andes, ~2 MB), `localidades_sur` (Champa, Huelquén, etc.) y 192 tramos de calles límite agregados a `divisiones` (Camino Otoñal, San Damián, Av. La Plaza, El Golf de Manquehue, P. L. Urquieta, B. Larraín Cotapos, Av. Chicureo, Lo Arcaya, Esmeralda, Virginia Subercaseaux). `comunas_rm` (versión completa, 8 MB) quedó guardada pero no se usa: era demasiado lenta.
