@@ -9,6 +9,7 @@
 //   (https://sandbox.flow.cl/api para pruebas, https://www.flow.cl/api para cobrar de verdad).
 // Se publica con verify_jwt = false (Flow no envía la sesión de Supabase).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { prepararDatos, sectorPorUbicacion, comunaDe, type Datos } from "./sector.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -102,16 +103,60 @@ function porticosEnRuta(ruta: number[][], lista: Portico[]) { // ruta = [[lng, l
   return res;
 }
 
+// ---------- Sector de tarifa según el punto (comunas con varias tarifas) ----------
+let DATOS_SECTOR: Datos | null = null, sectorCargado = 0;
+async function datosSector(sb: ReturnType<typeof db>) {
+  if (DATOS_SECTOR && Date.now() - sectorCargado < 3600e3) return DATOS_SECTOR;
+  const { data } = await sb.from("osm_datos").select("clave, datos").in("clave", ["divisiones", "localidades", "comunas"]);
+  const m = Object.fromEntries((data || []).map((x: any) => [x.clave, x.datos]));
+  DATOS_SECTOR = prepararDatos(m.divisiones, m.localidades, m.comunas); sectorCargado = Date.now();
+  return DATOS_SECTOR;
+}
+// Comuna del punto (Photon y, de respaldo, Nominatim; ambos gratis). Si ninguno responde, no se corrige el sector.
+const UA = { "User-Agent": "Flota-K/1.0 (https://fk-servicios.com)", "Accept-Language": "es" };
+async function comunasDe(lat: number, lng: number): Promise<string[]> {
+  try {
+    const r = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`, { headers: UA, signal: AbortSignal.timeout(8000) });
+    const pr = ((await r.json()).features || [])[0]?.properties || {};
+    const cs = [pr.city, pr.district, pr.locality, pr.municipality, pr.town, pr.village].filter(Boolean);
+    if (cs.length) return cs;
+  } catch (_) { /* respaldo */ }
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&zoom=14`, { headers: UA, signal: AbortSignal.timeout(8000) });
+    const a = (await r.json()).address || {};
+    return [a.suburb, a.city, a.town, a.village, a.municipality, a.city_district].filter(Boolean);
+  } catch (_) { return []; }
+}
+async function detectarSector(sb: ReturnType<typeof db>, lat: number, lng: number) {
+  // Primero con los límites de comunas guardados (no depende de servicios externos); si el punto no cae en ninguna
+  // de las comunas con varias tarifas, no hay nada que corregir.
+  const d = await datosSector(sb);
+  const comuna = comunaDe(d, { lat, lon: lng });
+  if (!comuna) return null;
+  return { comunas: [comuna], ...(sectorPorUbicacion(d, { lat, lon: lng }, [comuna]) || {}) };
+}
+
 // ---------- Precio (servidor) ----------
 type Tramo = Record<string, unknown>;
 async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<string, unknown>) {
   const tipo = String(b.tipo), veh = b.vehiculo === "van" ? "van" : "auto";
   if (tipo === "ida" || tipo === "regreso") {
-    const { data: z } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).eq("zona", String(b.zona ?? "")).maybeSingle();
+    // El sector lo define el punto marcado en el mapa (si la comuna tiene varias tarifas), no lo que eligió el pasajero
+    let zonaNombre = String(b.zona ?? ""), sectorAuto: string | null = null, motivo = "";
+    const o0 = b.origen as any;
+    if (o0 && enChile(+o0.lat, +o0.lng)) {
+      const ds = await detectarSector(sb, +o0.lat, +o0.lng);
+      if (ds?.zona) { if (ds.zona !== zonaNombre) sectorAuto = ds.zona; zonaNombre = ds.zona; motivo = ds.motivo ?? ""; }
+      else if (ds?.opciones?.length && !ds.opciones.includes(zonaNombre)) {
+        const { data: ops } = await sb.from("tarifas_aeropuerto").select("zona, ida").eq("empresa_id", empresaId).in("zona", ds.opciones).order("ida");
+        if (ops?.length) { sectorAuto = ops[0].zona; zonaNombre = ops[0].zona; motivo = ds.motivo ?? ""; }
+      }
+    }
+    const { data: z } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).eq("zona", zonaNombre).maybeSingle();
     if (!z) throw new Error("Elija su sector de la lista para calcular la tarifa fija.");
     const iv = tipo === "ida" && b.ida_vuelta === true;
     const ida = veh === "van" ? z.van : tipo === "regreso" ? z.regreso : z.ida;
-    return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null };
+    return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null, sector_auto: sectorAuto, motivo };
   }
   if (tipo !== "punto_a_punto") throw new Error("Tipo de servicio no válido.");
   const o = b.origen as any, d = b.destino as any;
@@ -257,6 +302,11 @@ Deno.serve(async (req) => {
       const sb = db(), b = await req.json().catch(() => ({}));
       const { data: emp } = await sb.from("empresas").select("id").eq("slug", "flota-k").single();
       try { return json(await cotizar(sb, emp!.id, b)); } catch (e) { return json({ error: (e as Error).message }, 400); }
+    }
+    if (accion === "sector") {
+      const lat = Number(u.searchParams.get("lat")), lng = Number(u.searchParams.get("lng"));
+      if (!enChile(lat, lng)) return json({ error: "Punto no válido" }, 400);
+      return json(await detectarSector(db(), lat, lng) ?? { error: "Sin comuna" });
     }
     if (accion === "confirmar") {
       const token = await tokenDe(req);

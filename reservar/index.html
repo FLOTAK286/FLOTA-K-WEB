@@ -94,7 +94,7 @@
           <label for="zona">Su sector (para la tarifa fija)</label>
           <input id="zona" type="text" autocomplete="off" placeholder="Escriba su comuna, por ejemplo: Providencia">
           <div class="zona-sug" id="zona-sug" hidden></div>
-          <span class="small muted">Algunas comunas tienen más de un sector según la calle. Elija el suyo.</span>
+          <span class="small muted" id="zona-ayuda">Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.</span>
         </div>
 
         <div class="f lugar-f" id="b-dom">
@@ -288,16 +288,29 @@ function calcular() {
 }
 // Valor punto a punto: lo calcula el servidor (ruta real + pórticos TAG), el mismo que se cobra
 let cotServ = null;
-const claveCot = () => { const a = lugDom.get(), b = lugDest.get(); return a && b ? [a.lat, a.lng, b.lat, b.lng, veh, $("dom").value.trim(), $("dest").value.trim()].join("|") : ""; };
+const claveCot = () => {
+  const a = lugDom.get(); if (!a) return "";
+  if (tipo !== "punto_a_punto") return ["aero", tipo, a.lat, a.lng, veh, $("iv").checked, zona ? zona[0] : ""].join("|");
+  const b = lugDest.get(); return b ? [a.lat, a.lng, b.lat, b.lng, veh, $("dom").value.trim(), $("dest").value.trim()].join("|") : "";
+};
 async function cotizarServidor() {
   const k = claveCot(); if (!k || (cotServ && cotServ.key === k) || cotizarServidor.k === k) return;
   cotizarServidor.k = k;
-  const a = lugDom.get(), b = lugDest.get();
+  const a = lugDom.get(), b = tipo === "punto_a_punto" ? lugDest.get() : null;
   try {
     const r = await fetch(FN + "?accion=cotizar", { method: "POST", headers: { "Content-Type": "application/json", apikey: FK_CONFIG.anonKey, Authorization: "Bearer " + FK_CONFIG.anonKey },
-      body: JSON.stringify({ tipo: "punto_a_punto", vehiculo: veh, origen: { texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, destino: { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng } }) });
+      body: JSON.stringify({ tipo, vehiculo: veh, zona: zona ? zona[0] : null, ida_vuelta: tipo === "ida" && $("iv").checked,
+        origen: { texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, destino: b ? { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng } : null }) });
     const j = await r.json().catch(() => ({}));
-    if (claveCot() === k) { cotServ = { ...j, key: k }; precio(); }
+    if (claveCot() === k) {
+      // Viajes al/desde el aeropuerto: el sector lo define la dirección marcada (comunas con varias tarifas)
+      if (tipo !== "punto_a_punto" && j.zona && (!zona || zona[0] !== j.zona)) {
+        const z = T.find(r => r[0] === j.zona);
+        if (z) { zona = z; $("zona").value = z[0]; }
+      }
+      if (tipo !== "punto_a_punto") $("zona-ayuda").textContent = j.zona && j.motivo ? `Sector según su dirección: ${j.zona} (${j.motivo}).` : "Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.";
+      cotServ = { ...j, key: claveCot() }; precio();
+    }
   } catch (_) { if (claveCot() === k) { cotServ = { error: "Sin conexión para calcular el valor. Revise su internet.", key: k }; precio(); } }
   cotizarServidor.k = null;
 }
@@ -313,7 +326,7 @@ let montoAceptado = null; // valor que informó el servidor (si difiere del calc
 function precio() {
   montoAceptado = null;
   sugerirZona();
-  if (tipo === "punto_a_punto") cotizarServidor();
+  cotizarServidor();
   const p = calcular(), L = $("precio-l"), V = $("precio-v");
   if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
   if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }

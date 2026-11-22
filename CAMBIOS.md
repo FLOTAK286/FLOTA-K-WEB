@@ -1,10 +1,13 @@
 # Cambios
 
-## 22 nov 2026 · TAG automático en el punto a punto (en curso)
-- Pórticos TAG desde OpenStreetMap (tabla `osm_datos`, etapa 71a aplicada; Edge Function `importar-osm`, abrir `?que=porticos` / `?que=divisiones`): 157 pórticos + 13 casetas en la RM, con el sentido de cada calzada.
-- Función `flow` v6: el punto a punto suma **$900 por pórtico** (`empresas.valor_tag`, criterio Servimóvil) que la ruta cruza (a < 25 m y en el mismo sentido). Las casetas de peaje troncal se anotan en la reserva pero no se cobran. Nueva acción `cotizar`: la página /reservar muestra el valor del servidor (km, minutos y TAG). Página: **pendiente de publicar**.
-- Pendiente: sector de tarifa según el punto del mapa (comunas con varias tarifas) y TAG prellenado en el cierre del conductor.
-
+## 22 nov 2026 · TAG automático y sector según la dirección (cobro en línea)
+- Datos de OpenStreetMap en `osm_datos` (etapa 71a): `porticos` (157 pórticos TAG + 13 casetas, con sentido), `divisiones` (avenidas límite: Manquehue, Paul Harris, V. Pérez Rosales, Las Perdices, Tobalaba, Av. La Florida, Irarrázaval…), `localidades` (2.750 barrios/lugares) y `comunas` (límites oficiales de las 13 comunas con varias tarifas). Se importan con `pg_net` desde la base (etapa 71b) o con la Edge Function `importar-osm` (en segundo plano).
+- Función `flow` v9:
+  - **Punto a punto:** suma **$900 por pórtico** TAG que cruza la ruta (`empresas.valor_tag`, criterio Servimóvil; < 25 m y mismo sentido). Casetas de peaje troncal: se anotan, no se cobran. Acción `cotizar`: la página muestra km, minutos y TAG.
+  - **Aeropuerto en comunas con varias tarifas:** el sector lo define el punto marcado (`sector.ts`, límites aprobados por el dueño), no lo que elige el pasajero. Las Condes (Manquehue / Paul Harris; al oriente de Paul Harris, una de San Carlos de Apoquindo), Vitacura (Manquehue), La Reina (V. P. Rosales / Las Perdices), Peñalolén (Tobalaba / Las Perdices), La Florida (Av. La Florida / Las Perdices), Ñuñoa (norte/sur de Irarrázaval), Maipú (Ciudad Satélite; oriente/poniente de la Plaza), Puente Alto (Las Vizcachas), San Bernardo (Nos), Lampa (Batuco, Valle Grande, Chicauma), Lo Barnechea (El Arrayán), Colina/Chicureo y Pirque (por localidad; si no se puede precisar, se acepta la elección dentro de la comuna o la más barata de la comuna). Probado con 16 puntos reales.
+  - Acción `sector` (lat, lng) para revisar un punto.
+- Página /reservar: elige sola el sector al marcar la dirección y lo explica ("Sector según su dirección: …"). **Pendiente de publicar.**
+- Pendiente: TAG prellenado en el cierre del conductor (servicios con taxímetro creados en el panel).
 
 ## 22 nov 2026 · Reserva por enlace con pago antes de reservar (Flow) (rama `reserva-por-enlace`, sin publicar)
 - Página nueva **/reservar/** (sin cuenta, `noindex`) para el enlace que envía el agente de WhatsApp. El pasajero completa el viaje y sus datos (correo obligatorio: comprobante de Flow), ve el valor y toca **"Pagar y reservar"**. Admite `?tipo=regreso` o `?tipo=punto_a_punto`.

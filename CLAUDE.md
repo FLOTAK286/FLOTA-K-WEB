@@ -41,7 +41,7 @@ Diseño **multiempresa** desde el inicio (cada dato pertenece a una empresa). Em
 ## Reglas de seguridad
 - Nunca subir claves secretas (`service_role`, contraseña de la base). En el frontend solo URL + `anon`.
 - Toda tabla con Row Level Security. La seguridad la aplica la base de datos.
-- Reserva al público pausada (`crear_reserva_publica` y `crear_reserva_app` sin permiso). Excepción: `/reservar/` con pago previo en Flow (Edge Function `flow`, `solicitudes_pago`, `crear_reservas_pagadas`): la reserva solo se crea pagada. **Tarifario en dos lugares:** `assets/tarifas.js` (lo que se muestra) y tablas `tarifas_aeropuerto`/`tarifas_tramos` (lo que se cobra): cambiar ambos. Empresas con convenio: `crear_reserva_convenio`. Cambios de estado con `cambiar_estado_reserva` (deja nota en `reserva_eventos`).
+- Reserva al público pausada (`crear_reserva_publica` y `crear_reserva_app` sin permiso). Excepción: `/reservar/` con pago previo en Flow (Edge Function `flow`, `solicitudes_pago`, `crear_reservas_pagadas`): la reserva solo se crea pagada. **Tarifario en dos lugares:** `assets/tarifas.js` (lo que se muestra) y tablas `tarifas_aeropuerto`/`tarifas_tramos` (lo que se cobra): cambiar ambos. Sector por ubicación y TAG por pórtico: `supabase/functions/flow/sector.ts` y `osm_datos` (OpenStreetMap; reimportar con `pg_net` si cambian calles o pórticos). Empresas con convenio: `crear_reserva_convenio`. Cambios de estado con `cambiar_estado_reserva` (deja nota en `reserva_eventos`).
 - Nada se borra: las reservas se cancelan.
 - Fechas: el usuario escribe hora de Chile; convertir con `FK.chileLocalToISO` (considera horario de verano).
 
