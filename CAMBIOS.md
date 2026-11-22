@@ -5,7 +5,8 @@
 - **La reserva se crea solo cuando Flow confirma el pago**: antes es una "solicitud de pago" (tabla `solicitudes_pago`, no aparece en el panel). Pagada → reserva(s) **confirmada(s) y pagada(s)** (canal `whatsapp`, comentario "PAGADA EN LÍNEA con Flow (orden …)", aviso "📅 Reserva nueva"). Ida y vuelta = dos reservas con un solo pago. Sin pago: vence a los 40 min (cron `flotak-solicitudes-vencer`).
 - **El precio lo calcula el servidor**: tablas `tarifas_aeropuerto` (tarifario 2026) y `tarifas_tramos` (Oriente ↔ costa); punto a punto con la ruta real (OSRM) y el taxímetro de la empresa; más de 120 km o sin ruta → WhatsApp. Si el valor de la página difiere, se muestra el del servidor antes de cobrar. Se verifica que el monto pagado sea exacto.
 - Edge Function **`flow`** (verify_jwt = false): `pagar`, `confirmar` (aviso de Flow), `volver` (regreso del pasajero → /reservar/?pago=<id>), `estado`. Secretos: `FLOW_API_KEY`, `FLOW_SECRET_KEY`, `FLOW_API_URL`.
-- **Prueba (22 nov):** zona "PRUEBA Flota-K (no reservar)" de $1.000 en `tarifas_aeropuerto` y en la página solo con `?prueba=1`. Quitar ambas después de la prueba.
+- **Prueba OK (22 nov, 16:08):** pago real de $1.000 por Webpay (N° Flow 189598213) creó FK-1AC585 confirmada y pagada con aviso a Operaciones; anulada después. Zona "PRUEBA Flota-K (no reservar)": **sigue en `tarifas_aeropuerto` (borrarla pidió confirmación) y en la página con `?prueba=1`; quitar ambas**.
+- Después de la prueba: la dirección de retiro/destino no puede ser el aeropuerto en "Al/Desde el aeropuerto" (página y función `flow` v5).
 - **Instalado el 22 nov (aprobado por el dueño):** etapa 70 aplicada en Supabase (versión 20261122183848) y Edge Function `flow` publicada (verify_jwt = false). **Sin activar:** faltan los secretos de Flow, la prueba de pago, publicar /reservar en `main` y cambiar el agente de WhatsApp.
 
 ## 22 nov 2026 · Editar los datos de una reserva

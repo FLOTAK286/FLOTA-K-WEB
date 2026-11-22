@@ -111,6 +111,8 @@ async function pagar(req: Request) {
   if (+fh > Date.now() + 365 * 864e5) return json({ error: "La fecha es demasiado lejana." }, 400);
   const o = b.origen ?? {};
   if (!enChile(+o.lat, +o.lng) || txt(o.texto, 300).length < 3) return json({ error: "Marque en el mapa el punto exacto de retiro." }, 400);
+  if (String(b.tipo) !== "punto_a_punto" && distKm({ lat: +o.lat, lng: +o.lng }, AERO) < 3)
+    return json({ error: "La dirección de retiro (o de destino, si viene desde el aeropuerto) debe ser su domicilio u otro lugar, no el aeropuerto." }, 400);
   const pax = Math.min(15, Math.max(1, parseInt(b.pasajeros) || 1)), mal = Math.min(30, Math.max(0, parseInt(b.maletas) || 0));
 
   // Control de abuso

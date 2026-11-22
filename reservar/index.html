@@ -319,6 +319,7 @@ $("f").addEventListener("submit", async e => {
   if (aero && !zona) { $("zona").focus(); return msg("msg", "Elija su sector de la lista para calcular la tarifa fija.", "err"); }
   if (!$("dom").value.trim()) { $("dom").focus(); return msg("msg", "Escriba la dirección.", "err"); }
   if (!lugDom.exigir()) return msg("msg", "Marque en el mapa el punto exacto: elija una sugerencia o toque el mapa.", "err");
+  if (aero && FKLugar.enAeropuerto(lugDom.get(), $("dom").value)) { $("dom").focus(); return msg("msg", tipo === "regreso" ? "Escriba la dirección a donde lo llevamos (su destino), no el aeropuerto." : "Escriba la dirección donde lo retiramos, no el aeropuerto.", "err"); }
   if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("msg", "Escriba el destino y marque su punto en el mapa.", "err");
   const p = calcular() || {};
   if (p.aeropuerto) return msg("msg", "Para viajes desde o hacia el aeropuerto elija «Al aeropuerto» o «Desde el aeropuerto»: tienen tarifa fija.", "err");
