@@ -142,21 +142,28 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const tipo = String(b.tipo), veh = b.vehiculo === "van" ? "van" : "auto";
   if (tipo === "ida" || tipo === "regreso") {
     // El sector lo define el punto marcado en el mapa (si la comuna tiene varias tarifas), no lo que eligió el pasajero
-    let zonaNombre = String(b.zona ?? ""), sectorAuto: string | null = null, motivo = "";
+    let zonaNombre = String(b.zona ?? ""), sectorAuto: string | null = null, motivo = "", comuna = "";
+    let opciones: { zona: string; ida: number; regreso: number; van: number }[] | null = null, precisar = false;
     const o0 = b.origen as any;
     if (o0 && enChile(+o0.lat, +o0.lng)) {
       const ds = await detectarSector(sb, +o0.lat, +o0.lng);
+      comuna = ds?.comunas?.[0] ?? "";
       if (ds?.zona) { if (ds.zona !== zonaNombre) sectorAuto = ds.zona; zonaNombre = ds.zona; motivo = ds.motivo ?? ""; }
-      else if (ds?.opciones?.length && !ds.opciones.includes(zonaNombre)) {
-        const { data: ops } = await sb.from("tarifas_aeropuerto").select("zona, ida").eq("empresa_id", empresaId).in("zona", ds.opciones).order("ida");
-        if (ops?.length) { sectorAuto = ops[0].zona; zonaNombre = ops[0].zona; motivo = ds.motivo ?? ""; }
+      else if (ds?.opciones?.length) {
+        // La dirección no basta para saber el sector: el pasajero debe precisarlo entre las opciones de su comuna
+        const { data: ops } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).in("zona", ds.opciones).order("ida");
+        opciones = ops ?? []; motivo = ds.motivo ?? "";
+        if (!opciones.some((x) => x.zona === zonaNombre)) {
+          precisar = true;
+          if (opciones.length) zonaNombre = opciones[0].zona; // solo para mostrar un valor de referencia; no se cobra sin precisar
+        }
       }
     }
     const { data: z } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).eq("zona", zonaNombre).maybeSingle();
     if (!z) throw new Error("Elija su sector de la lista para calcular la tarifa fija.");
     const iv = tipo === "ida" && b.ida_vuelta === true;
     const ida = veh === "van" ? z.van : tipo === "regreso" ? z.regreso : z.ida;
-    return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null, sector_auto: sectorAuto, motivo };
+    return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null, sector_auto: sectorAuto, motivo, comuna, opciones, precisar };
   }
   if (tipo !== "punto_a_punto") throw new Error("Tipo de servicio no válido.");
   const o = b.origen as any, d = b.destino as any;
@@ -223,6 +230,7 @@ async function pagar(req: Request) {
 
   let p;
   try { p = await cotizar(sb, emp!.id, b); } catch (e) { return json({ error: (e as Error).message }, 400); }
+  if ((p as any).precisar) return json({ error: `Su dirección está en ${(p as any).comuna || "una comuna"} con varias tarifas: elija su sector exacto antes de pagar.`, precisar: true, opciones: (p as any).opciones }, 400);
   const total = p.ida + (p.regreso ?? 0);
   // Si el valor que vio el pasajero no coincide con el del servidor, se le muestra el correcto antes de cobrar
   if (Number(b.monto_visto) !== total) return json({ monto: total, cambio: true, error: `El valor de su viaje es $${total.toLocaleString("es-CL")}. Revíselo y toque de nuevo «Pagar y reservar».` }, 409);

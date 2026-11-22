@@ -67,6 +67,11 @@
   .contador { display: flex; align-items: center; gap: 10px; }
   .contador button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 1.2rem; cursor: pointer; }
   .contador output { min-width: 24px; text-align: center; font-weight: 700; font-size: 1.1rem; }
+  .precisar { border: 2px solid var(--gold); border-radius: 8px; padding: 12px; display: grid; gap: 8px; background: var(--panel); }
+  .precisar b { color: var(--gold); }
+  .precisar .ops { display: grid; gap: 6px; }
+  .precisar .ops button { text-align: left; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 10px 12px; font: inherit; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+  .precisar .ops button.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); font-weight: 700; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -94,6 +99,7 @@
           <label for="zona">Su sector (para la tarifa fija)</label>
           <input id="zona" type="text" autocomplete="off" placeholder="Escriba su comuna, por ejemplo: Providencia">
           <div class="zona-sug" id="zona-sug" hidden></div>
+          <div id="precisar" class="precisar" hidden></div>
           <span class="small muted" id="zona-ayuda">Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.</span>
         </div>
 
@@ -101,6 +107,7 @@
           <label for="dom" id="dom-l">Dirección de retiro</label>
           <div class="favs" id="favs-dom"></div>
           <input id="dom" type="text" placeholder="Calle y número, o nombre del lugar">
+          <span class="small muted">Elija su dirección de la lista y revise que el pin quede en la entrada exacta (puede moverlo): con ese punto calculamos su tarifa.</span>
         </div>
         <div class="f lugar-f" id="b-dest" hidden>
           <label for="dest">Destino</label>
@@ -280,12 +287,28 @@ function calcular() {
       : (c.nota || "Tarifa fija por tramo");
     return { ida: c.ida, estimado: false, nota, km: c.km };
   }
+  if (cotServ && cotServ.key === claveCot() && cotServ.precisar) return { error: "Elija arriba su sector exacto para ver el valor." };
   if (!zona) return null;
   const iv = tipo === "ida" && $("iv").checked;
   if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null };
   if (tipo === "regreso") return { ida: zona[2] };
   return { ida: zona[1], regreso: iv ? zona[1] : null };
 }
+// Comunas con varias tarifas donde la dirección no basta: el pasajero debe elegir su sector exacto
+function pintarPrecisar(j) {
+  const box = $("precisar");
+  if (!j || !j.opciones || !j.opciones.length) { box.hidden = true; box.innerHTML = ""; return; }
+  const precio = o => veh === "van" ? o.van : tipo === "regreso" ? o.regreso : o.ida;
+  box.hidden = false;
+  box.innerHTML = `<span>${j.precisar ? "<b>Precise su sector:</b> " : "Sector elegido. "}Su dirección está en <b>${esc(j.comuna || "una comuna")}</b>, que tiene varias tarifas según la calle${j.motivo && j.motivo !== j.comuna ? ` (${esc(j.motivo)})` : ""}. ${j.precisar ? "Elija el que corresponde a su dirección:" : "Si no es el suyo, cámbielo:"}</span>
+    <div class="ops">${j.opciones.map(o => `<button type="button" data-z="${esc(o.zona)}" class="${zona && zona[0] === o.zona && !j.precisar ? "on" : ""}"><span>${esc(o.zona)}</span><span class="muted">${clp(precio(o))}</span></button>`).join("")}</div>
+    <span class="small muted">¿No sabe cuál es? Escríbanos por WhatsApp al +56 9 2227 5399 y se lo indicamos.</span>`;
+  box.querySelectorAll("[data-z]").forEach(btn => btn.onclick = () => {
+    const z = T.find(r => r[0] === btn.dataset.z); if (!z) return;
+    zona = z; $("zona").value = z[0]; msg("msg", ""); precio_();
+  });
+}
+const precio_ = () => precio();
 // Valor punto a punto: lo calcula el servidor (ruta real + pórticos TAG), el mismo que se cobra
 let cotServ = null;
 const claveCot = () => {
@@ -304,11 +327,15 @@ async function cotizarServidor() {
     const j = await r.json().catch(() => ({}));
     if (claveCot() === k) {
       // Viajes al/desde el aeropuerto: el sector lo define la dirección marcada (comunas con varias tarifas)
-      if (tipo !== "punto_a_punto" && j.zona && (!zona || zona[0] !== j.zona)) {
+      if (tipo !== "punto_a_punto" && j.zona && !j.precisar && (!zona || zona[0] !== j.zona)) {
         const z = T.find(r => r[0] === j.zona);
         if (z) { zona = z; $("zona").value = z[0]; }
       }
-      if (tipo !== "punto_a_punto") $("zona-ayuda").textContent = j.zona && j.motivo ? `Sector según su dirección: ${j.zona} (${j.motivo}).` : "Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.";
+      if (tipo !== "punto_a_punto") {
+        pintarPrecisar(j);
+        $("zona-ayuda").textContent = j.precisar || (j.opciones && j.opciones.length) ? ""
+          : j.zona && j.motivo ? `Sector según su dirección: ${j.zona} (${j.motivo}).` : "Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.";
+      }
       cotServ = { ...j, key: claveCot() }; precio();
     }
   } catch (_) { if (claveCot() === k) { cotServ = { error: "Sin conexión para calcular el valor. Revise su internet.", key: k }; precio(); } }
@@ -344,7 +371,7 @@ function precio() {
 $("f").addEventListener("submit", async e => {
   e.preventDefault(); msg("msg", "");
   const aero = tipo !== "punto_a_punto";
-  if (aero && !zona) { $("zona").focus(); return msg("msg", "Elija su sector de la lista para calcular la tarifa fija.", "err"); }
+  if (aero && (!zona || (cotServ && cotServ.key === claveCot() && cotServ.precisar))) { if (!$("precisar").hidden) { $("precisar").scrollIntoView({ behavior: "smooth", block: "center" }); return msg("msg", "Precise su sector en el recuadro dorado (su comuna tiene varias tarifas).", "err"); } $("zona").focus(); return msg("msg", "Elija su sector de la lista para calcular la tarifa fija.", "err"); }
   if (!$("dom").value.trim()) { $("dom").focus(); return msg("msg", "Escriba la dirección.", "err"); }
   if (!lugDom.exigir()) return msg("msg", "Marque en el mapa el punto exacto: elija una sugerencia o toque el mapa.", "err");
   if (aero && FKLugar.enAeropuerto(lugDom.get(), $("dom").value)) { $("dom").focus(); return msg("msg", tipo === "regreso" ? "Escriba la dirección a donde lo llevamos (su destino), no el aeropuerto." : "Escriba la dirección donde lo retiramos, no el aeropuerto.", "err"); }
