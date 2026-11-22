@@ -1,5 +1,12 @@
 # Cambios
 
+## 22 nov 2026 · Solicitud de traslado para clientes de WhatsApp (etapa 69, en rama `etapa-69`)
+- Motivo: el asistente de IA de WhatsApp Business "anotaba" reservas solo en el chat (caso Laura, lun 23 17:45) y no llegaban al panel ni al conductor. Conectar WhatsApp directo al sistema (API con coexistencia) exige ser proveedor tecnológico de Meta o pagar un intermediario: se descartó por ahora (decisión del dueño: opción gratis).
+- Página nueva **/reservar/** (sin cuenta, no indexada): mismo formulario y cotizador que la app del pasajero (al aeropuerto, desde el aeropuerto, otro trayecto, ida y vuelta, punto en el mapa) + nombre, teléfono y correo opcional. Acepta `?nombre=` y `?tel=` en el enlace. Al enviar muestra el código, el enlace de seguimiento y un botón "Avisar por WhatsApp" con el código.
+- La reserva entra como **recibida** (por confirmar), canal `whatsapp`, con la nota "Solicitud por WhatsApp (formulario): confirmar con el cliente". Aviso a Operaciones "📲 Solicitud por WhatsApp: confirme" con el teléfono (también con la app cerrada).
+- Base de datos (etapa 69, **pendiente de aplicar**, archivo `supabase/migrations/PENDIENTE_etapa69_solicitud_por_whatsapp.sql`; renombrar con la versión de Supabase al aplicarla): columna `reservas.creada_por_formulario`; función `solicitar_reserva_whatsapp` (anon): mínimo 2 h de anticipación, punto en el mapa obligatorio, máx. 4 solicitudes por teléfono y 30 en total por hora.
+- Falta: aplicar la migración, publicar en `main` (con aprobación) y cambiar las instrucciones del asistente de WhatsApp para que envíe el enlace en vez de anotar la reserva.
+
 ## 21 nov 2026 · Publicar en Reservas servicios por confirmar
 - Panel: el botón **"📢 Publicar en Reservas"** (ficha, acciones y selección en grupo) aparece también en las reservas **"Recibida"** (por confirmar). Al publicarlas quedan **confirmadas** solas; el historial dice "Confirmada y liberada a Reservas". Caso que lo motivó: vans FK-825588 y FK-139ABD que no se podían publicar.
 - Base de datos (etapa 68, ya aplicada): `liberar_a_bolsa` acepta el estado `recibida`.
