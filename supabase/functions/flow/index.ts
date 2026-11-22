@@ -20,7 +20,9 @@ const SITIO = "https://fk-servicios.com/reservar/";
 const AERO = { lat: -33.39297, lng: -70.78579, texto: "Aeropuerto Internacional de Santiago (SCL), Pudahuel" };
 const MIN_ANTICIPACION_H = 2;
 
-const env = (k: string) => Deno.env.get(k) ?? "";
+const env = (k: string) => (Deno.env.get(k) ?? "").trim();
+// Si FLOW_API_URL no está, se usa la de producción (cobro real)
+const FLOW_URL = () => (env("FLOW_API_URL") || "https://www.flow.cl/api").replace(/\/+$/, "");
 const db = () => createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
 const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const distKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
@@ -39,10 +41,12 @@ async function firmar(params: Record<string, string>) {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 async function flow(metodo: "GET" | "POST", ruta: string, p: Record<string, string>) {
+  const faltan = ["FLOW_API_KEY", "FLOW_SECRET_KEY"].filter((k) => !env(k));
+  if (faltan.length) throw new Error("Faltan secretos en Supabase: " + faltan.join(", "));
   const params = { ...p, apiKey: env("FLOW_API_KEY") };
   const s = await firmar(params);
   const cuerpo = new URLSearchParams({ ...params, s });
-  const url = env("FLOW_API_URL") + ruta;
+  const url = FLOW_URL() + ruta;
   const r = metodo === "GET" ? await fetch(url + "?" + cuerpo) : await fetch(url, { method: "POST", body: cuerpo, headers: { "Content-Type": "application/x-www-form-urlencoded" } });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`Flow ${ruta}: ${j.message || r.status}`);
