@@ -100,7 +100,7 @@
           <input id="zona" type="text" autocomplete="off" placeholder="Escriba su comuna, por ejemplo: Providencia">
           <div class="zona-sug" id="zona-sug" hidden></div>
           <div id="precisar" class="precisar" hidden></div>
-          <span class="small muted" id="zona-ayuda">Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.</span>
+          <span class="small muted" id="zona-ayuda">El sector lo definimos según el punto que marque en el mapa.</span>
         </div>
 
         <div class="f lugar-f" id="b-dom">
@@ -216,7 +216,7 @@ document.querySelectorAll(".contador").forEach(c => c.addEventListener("click", 
   const b = e.target.closest("[data-d]"); if (!b) return;
   const k = c.dataset.c, max = k === "pax" ? 15 : 30, min = k === "pax" ? 1 : 0;
   cont[k] = Math.max(min, Math.min(max, cont[k] + +b.dataset.d)); $(k).textContent = cont[k];
-  if (k === "pax" && cont.pax > 4 && veh !== "van") { veh = "van"; elegirChip($("veh"), "v", "van"); msg("msg", "Con más de 4 pasajeros le sugerimos van: la dejamos elegida.", "ok"); }
+  if (k === "pax" && cont.pax > 4 && veh !== "van") { veh = "van"; elegirChip($("veh"), "v", "van"); msg("msg", "Con más de 4 pasajeros el viaje es en van: la dejamos elegida.", "ok"); }
   precio();
 }));
 function elegirChip(c, attr, val) { c.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x.dataset[attr] === val)); }
@@ -285,9 +285,14 @@ function calcular() {
     const c = cotServ;
     const nota = c.estimado ? `${String(c.km).replace(".", ",")} km · ~${c.min} min` + (c.porticos ? ` · incluye TAG: ${c.porticos} pórtico${c.porticos > 1 ? "s" : ""} (${clp(c.tag)})` : " · sin pórticos TAG")
       : (c.nota || "Tarifa fija por tramo");
-    return { ida: c.ida, estimado: false, nota, km: c.km };
+    return { ida: c.ida, estimado: false, nota: (c.van_forzada ? "Valor de van (más de 4 pasajeros) · " : "") + nota, km: c.km };
   }
-  if (cotServ && cotServ.key === claveCot() && cotServ.precisar) return { error: "Elija arriba su sector exacto para ver el valor." };
+  // Con la dirección marcada, el valor es el que calcula el servidor según el punto del mapa (el mismo que se cobra)
+  if (lugDom.get()) {
+    if (!cotServ || cotServ.key !== claveCot()) return { calculando: true };
+    if (cotServ.error) return { error: cotServ.error };
+    if (cotServ.ida) return { ida: cotServ.ida, regreso: cotServ.regreso || null, nota: cotServ.van_forzada ? "Valor de van: con más de 4 pasajeros el viaje es en van · peajes y TAG de la RM incluidos" : "" };
+  }
   if (!zona) return null;
   const iv = tipo === "ida" && $("iv").checked;
   if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null };
@@ -313,8 +318,8 @@ const precio_ = () => precio();
 let cotServ = null;
 const claveCot = () => {
   const a = lugDom.get(); if (!a) return "";
-  if (tipo !== "punto_a_punto") return ["aero", tipo, a.lat, a.lng, veh, $("iv").checked, zona ? zona[0] : ""].join("|");
-  const b = lugDest.get(); return b ? [a.lat, a.lng, b.lat, b.lng, veh, $("dom").value.trim(), $("dest").value.trim()].join("|") : "";
+  if (tipo !== "punto_a_punto") return ["aero", tipo, a.lat, a.lng, veh, cont.pax, $("iv").checked, $("dom").value.trim()].join("|");
+  const b = lugDest.get(); return b ? [a.lat, a.lng, b.lat, b.lng, veh, cont.pax, $("dom").value.trim(), $("dest").value.trim()].join("|") : "";
 };
 async function cotizarServidor() {
   const k = claveCot(); if (!k || (cotServ && cotServ.key === k) || cotizarServidor.k === k) return;
@@ -322,19 +327,19 @@ async function cotizarServidor() {
   const a = lugDom.get(), b = tipo === "punto_a_punto" ? lugDest.get() : null;
   try {
     const r = await fetch(FN + "?accion=cotizar", { method: "POST", headers: { "Content-Type": "application/json", apikey: FK_CONFIG.anonKey, Authorization: "Bearer " + FK_CONFIG.anonKey },
-      body: JSON.stringify({ tipo, vehiculo: veh, zona: zona ? zona[0] : null, ida_vuelta: tipo === "ida" && $("iv").checked,
+      body: JSON.stringify({ tipo, vehiculo: veh, pasajeros: cont.pax, zona: zona ? zona[0] : null, ida_vuelta: tipo === "ida" && $("iv").checked,
         origen: { texto: $("dom").value.trim(), lat: a.lat, lng: a.lng }, destino: b ? { texto: $("dest").value.trim(), lat: b.lat, lng: b.lng } : null }) });
     const j = await r.json().catch(() => ({}));
     if (claveCot() === k) {
       // Viajes al/desde el aeropuerto: el sector lo define la dirección marcada (comunas con varias tarifas)
-      if (tipo !== "punto_a_punto" && j.zona && !j.precisar && (!zona || zona[0] !== j.zona)) {
+      if (tipo !== "punto_a_punto" && j.zona && (!zona || zona[0] !== j.zona)) {
         const z = T.find(r => r[0] === j.zona);
         if (z) { zona = z; $("zona").value = z[0]; }
       }
       if (tipo !== "punto_a_punto") {
         pintarPrecisar(j);
-        $("zona-ayuda").textContent = j.precisar || (j.opciones && j.opciones.length) ? ""
-          : j.zona && j.motivo ? `Sector según su dirección: ${j.zona} (${j.motivo}).` : "Algunas comunas tienen más de un sector según la calle: al marcar su dirección lo elegimos automáticamente.";
+        $("zona-ayuda").textContent = j.zona ? `Sector según el punto marcado en el mapa: ${j.zona}${j.motivo && j.motivo !== j.zona ? ` (${j.motivo})` : ""}. Lo retiramos exactamente en ese punto.`
+          : "El sector lo definimos según el punto que marque en el mapa.";
       }
       cotServ = { ...j, key: claveCot() }; precio();
     }
@@ -371,7 +376,7 @@ function precio() {
 $("f").addEventListener("submit", async e => {
   e.preventDefault(); msg("msg", "");
   const aero = tipo !== "punto_a_punto";
-  if (aero && (!zona || (cotServ && cotServ.key === claveCot() && cotServ.precisar))) { if (!$("precisar").hidden) { $("precisar").scrollIntoView({ behavior: "smooth", block: "center" }); return msg("msg", "Precise su sector en el recuadro dorado (su comuna tiene varias tarifas).", "err"); } $("zona").focus(); return msg("msg", "Elija su sector de la lista para calcular la tarifa fija.", "err"); }
+  if (aero && cotServ && cotServ.key === claveCot() && cotServ.error) return msg("msg", cotServ.error, "err");
   if (!$("dom").value.trim()) { $("dom").focus(); return msg("msg", "Escriba la dirección.", "err"); }
   if (!lugDom.exigir()) return msg("msg", "Marque en el mapa el punto exacto: elija una sugerencia o toque el mapa.", "err");
   if (aero && FKLugar.enAeropuerto(lugDom.get(), $("dom").value)) { $("dom").focus(); return msg("msg", tipo === "regreso" ? "Escriba la dirección a donde lo llevamos (su destino), no el aeropuerto." : "Escriba la dirección donde lo retiramos, no el aeropuerto.", "err"); }

@@ -1,5 +1,13 @@
 # Cambios
 
+## 22 nov 2026 · Tarifa al aeropuerto a prueba de "elegir la más barata"
+- **El pasajero ya no elige el sector:** el valor lo decide siempre el punto marcado en el mapa, que es donde lo retira el conductor. Si mueve el punto para pagar menos, lo pasamos a buscar ahí.
+- Datos nuevos en `osm_datos`: `comunas_compactas` (límites de las 52 comunas de la RM + Valparaíso, Viña, Rancagua y Los Andes, ~2 MB), `localidades_sur` (Champa, Huelquén, etc.) y 192 tramos de calles límite agregados a `divisiones` (Camino Otoñal, San Damián, Av. La Plaza, El Golf de Manquehue, P. L. Urquieta, B. Larraín Cotapos, Av. Chicureo, Lo Arcaya, Esmeralda, Virginia Subercaseaux). `comunas_rm` (versión completa, 8 MB) quedó guardada pero no se usa: era demasiado lenta.
+- `sector.ts`: reglas fijas para San Carlos de Apoquindo (Otoñal/San Damián y La Plaza), Lo Barnechea (El Golf de Manquehue y Urquieta/Cotapos; El Arrayán al oriente; Farellones → WhatsApp), Chicureo (hasta Piedra Roja / Lo Arcaya), Colina (Esmeralda), Pirque (Virginia Subercaseaux), Paine (Champa, Huelquén), Buin (Linderos, Maipo), Lonquén; Ñuñoa sin opciones. Comunas de una sola tarifa: la de su comuna. Fuera de las comunas del tarifario (p. ej., San Felipe) o en la cordillera / interior del Cajón del Maipo: no se cobra en línea, se deriva a WhatsApp. Probado con 34 puntos.
+- Función `flow` v13: **más de 4 pasajeros = van** (aunque se elija auto); si el texto de la dirección dice otra comuna que el punto del mapa, la reserva queda con la nota "REVISAR: …" para Operaciones; si no cargan los datos de mapa, avisa "intente de nuevo" en vez de "fuera de zona". (v11–v12 tuvieron unos minutos sin cotizar viajes al aeropuerto por la carga de datos muy pesada; corregido en v13).
+- Página /reservar: el valor mostrado es el que calcula el servidor según el punto; envía el número de pasajeros; aviso de van; se retiró el recuadro "Precise su sector". **Pendiente de publicar.**
+- Función de prueba `sector-prueba` (solo lectura, sin datos privados): se puede eliminar.
+
 ## 22 nov 2026 · TAG automático y sector según la dirección (cobro en línea)
 - Datos de OpenStreetMap en `osm_datos` (etapa 71a): `porticos` (157 pórticos TAG + 13 casetas, con sentido), `divisiones` (avenidas límite: Manquehue, Paul Harris, V. Pérez Rosales, Las Perdices, Tobalaba, Av. La Florida, Irarrázaval…), `localidades` (2.750 barrios/lugares) y `comunas` (límites oficiales de las 13 comunas con varias tarifas). Se importan con `pg_net` desde la base (etapa 71b) o con la Edge Function `importar-osm` (en segundo plano).
 - Función `flow` v9:

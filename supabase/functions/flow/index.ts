@@ -25,7 +25,7 @@ const env = (k: string) => (Deno.env.get(k) ?? "").trim();
 // Si FLOW_API_URL no está, se usa la de producción (cobro real)
 const FLOW_URL = () => (env("FLOW_API_URL") || "https://www.flow.cl/api").replace(/\/+$/, "");
 const db = () => createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
-const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const distKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
   const R = 6371, r = (x: number) => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
   return 2 * R * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2));
@@ -103,33 +103,37 @@ function porticosEnRuta(ruta: number[][], lista: Portico[]) { // ruta = [[lng, l
   return res;
 }
 
-// ---------- Sector de tarifa según el punto (comunas con varias tarifas) ----------
+// ---------- Sector de tarifa según el punto del mapa (todas las comunas; el pasajero no elige) ----------
 let DATOS_SECTOR: Datos | null = null, sectorCargado = 0;
 async function datosSector(sb: ReturnType<typeof db>) {
   if (DATOS_SECTOR && Date.now() - sectorCargado < 3600e3) return DATOS_SECTOR;
-  const { data } = await sb.from("osm_datos").select("clave, datos").in("clave", ["divisiones", "localidades", "comunas"]);
+  // Se cargan por separado: los límites de comunas son lo más pesado (~2 MB, formato compacto)
+  const { data, error } = await sb.from("osm_datos").select("clave, datos").in("clave", ["divisiones", "localidades", "localidades_sur"]);
+  const { data: cr, error: e2 } = await sb.from("osm_datos").select("datos").eq("clave", "comunas_compactas").maybeSingle();
+  if (error || e2) console.error("osm_datos", error?.message, e2?.message);
   const m = Object.fromEntries((data || []).map((x: any) => [x.clave, x.datos]));
-  DATOS_SECTOR = prepararDatos(m.divisiones, m.localidades, m.comunas); sectorCargado = Date.now();
+  const lugares = { elements: [...(m.localidades?.elements ?? []), ...(m.localidades_sur?.elements ?? [])] };
+  const d = prepararDatos(m.divisiones, lugares, cr?.datos);
+  if (!d.comunas.length || !d.vias.length) throw new Error("No pudimos calcular la tarifa en este momento. Intente de nuevo en unos minutos o escríbanos por WhatsApp al +56 9 2227 5399.");
+  DATOS_SECTOR = d; sectorCargado = Date.now();
   return DATOS_SECTOR;
 }
-// Comuna del punto (Photon y, de respaldo, Nominatim; ambos gratis). Si ninguno responde, no se corrige el sector.
-const UA = { "User-Agent": "Flota-K/1.0 (https://fk-servicios.com)", "Accept-Language": "es" };
-async function comunasDe(lat: number, lng: number): Promise<string[]> {
-  try {
-    const r = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`, { headers: UA, signal: AbortSignal.timeout(8000) });
-    const pr = ((await r.json()).features || [])[0]?.properties || {};
-    const cs = [pr.city, pr.district, pr.locality, pr.municipality, pr.town, pr.village].filter(Boolean);
-    if (cs.length) return cs;
-  } catch (_) { /* respaldo */ }
-  try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&zoom=14`, { headers: UA, signal: AbortSignal.timeout(8000) });
-    const a = (await r.json()).address || {};
-    return [a.suburb, a.city, a.town, a.village, a.municipality, a.city_district].filter(Boolean);
-  } catch (_) { return []; }
+// Aviso para Operaciones si el texto de la dirección nombra otra comuna que la del punto del mapa
+// (el precio y el retiro se rigen por el punto; esto solo alerta al conductor de revisar con el pasajero).
+const COMUNAS_TEXTO = ["providencia", "las condes", "vitacura", "lo barnechea", "la reina", "nunoa", "penalolen", "la florida", "puente alto", "maipu",
+  "pudahuel", "quilicura", "huechuraba", "colina", "chicureo", "lampa", "san bernardo", "pirque", "macul", "san miguel", "recoleta", "independencia",
+  "estacion central", "cerrillos", "renca", "conchali", "quinta normal", "lo prado", "cerro navia", "la cisterna", "el bosque", "la granja", "la pintana",
+  "san ramon", "san joaquin", "lo espejo", "pedro aguirre cerda", "buin", "paine", "talagante", "penaflor", "padre hurtado", "calera de tango"];
+function avisoDireccion(texto: string, comuna: string) {
+  // Solo la parte después de la primera coma (la comuna), para no confundir con calles como «Av. Vitacura» o «Av. Las Condes»
+  const t = norm(texto).split(",").slice(1).join(","), cn = norm(comuna);
+  if (!t || !cn) return "";
+  const dichas = COMUNAS_TEXTO.filter((x) => new RegExp(`(^|[^a-z])${x}([^a-z]|$)`).test(t));
+  if (!dichas.length || dichas.some((x) => x === cn || (x === "chicureo" && cn === "colina"))) return "";
+  return `REVISAR: la dirección dice «${dichas[0]}», pero el punto del mapa está en ${comuna}. Se cobró según el punto del mapa.`;
 }
 async function detectarSector(sb: ReturnType<typeof db>, lat: number, lng: number) {
-  // Primero con los límites de comunas guardados (no depende de servicios externos); si el punto no cae en ninguna
-  // de las comunas con varias tarifas, no hay nada que corregir.
+  // Comuna según los límites guardados (OpenStreetMap, sin servicios externos) y sector según las calles límite.
   const d = await datosSector(sb);
   const comuna = comunaDe(d, { lat, lon: lng });
   if (!comuna) return null;
@@ -139,31 +143,24 @@ async function detectarSector(sb: ReturnType<typeof db>, lat: number, lng: numbe
 // ---------- Precio (servidor) ----------
 type Tramo = Record<string, unknown>;
 async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<string, unknown>) {
-  const tipo = String(b.tipo), veh = b.vehiculo === "van" ? "van" : "auto";
+  const tipo = String(b.tipo), pax = Math.max(1, parseInt(String(b.pasajeros ?? 1)) || 1);
+  // Más de 4 pasajeros no caben en un auto: se cobra van aunque se haya elegido auto
+  const veh = b.vehiculo === "van" || pax > 4 ? "van" : "auto", vanForzada = veh === "van" && b.vehiculo !== "van";
   if (tipo === "ida" || tipo === "regreso") {
-    // El sector lo define el punto marcado en el mapa (si la comuna tiene varias tarifas), no lo que eligió el pasajero
-    let zonaNombre = String(b.zona ?? ""), sectorAuto: string | null = null, motivo = "", comuna = "";
-    let opciones: { zona: string; ida: number; regreso: number; van: number }[] | null = null, precisar = false;
+    // El sector lo decide SIEMPRE el punto marcado en el mapa (no lo que eligió el pasajero)
     const o0 = b.origen as any;
-    if (o0 && enChile(+o0.lat, +o0.lng)) {
-      const ds = await detectarSector(sb, +o0.lat, +o0.lng);
-      comuna = ds?.comunas?.[0] ?? "";
-      if (ds?.zona) { if (ds.zona !== zonaNombre) sectorAuto = ds.zona; zonaNombre = ds.zona; motivo = ds.motivo ?? ""; }
-      else if (ds?.opciones?.length) {
-        // La dirección no basta para saber el sector: el pasajero debe precisarlo entre las opciones de su comuna
-        const { data: ops } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).in("zona", ds.opciones).order("ida");
-        opciones = ops ?? []; motivo = ds.motivo ?? "";
-        if (!opciones.some((x) => x.zona === zonaNombre)) {
-          precisar = true;
-          if (opciones.length) zonaNombre = opciones[0].zona; // solo para mostrar un valor de referencia; no se cobra sin precisar
-        }
-      }
-    }
-    const { data: z } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).eq("zona", zonaNombre).maybeSingle();
-    if (!z) throw new Error("Elija su sector de la lista para calcular la tarifa fija.");
+    if (!o0 || !enChile(+o0.lat, +o0.lng)) throw new Error("Marque en el mapa el punto exacto de su dirección.");
+    const ds = await detectarSector(sb, +o0.lat, +o0.lng);
+    if ((ds as any)?.fuera) throw new Error((ds as any).fuera);
+    if (!ds?.zona) throw new Error("Su dirección queda fuera de nuestras zonas con tarifa fija: se la cotizamos por WhatsApp al +56 9 2227 5399.");
+    const { data: z } = await sb.from("tarifas_aeropuerto").select("zona, ida, regreso, van").eq("empresa_id", empresaId).eq("zona", ds.zona).maybeSingle();
+    if (!z) throw new Error("Su dirección queda fuera de nuestras zonas con tarifa fija: se la cotizamos por WhatsApp al +56 9 2227 5399.");
+    const comuna = ds.comunas?.[0] ?? "";
+    const sectorAuto = z.zona !== String(b.zona ?? "") ? z.zona : null;
     const iv = tipo === "ida" && b.ida_vuelta === true;
     const ida = veh === "van" ? z.van : tipo === "regreso" ? z.regreso : z.ida;
-    return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null, sector_auto: sectorAuto, motivo, comuna, opciones, precisar };
+    return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null, sector_auto: sectorAuto, motivo: ds.motivo ?? "",
+      comuna, opciones: null, precisar: false, vehiculo: veh, van_forzada: vanForzada, aviso_direccion: avisoDireccion(String(o0.texto ?? ""), comuna) };
   }
   if (tipo !== "punto_a_punto") throw new Error("Tipo de servicio no válido.");
   const o = b.origen as any, d = b.destino as any;
@@ -173,7 +170,7 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const { data: tramos } = await sb.from("tarifas_tramos").select("*").eq("empresa_id", empresaId);
   const to = norm(o.texto), td = norm(d.texto), tiene = (t: string, l: string[]) => l.some((c) => t.includes(c));
   const tf = (tramos || []).find((x: any) => (tiene(to, x.lado_a) && tiene(td, x.lado_b)) || (tiene(to, x.lado_b) && tiene(td, x.lado_a)));
-  if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre };
+  if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre, vehiculo: veh, van_forzada: vanForzada };
   // Ruta real (OSRM). Si no responde, no se cobra en línea: mejor confirmar el valor por WhatsApp.
   let km: number | null = null, min = 0, geo: number[][] = [];
   try {
@@ -193,7 +190,8 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const nPort = enRuta.filter((p) => !p.caseta).length, casetas = enRuta.filter((p) => p.caseta).map((p) => p.nombre);
   const tag = nPort * (e?.valor_tag ?? 900);
   const base = redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto);
-  return { zona: null, ida: base + tag, regreso: null, estimado: true, km, min, base, porticos: nPort, tag, casetas, nombres_porticos: enRuta.filter((p) => !p.caseta).map((p) => p.nombre) };
+  return { zona: null, ida: base + tag, regreso: null, estimado: true, km, min, base, porticos: nPort, tag, casetas, nombres_porticos: enRuta.filter((p) => !p.caseta).map((p) => p.nombre),
+    vehiculo: veh, van_forzada: vanForzada };
 }
 
 // ---------- Acciones ----------
@@ -235,8 +233,9 @@ async function pagar(req: Request) {
   // Si el valor que vio el pasajero no coincide con el del servidor, se le muestra el correcto antes de cobrar
   if (Number(b.monto_visto) !== total) return json({ monto: total, cambio: true, error: `El valor de su viaje es $${total.toLocaleString("es-CL")}. Revíselo y toque de nuevo «Pagar y reservar».` }, 409);
 
-  const tipo = String(b.tipo), veh = b.vehiculo === "van" ? "van" : "auto";
-  const d = b.destino ?? {}, base = { pasajeros: pax, maletas: mal, vehiculo: veh, comuna: p.zona, comentarios: txt(b.comentarios, 500) };
+  const tipo = String(b.tipo), veh = (p as any).vehiculo === "van" ? "van" : "auto";
+  const aviso = [(p as any).aviso_direccion, (p as any).van_forzada ? `Van por ${pax} pasajeros.` : ""].filter(Boolean).join(" ");
+  const d = b.destino ?? {}, base = { pasajeros: pax, maletas: mal, vehiculo: veh, comuna: p.zona, comentarios: [aviso, txt(b.comentarios, 500)].filter(Boolean).join(" ") };
   const tramos: Tramo[] = [];
   const ivTxt = p.regreso ? "Ida y vuelta (regreso al valor de la ida)." : "";
   if (tipo === "ida") tramos.push({ ...base, tipo_servicio: "ida", fecha_hora: fh.toISOString(), origen: txt(o.texto, 300), origen_lat: +o.lat, origen_lng: +o.lng,
