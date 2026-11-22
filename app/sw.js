@@ -1,8 +1,8 @@
 // App del pasajero: permite instalarla y abrirla aunque falle la conexión (muestra la última versión guardada).
 // Siempre intenta primero la red, para que los datos y precios estén al día.
-const CACHE = "fk-app-v11";
+const CACHE = "fk-app-v12";
 const BASE = ["/app/", "/assets/site.css", "/assets/app.css", "/assets/app.js", "/assets/config.js", "/assets/tarifas.js",
-  "/assets/lugar.js", "/assets/mapa.js", "/assets/recuperar.js", "/assets/vendor/supabase-2.45.4.js", "/assets/img/icono-192.png"];
+  "/assets/lugar.js", "/assets/tag.js", "/assets/mapa.js", "/assets/recuperar.js", "/assets/vendor/supabase-2.45.4.js", "/assets/img/icono-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", e => {

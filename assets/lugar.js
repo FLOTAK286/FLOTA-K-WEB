@@ -154,22 +154,29 @@
   // Si el servicio de rutas no responde, se estima con la distancia en línea recta (x1,35 y 25 km/h promedio).
   const TRAFICO = 1.25, cacheRuta = new Map();
   // vias: paradas intermedias opcionales [{lat, lng}], en orden
-  async function ruta(a, b, vias = []) {
+  // opts.tag: además cuenta los pórticos TAG de la ruta (res.tags: número, o null si no se pudo saber; necesita assets/tag.js)
+  async function ruta(a, b, vias = [], opts = {}) {
     if (!a || !b || a.lat == null || b.lat == null) return null;
     const pts = [a, ...(vias || []).filter(v => v && v.lat != null), b];
     const k = pts.flatMap(p => [p.lat, p.lng]).map(x => Number(x).toFixed(4)).join(",");
-    if (cacheRuta.has(k)) return cacheRuta.get(k);
-    let res = null;
+    let res = cacheRuta.get(k) || null;
+    if (res) return conTag(res, opts);
     try {
       const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 6000);
-      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${pts.map(p => p.lng + "," + p.lat).join(";")}?overview=false`, { signal: ctrl.signal });
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${pts.map(p => p.lng + "," + p.lat).join(";")}?overview=false&annotations=nodes`, { signal: ctrl.signal });
       clearTimeout(to);
       const x = ((await r.json()).routes || [])[0];
-      if (x) res = { km: Math.round(x.distance / 100) / 10, min: Math.max(1, Math.ceil(x.duration * TRAFICO / 60)), aprox: false };
+      if (x) res = { km: Math.round(x.distance / 100) / 10, min: Math.max(1, Math.ceil(x.duration * TRAFICO / 60)), aprox: false,
+                     nodos: (x.legs || []).flatMap(l => (l.annotation && l.annotation.nodes) || []) };
     } catch (_) {}
     if (!res) { let lineal = 0; for (let i = 1; i < pts.length; i++) lineal += distKm(pts[i - 1], pts[i]);
       const km = Math.round(lineal * 1.35 * 10) / 10; res = { km, min: Math.max(1, Math.ceil(km / 25 * 60)), aprox: true }; }
     cacheRuta.set(k, res);
+    return conTag(res, opts);
+  }
+  async function conTag(res, opts) {
+    if (!opts || !opts.tag || !window.FKTag) return res;
+    if (res.tags === undefined || res.tags === null) res.tags = await FKTag.contar(res.nodos);
     return res;
   }
   const distKm = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);

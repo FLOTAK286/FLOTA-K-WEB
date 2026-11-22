@@ -470,6 +470,7 @@ footer .wrap { display: grid; gap: 14px; }
 
 <script src="/assets/tarifas.js"></script>
 <script src="/assets/config.js"></script>
+<script src="/assets/tag.js"></script>
 <script>
 // ---- Cotizador punto a punto (valor aproximado con el taxímetro ejecutivo de la empresa)
 (function () {
@@ -481,6 +482,7 @@ footer .wrap { display: grid; gap: 14px; }
     return 2 * R * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2)); };
   const T = window.FK_TARIFAS || [];
   const FACTOR_VAN = (() => { const f = T.map(r => r[3] / r[1]).filter(x => x > 1 && x < 3).sort((a, b) => a - b); return f.length ? f[Math.floor(f.length / 2)] : 1.35; })();
+  let tagTxt = "";
   let tar = { bajada: 2400, cada_200m: 180, minimo: 5000, minimo_van: 25000 }, veh = "auto", pts = { a: null, b: null }, n = 0;
   const C = window.FK_CONFIG;
   fetch(C.url + "/rest/v1/rpc/cotizador_publico", { method: "POST", headers: { apikey: C.anonKey, Authorization: "Bearer " + C.anonKey, "Content-Type": "application/json" }, body: "{}" })
@@ -515,7 +517,7 @@ footer .wrap { display: grid; gap: 14px; }
   const res = document.getElementById("pp-res");
   const pinta = h => res.innerHTML = h;
   async function calcular() {
-    const a = pts.a, b = pts.b, yo = ++n;
+    const a = pts.a, b = pts.b, yo = ++n; tagTxt = "";
     if (!a || !b) return pinta("<small>Escriba el origen y el destino y elija cada uno de la lista.</small>");
     if (km2(a, AERO) < 2.5 || km2(b, AERO) < 2.5) return pinta('<b>¿Va o viene del aeropuerto?</b><small>Para esos viajes tenemos tarifa fija por comuna, con peajes, TAG y estacionamiento incluidos: búsquela en el tarifario de más arriba.</small><a class="btn" href="#tarifas">Ver tarifa fija</a>');
     const ca = a.comunas.map(norm), cb = b.comunas.map(norm), es = (l, x) => l.some(t => x.some(c => t.includes(c)));
@@ -524,22 +526,27 @@ footer .wrap { display: grid; gap: 14px; }
     if (costa) { valor = veh === "van" ? costa.van : costa.auto; det = costa.nombre + " · tarifa fija por tramo"; }
     else {
       pinta("<small>Calculando la ruta…</small>");
-      let km = null, min = null;
-      try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`);
-        const x = ((await r.json()).routes || [])[0]; if (x) { km = Math.round(x.distance / 100) / 10; min = Math.max(1, Math.ceil(x.duration * 1.25 / 60)); } } catch (_) {}
+      let km = null, min = null, nodos = null;
+      try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false&annotations=nodes`);
+        const x = ((await r.json()).routes || [])[0]; if (x) { km = Math.round(x.distance / 100) / 10; min = Math.max(1, Math.ceil(x.duration * 1.25 / 60)); nodos = window.FKTag ? FKTag.nodosDe(x) : null; } } catch (_) {}
       if (yo !== n) return;
       if (km == null) { km = Math.round(km2(a, b) * 1.3 * 10) / 10; min = null; }
       if (km > 120) return pinta('<b>Viaje fuera de Santiago</b><small>Para viajes de más de 120 km le cotizamos a medida.</small>' + boton(null, km, min));
       const auto = Math.max(tar.minimo || 0, tar.bajada + Math.ceil(km * 5) * tar.cada_200m);
       valor = Math.ceil((veh === "van" ? Math.max(tar.minimo_van || 25000, auto * FACTOR_VAN) : auto) / 500) * 500;
-      det = `${String(km).replace(".", ",")} km${min ? " · ~" + min + " min con tráfico" : " (distancia aproximada)"}`;
+      // TAG: cada pórtico de autopista por el que pasa la ruta se suma al valor
+      const tags = nodos && window.FKTag ? await FKTag.contar(nodos) : null;
+      if (yo !== n) return;
+      if (tags) valor += tags * FKTag.VALOR;
+      tagTxt = window.FKTag ? FKTag.texto(tags) : "";
+      det = `${String(km).replace(".", ",")} km${min ? " · ~" + min + " min con tráfico" : " (distancia aproximada)"}${tagTxt ? " · " + tagTxt : ""}`;
       pinta(`<small>Valor estimado · ${veh === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(valor)} <small style="font-size:1rem">aprox.</small></span><small>${escH(det)}. Valor referencial: se confirma al reservar.</small>` + boton(valor, km, min));
       return;
     }
     pinta(`<small>${veh === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(valor)}</span><small>${escH(det)}.</small>` + boton(valor));
   }
   function boton(valor) {
-    const t = `Hola Flota-K, quiero reservar un viaje punto a punto.\nOrigen: ${pts.a.completo}\nDestino: ${pts.b.completo}\nVehículo: ${veh === "van" ? "Van" : "Auto ejecutivo"}${valor ? "\nValor estimado en la web: " + fmt(valor) : ""}\nFecha y hora: `;
+    const t = `Hola Flota-K, quiero reservar un viaje punto a punto.\nOrigen: ${pts.a.completo}\nDestino: ${pts.b.completo}\nVehículo: ${veh === "van" ? "Van" : "Auto ejecutivo"}${valor ? "\nValor estimado en la web: " + fmt(valor) + (tagTxt ? " (" + tagTxt + ")" : "") : ""}\nFecha y hora: `;
     return `<a class="btn" style="margin-top:6px" href="https://wa.me/56922275399?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">Reservar por WhatsApp</a>`;
   }
 })();

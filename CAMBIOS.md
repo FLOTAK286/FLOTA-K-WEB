@@ -1,5 +1,12 @@
 # Cambios
 
+## 22 nov 2026 · TAG en el cotizador punto a punto
+- Pedido del dueño: los viajes punto a punto cobran **$900 por cada pórtico TAG** de autopista por el que pasa la ruta. Aplica al cotizador de la página web, de la app del pasajero y del portal de empresas. El texto dice "incluye N pórticos TAG ($900 c/u)"; el mensaje de WhatsApp también.
+- Cómo se cuenta (gratis): la ruta de OSRM trae los nodos de OpenStreetMap (`annotations=nodes`) y se comparan con los pórticos de OpenStreetMap (`highway=toll_gantry`), que se piden a Overpass una vez y quedan guardados 7 días en el navegador (`assets/tag.js`, `FKTag`). `FKLugar.ruta(a, b, vias, { tag: true })` devuelve `tags`.
+- Si no se puede saber (Overpass caído), el valor sale sin TAG y dice "más TAG de autopistas según los pórticos".
+- Las tarifas fijas del aeropuerto y los tramos fijos a la costa no cambian (incluyen peajes y TAG).
+- Depende de que los pórticos estén marcados en OpenStreetMap: revisar con viajes conocidos.
+
 ## 22 nov 2026 · Editar los datos de una reserva
 - Panel, ficha de la reserva: botón **"✏ Editar datos de la reserva"** (todas menos las canceladas). Se puede cambiar pasajero, teléfono, correo, vuelo, tipo de servicio, vehículo que pide, origen y destino (con punto en el mapa), indicaciones del retiro, pasajeros, maletas, centro de costo (convenio) y comentarios. La fecha/hora y las paradas siguen con sus botones propios.
 - Si cambia el recorrido se recalculan distancia y duración y se pide revisar el precio. Si se cambia el texto de una dirección sin mover el punto, pregunta si es el mismo lugar.

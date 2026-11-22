@@ -308,6 +308,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/assets/mapa.js"></script>
 <script src="/assets/tarifas.js"></script>
+<script src="/assets/tag.js"></script>
 <script src="/assets/lugar.js"></script>
 <script src="/assets/recuperar.js"></script>
 <script>
@@ -496,7 +497,8 @@ function calcular() {
     if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) return { aeropuerto: true };
     if (!ruta) return { calculando: true };
     if (ruta.km > 120) return { lejos: true, km: ruta.km };
-    return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""}` };
+    return { ida: cotizarRuta(ruta.km) + (ruta.tags || 0) * FKTag.VALOR, estimado: true, km: ruta.km,
+             nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""} · ${FKTag.texto(ruta.tags)}` };
   }
   if (!zona) return null;
   const iv = tipo === "ida" && $("iv").checked;
@@ -509,7 +511,7 @@ async function actualizarRuta() {
   const k = a && b ? [a.lat, a.lng, b.lat, b.lng].join(",") : "";
   if (k === rutaKey) return; rutaKey = k; ruta = null;
   if (!k) return;
-  const r = await FKLugar.ruta(a, b);
+  const r = await FKLugar.ruta(a, b, [], { tag: true });
   if (rutaKey === k) { ruta = r; precio(); }
 }
 function precio() {
