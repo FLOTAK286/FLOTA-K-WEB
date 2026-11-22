@@ -1,5 +1,10 @@
 # Cambios
 
+## 22 nov 2026 · Reserva por enlace para WhatsApp (rama `reserva-por-enlace`, sin publicar)
+- Página nueva **/reservar/** (sin cuenta, `noindex`): el agente de WhatsApp envía este enlace y el pasajero completa tipo de viaje, sector o ruta (punto en el mapa), fecha, vuelo, pasajeros, maletas, vehículo, nombre, teléfono, correo, "reservo para otra persona" y "¿cómo nos conoció?". Muestra la tarifa fija o el valor estimado. Al enviar: código, botón "Avisar por WhatsApp" con el código y "Ver mi reserva" (seguimiento). Admite `?tipo=regreso` o `?tipo=punto_a_punto`.
+- La reserva queda **"recibida"** (la central confirma), canal `whatsapp`, comentario "Formulario por enlace (WhatsApp)" y aviso "📅 Reserva nueva" a Operaciones.
+- Base de datos (etapa 70, **pendiente de aplicar con aprobación del dueño**): `crear_reserva_enlace` (usa `crear_reserva_app`, que sigue cerrada al público; máx. 6/h por teléfono y 30/h en total).
+
 ## 22 nov 2026 · Editar los datos de una reserva
 - Panel, ficha de la reserva: botón **"✏ Editar datos de la reserva"** (todas menos las canceladas). Se puede cambiar pasajero, teléfono, correo, vuelo, tipo de servicio, vehículo que pide, origen y destino (con punto en el mapa), indicaciones del retiro, pasajeros, maletas, centro de costo (convenio) y comentarios. La fecha/hora y las paradas siguen con sus botones propios.
 - Si cambia el recorrido se recalculan distancia y duración y se pide revisar el precio. Si se cambia el texto de una dirección sin mover el punto, pregunta si es el mismo lugar.

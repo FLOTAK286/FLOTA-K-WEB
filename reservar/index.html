@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reservar traslado | Flota-K</title>
+<meta name="description" content="Complete los datos de su traslado con Flota-K: aeropuerto o punto a punto, tarifa fija y confirmación por WhatsApp.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0d0f12">
+<link rel="icon" href="/assets/img/icono-192.png">
+<link rel="apple-touch-icon" href="/assets/img/icono-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flota-K">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  body.con-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .px-top { position: sticky; top: 0; z-index: 900; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .px-top .wrap { display: flex; justify-content: space-between; align-items: center; min-height: 56px; gap: 10px; }
+  .px { max-width: 640px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  .px h1 { font-family: var(--font-display); font-size: 1.9rem; margin: 4px 0 0; line-height: 1.1; }
+  .px-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000; background: var(--panel); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr); padding-bottom: env(safe-area-inset-bottom); }
+  .px-nav button { background: none; border: 0; border-top: 3px solid transparent; color: var(--muted); font: inherit; font-size: .85rem; padding: 8px 4px 10px; display: grid; justify-items: center; gap: 2px; cursor: pointer; position: relative; }
+  .px-nav button b { font-size: 1.3rem; line-height: 1; }
+  .px-nav button.on { color: var(--gold); font-weight: 700; border-top-color: var(--gold); }
+  .px-nav .punto { position: absolute; top: 6px; right: calc(50% - 22px); width: 9px; height: 9px; border-radius: 50%; background: #e5533d; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: end; }
+  @media (max-width: 420px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+  .px input, .px select, .px textarea { min-height: 46px; font-size: 16px; }
+  .px input[type=checkbox] { min-height: 0; width: 20px; height: 20px; }
+  .precio { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; }
+  .precio b { font-family: var(--font-display); font-size: 1.9rem; color: var(--gold); white-space: nowrap; }
+  .zona-sug { display: grid; border: 1px solid var(--line); border-radius: 6px; max-height: 240px; overflow: auto; background: var(--panel); }
+  .zona-sug button { text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--fg); font: inherit; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+  .zona-sug button:hover, .zona-sug button:focus { background: var(--bg); }
+  .favs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .favs:empty { display: none; }
+  .favs .chip { font-size: .85rem; }
+  .ok-box { text-align: center; }
+  .ok-box .code { font-family: var(--font-display); font-size: 2rem; color: var(--gold); }
+  .vacio { text-align: center; padding: 20px 6px; }
+  .viaje { display: grid; gap: 8px; }
+  .viaje .ruta { display: grid; gap: 2px; }
+  .viaje .ruta span { display: block; }
+  .viaje .acc { display: flex; gap: 8px; flex-wrap: wrap; }
+  .viaje .acc .btn { flex: 1 1 auto; text-align: center; }
+  .encurso { border-color: var(--gold); box-shadow: inset 4px 0 0 var(--gold); }
+  .estrellas { display: flex; gap: 4px; }
+  .estrellas button { background: none; border: 0; font-size: 1.9rem; line-height: 1; cursor: pointer; color: var(--line); padding: 0 2px; }
+  .estrellas button.on { color: var(--gold); }
+  .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .auth-tabs button { background: var(--bg); border: 0; color: var(--muted); font: inherit; font-weight: 600; padding: 12px; cursor: pointer; }
+  .auth-tabs button.on { background: var(--gold); color: #17130a; }
+  .hero { display: grid; gap: 6px; }
+  .beneficios { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .fav-item { display: flex; justify-content: space-between; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); padding: 10px 0; }
+  .fav-item:last-child { border-bottom: 0; }
+  .banner-vivo { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: 1px solid var(--gold); background: var(--panel); border-radius: 8px; padding: 12px 14px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .seg button { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; font: inherit; padding: 10px 4px; cursor: pointer; display: grid; justify-items: center; gap: 2px; font-size: .85rem; }
+  .seg button b { font-size: 1.15rem; }
+  .seg button.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold); font-weight: 700; }
+  .contador { display: flex; align-items: center; gap: 10px; }
+  .contador button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 1.2rem; cursor: pointer; }
+  .contador output { min-width: 24px; text-align: center; font-weight: 700; font-size: 1.1rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="px-top"><div class="wrap"><a class="brand" href="/">FLOTA<span>·K</span></a><a class="btn ghost sm" href="https://wa.me/56922275399" target="_blank" rel="noopener">WhatsApp</a></div></header>
+
+<main class="px app">
+  <section id="v-reservar">
+    <div style="display:grid;gap:14px">
+            <div>
+        <p class="eyebrow" style="margin:0" id="saludo">Traslado ejecutivo</p>
+        <h1>Complete los datos de su traslado</h1>
+        <p class="small muted" style="margin:6px 0 0">Toma un par de minutos. Le confirmamos la reserva por WhatsApp.</p>
+      </div>
+
+      <form id="f" class="panel" novalidate>
+        <div class="seg" id="tipo">
+          <button type="button" class="on" data-t="ida"><b>🛫</b>Al aeropuerto</button>
+          <button type="button" data-t="regreso"><b>🛬</b>Desde el aeropuerto</button>
+          <button type="button" data-t="punto_a_punto"><b>📍</b>Otro trayecto</button>
+        </div>
+        <label class="chk small" id="b-iv"><input type="checkbox" id="iv"> Agregar el regreso (ida y vuelta; el regreso al mismo valor de la ida)</label>
+
+        <div class="f" id="b-zona">
+          <label for="zona">Su sector (para la tarifa fija)</label>
+          <input id="zona" type="text" autocomplete="off" placeholder="Escriba su comuna, por ejemplo: Providencia">
+          <div class="zona-sug" id="zona-sug" hidden></div>
+          <span class="small muted">Algunas comunas tienen más de un sector según la calle. Elija el suyo.</span>
+        </div>
+
+        <div class="f lugar-f" id="b-dom">
+          <label for="dom" id="dom-l">Dirección de retiro</label>
+          <div class="favs" id="favs-dom"></div>
+          <input id="dom" type="text" placeholder="Calle y número, o nombre del lugar">
+        </div>
+        <div class="f lugar-f" id="b-dest" hidden>
+          <label for="dest">Destino</label>
+          <div class="favs" id="favs-dest"></div>
+          <input id="dest" type="text" placeholder="Calle y número, o nombre del lugar">
+        </div>
+        <div class="f" id="b-det">
+          <label for="det">Detalle del retiro (opcional)</label>
+          <input id="det" type="text" maxlength="200" placeholder="Depto, torre, portería, punto de encuentro">
+        </div>
+
+        <div class="grid2">
+          <div class="f"><label for="fh" id="fh-l">Fecha y hora de retiro</label><input id="fh" type="datetime-local"></div>
+          <div class="f" id="b-vuelo"><label for="vuelo">N.º de vuelo (opcional)</label><input id="vuelo" type="text" maxlength="12" placeholder="LA 123" autocapitalize="characters"></div>
+        </div>
+        <p class="small muted" id="fh-ayuda" style="margin:-6px 0 0"></p>
+        <div class="grid2" id="b-reg" hidden>
+          <div class="f"><label for="fh2">Regreso: fecha y hora de aterrizaje</label><input id="fh2" type="datetime-local"></div>
+          <div class="f"><label for="vuelo2">Vuelo de regreso (opcional)</label><input id="vuelo2" type="text" maxlength="12" placeholder="LA 456" autocapitalize="characters"></div>
+        </div>
+
+        <div class="grid2">
+          <div class="f"><label>Pasajeros</label><div class="contador" data-c="pax"><button type="button" data-d="-1" aria-label="Menos">−</button><output id="pax">1</output><button type="button" data-d="1" aria-label="Más">+</button></div></div>
+          <div class="f"><label>Maletas</label><div class="contador" data-c="mal"><button type="button" data-d="-1" aria-label="Menos">−</button><output id="mal">1</output><button type="button" data-d="1" aria-label="Más">+</button></div></div>
+        </div>
+        <div class="f">
+          <label>Vehículo</label>
+          <div class="chips" id="veh">
+            <button type="button" class="chip on" data-v="auto">Auto ejecutivo (hasta 4)</button>
+            <button type="button" class="chip" data-v="van">Van (grupos o mucho equipaje)</button>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="f"><label for="nom">Su nombre</label><input id="nom" type="text" maxlength="120" autocomplete="name" required></div>
+          <div class="f"><label for="tel">Su teléfono (WhatsApp)</label><input id="tel" type="tel" maxlength="30" autocomplete="tel" placeholder="+56 9 …" required></div>
+        </div>
+        <div class="f"><label for="mail">Correo (opcional, para la factura o el comprobante)</label><input id="mail" type="email" maxlength="200" autocomplete="email" inputmode="email"></div>
+        <label class="chk"><input type="checkbox" id="otro"> Reservo para otra persona</label>
+        <div class="grid2" id="b-otro" hidden>
+          <div class="f"><label for="o-nom">Nombre del pasajero</label><input id="o-nom" type="text" maxlength="120"></div>
+          <div class="f"><label for="o-tel">Teléfono del pasajero</label><input id="o-tel" type="tel" maxlength="30" placeholder="+56 9 …"></div>
+        </div>
+        <div class="f"><label for="com">Comentarios (opcional)</label><textarea id="com" rows="2" maxlength="500" placeholder="Mascota en canil, silla de ruedas plegable, etc."></textarea></div>
+
+        <div class="f"><label for="como">¿Cómo nos conoció? (opcional)</label><select id="como"><option value="">Elegir…</option><option value="google">Google</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Me lo recomendaron</option><option value="cliente_frecuente">Ya he viajado con Flota-K</option><option value="otro">Otro</option></select></div>
+        <div class="precio" id="precio"><span id="precio-l" class="small">Valor</span><b id="precio-v">—</b></div>
+        <div id="msg" class="msg" hidden></div>
+        <button class="btn" type="submit" id="enviar">Solicitar reserva</button>
+        <p class="small muted" style="margin:0">Le confirmamos cada reserva por WhatsApp. Antes del viaje le enviamos el enlace para ver a su conductor y su vehículo, y seguirlo en vivo. Para viajes en menos de 2 horas, escríbanos por WhatsApp.</p>
+      </form>
+    </div>
+  </section>
+
+  <section id="v-ok" hidden>
+    <div class="panel ok-box">
+      <p class="eyebrow" style="margin:0">Solicitud recibida</p>
+      <div class="code" id="ok-cod"></div>
+      <p style="margin:0">Gracias. Revisaremos su solicitud y se la confirmaremos por WhatsApp.</p>
+      <div class="actions" style="justify-content:center"><a class="btn" id="ok-wa" href="#" target="_blank" rel="noopener">Avisar por WhatsApp</a><a class="btn ghost" id="ok-seg" href="#">Ver mi reserva</a><button class="btn ghost" type="button" id="ok-otra">Hacer otra reserva</button></div>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/vendor/supabase-2.45.4.js"></script>
+<script src="/assets/config.js"></script>
+<script src="/assets/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/assets/mapa.js"></script>
+<script src="/assets/tarifas.js"></script>
+<script src="/assets/lugar.js"></script>
+<script>
+const { sb, esc, clp, errText } = FK;
+const $ = id => document.getElementById(id);
+const T = window.FK_TARIFAS || [], AERO = FKLugar.AERO;
+const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+const leer = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch (_) { return d; } };
+function msg(id, t, k) { const m = $(id); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; if (t && k === "err") m.scrollIntoView({ behavior: "smooth", block: "center" }); }
+const D = null;
+let tipo = "ida", veh = "auto", zona = null, ruta = null, rutaKey = "";
+const lugDom = FKLugar.montar($("dom"), { alCambiar: () => precio() });
+const lugDest = FKLugar.montar($("dest"), { alCambiar: () => precio() });
+const cont = { pax: 1, mal: 1 };
+document.querySelectorAll(".contador").forEach(c => c.addEventListener("click", e => {
+  const b = e.target.closest("[data-d]"); if (!b) return;
+  const k = c.dataset.c, max = k === "pax" ? 15 : 30, min = k === "pax" ? 1 : 0;
+  cont[k] = Math.max(min, Math.min(max, cont[k] + +b.dataset.d)); $(k).textContent = cont[k];
+  if (k === "pax" && cont.pax > 4 && veh !== "van") { veh = "van"; elegirChip($("veh"), "v", "van"); msg("msg", "Con más de 4 pasajeros le sugerimos van: la dejamos elegida.", "ok"); }
+  precio();
+}));
+function elegirChip(c, attr, val) { c.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x.dataset[attr] === val)); }
+$("tipo").addEventListener("click", e => { const b = e.target.closest("[data-t]"); if (!b) return; tipo = b.dataset.t; $("tipo").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); msg("msg", ""); ajustar(); });
+$("veh").addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (!b) return; veh = b.dataset.v; elegirChip($("veh"), "v", veh); precio(); });
+$("iv").onchange = ajustar;
+$("otro").onchange = () => { $("b-otro").hidden = !$("otro").checked; };
+
+function ajustar() {
+  const aero = tipo !== "punto_a_punto";
+  $("b-zona").hidden = !aero; $("b-dest").hidden = aero; $("b-vuelo").hidden = !aero;
+  $("b-iv").hidden = tipo !== "ida"; if (tipo !== "ida") $("iv").checked = false;
+  $("b-reg").hidden = !(tipo === "ida" && $("iv").checked);
+  $("dom-l").textContent = tipo === "regreso" ? "¿A dónde lo llevamos? (su destino)" : "Dirección de retiro";
+  $("fh-l").textContent = tipo === "regreso" ? "Fecha y hora de aterrizaje" : "Fecha y hora de retiro";
+  $("fh-ayuda").textContent = tipo === "regreso" ? "Seguimos su vuelo: si se adelanta o se atrasa, su conductor ajusta la hora. Lo esperamos dentro del terminal con su nombre."
+    : tipo === "punto_a_punto" ? "El valor se calcula con la ruta real. Para viajes fuera de Santiago se lo confirmamos."
+    : "Para vuelos internacionales le sugerimos el retiro 3 horas y media antes del despegue; nacionales, 2 horas y media.";
+  $("b-det").hidden = tipo === "regreso";
+  precio();
+}
+
+// Sector (tarifa fija al aeropuerto)
+function pintarZonas() {
+  const q = norm($("zona").value.trim()), box = $("zona-sug");
+  if (q.length < 2) { box.hidden = true; return; }
+  const rs = T.filter(r => norm(r[0]).includes(q)).slice(0, 12);
+  box.hidden = false;
+  box.innerHTML = rs.length ? rs.map(r => `<button type="button" data-i="${T.indexOf(r)}"><span>${esc(r[0])}</span><span class="muted">${clp(r[1])}</span></button>`).join("")
+    : '<p class="small muted" style="margin:8px 12px">No encontramos ese sector. Pruebe con el nombre de su comuna, o elija «Otro trayecto» y se lo calculamos.</p>';
+}
+$("zona").addEventListener("input", () => { zona = null; pintarZonas(); precio(); });
+$("zona").addEventListener("focus", pintarZonas);
+$("zona-sug").addEventListener("mousedown", e => { const b = e.target.closest("[data-i]"); if (!b) return; e.preventDefault(); zona = T[+b.dataset.i]; $("zona").value = zona[0]; $("zona-sug").hidden = true; msg("msg", ""); precio(); });
+$("zona").addEventListener("blur", () => setTimeout(() => $("zona-sug").hidden = true, 150));
+// Si la dirección trae una comuna con un solo sector, se elige solo
+function sugerirZona() {
+  if (zona || tipo === "punto_a_punto") return;
+  const p = lugDom.get(); if (!p || !p.comunas || !p.comunas.length) return;
+  const cs = p.comunas.map(norm);
+  const cand = T.filter(r => cs.some(c => norm(r[0]) === c));
+  if (cand.length === 1) { zona = cand[0]; $("zona").value = zona[0]; }
+}
+
+// ---------- Cotizador ----------
+// Factor de la van respecto del auto según el tarifario (mediana)
+const FACTOR_VAN = (() => { const fs = T.map(r => r[3] / r[1]).filter(x => x > 1 && x < 3).sort((a, b) => a - b); return fs.length ? fs[Math.floor(fs.length / 2)] : 1.35; })();
+const redondear = n => Math.ceil(n / 500) * 500;
+function viajeCosta(a, b) {
+  if (!a || !b) return null;
+  const lado = p => [...(p.comunas || [])].map(norm), es = (l, lista) => l.some(t => lista.some(c => t.includes(c)));
+  return (window.FK_INTERURBANOS || []).find(x => (es(lado(a), x.oriente) && es(lado(b), x.costa)) || (es(lado(a), x.costa) && es(lado(b), x.oriente))) || null;
+}
+// Taxímetro ejecutivo de la empresa: bajada + cada 200 m, con un mínimo
+function cotizarRuta(km) {
+  const c = { bajada: 2400, cada_200m: 180, minimo: 5000 }; // mismo valor por defecto que la app (sin sesión)
+  const auto = Math.max(c.minimo || 0, c.bajada + Math.ceil(km * 5) * c.cada_200m);
+  return redondear(veh === "van" ? Math.max(c.minimo_van || 25000, auto * FACTOR_VAN) : auto);
+}
+function calcular() {
+  if (tipo === "punto_a_punto") {
+    const a = lugDom.get(), b = lugDest.get(); if (!a || !b) return null;
+    const costa = viajeCosta(a, b);
+    if (costa) return { ida: veh === "van" ? costa.van : costa.auto, nota: costa.nombre + " · tarifa fija por tramo", km: ruta && ruta.km };
+    if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) return { aeropuerto: true };
+    if (!ruta) return { calculando: true };
+    if (ruta.km > 120) return { lejos: true, km: ruta.km };
+    return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""}` };
+  }
+  if (!zona) return null;
+  const iv = tipo === "ida" && $("iv").checked;
+  if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null };
+  if (tipo === "regreso") return { ida: zona[2] };
+  return { ida: zona[1], regreso: iv ? zona[1] : null };
+}
+async function actualizarRuta() {
+  const a = lugDom.get(), b = lugDest.get();
+  const k = a && b ? [a.lat, a.lng, b.lat, b.lng].join(",") : "";
+  if (k === rutaKey) return; rutaKey = k; ruta = null;
+  if (!k) return;
+  const r = await FKLugar.ruta(a, b);
+  if (rutaKey === k) { ruta = r; precio(); }
+}
+function precio() {
+  sugerirZona();
+  if (tipo === "punto_a_punto") actualizarRuta();
+  const p = calcular(), L = $("precio-l"), V = $("precio-v");
+  if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
+  if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
+  if (p.aeropuerto) { L.innerHTML = "Su viaje es desde o hacia el aeropuerto: elija <b>Al aeropuerto</b> o <b>Desde el aeropuerto</b> para su tarifa fija."; V.textContent = "—"; return; }
+  if (p.lejos) { L.textContent = `Viaje largo (${String(p.km).replace(".", ",")} km): le confirmamos el valor después de solicitarlo.`; V.textContent = "A cotizar"; return; }
+  const total = p.ida + (p.regreso || 0);
+  L.innerHTML = p.regreso ? `Ida ${clp(p.ida)} + regreso ${clp(p.regreso)}<br><span class="muted">Regreso al mismo valor de la ida</span>`
+    : p.estimado ? `Valor estimado<br><span class="muted">${esc(p.nota)} · se lo confirmamos al aprobar la reserva</span>`
+    : p.nota ? esc(p.nota) : "Tarifa fija · peajes y TAG de la RM incluidos";
+  V.textContent = clp(total);
+}
+
+// ---------- Enviar ----------
+$("f").addEventListener("submit", async e => {
+  e.preventDefault(); msg("msg", "");
+  const aero = tipo !== "punto_a_punto";
+  if (aero && !zona) { $("zona").focus(); return msg("msg", "Elija su sector de la lista para calcular la tarifa fija.", "err"); }
+  if (!$("dom").value.trim()) { $("dom").focus(); return msg("msg", "Escriba la dirección.", "err"); }
+  if (!lugDom.exigir()) return msg("msg", "Marque en el mapa el punto exacto: elija una sugerencia o toque el mapa.", "err");
+  if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("msg", "Escriba el destino y marque su punto en el mapa.", "err");
+  const p = calcular() || {};
+  if (p.aeropuerto) return msg("msg", "Para viajes desde o hacia el aeropuerto elija «Al aeropuerto» o «Desde el aeropuerto»: tienen tarifa fija.", "err");
+  if (!$("fh").value) { $("fh").focus(); return msg("msg", "Indique la fecha y la hora.", "err"); }
+  const iso = FK.chileLocalToISO($("fh").value);
+  if (new Date(iso) < Date.now() + 2 * 3600e3) return msg("msg", "Para viajes en menos de 2 horas, escríbanos por WhatsApp al +56 9 2227 5399.", "err");
+  const iv = tipo === "ida" && $("iv").checked;
+  let iso2 = null;
+  if (iv) {
+    if (!$("fh2").value) { $("fh2").focus(); return msg("msg", "Indique la fecha y la hora de aterrizaje del regreso.", "err"); }
+    iso2 = FK.chileLocalToISO($("fh2").value);
+    if (new Date(iso2) <= new Date(iso)) return msg("msg", "El regreso debe ser después de la ida.", "err");
+  }
+  const nom = $("nom").value.trim(), tel = $("tel").value.trim(), mail = $("mail").value.trim();
+  if (nom.length < 2) { $("nom").focus(); return msg("msg", "Escriba su nombre.", "err"); }
+  if (tel.replace(/\D/g, "").length < 8) { $("tel").focus(); return msg("msg", "Escriba su teléfono de WhatsApp.", "err"); }
+  if (mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { $("mail").focus(); return msg("msg", "Revise el correo.", "err"); }
+  const otro = $("otro").checked;
+  if (otro && ($("o-nom").value.trim().length < 2 || $("o-tel").value.replace(/\D/g, "").length < 8)) return msg("msg", "Escriba el nombre y el teléfono de la persona que viaja.", "err");
+
+  const dom = lugDom.get(), dest = lugDest.get(), domTxt = $("dom").value.trim(), com = $("com").value.trim();
+  const base = { p_nombre: nom, p_telefono: tel, p_correo: mail || null, p_como_nos_conocio: $("como").value || null, p_vehiculo: veh, p_pasajeros: cont.pax, p_maletas: cont.mal, p_comuna: aero ? zona[0] : null,
+    p_pasajero_nombre: otro ? $("o-nom").value.trim() : null, p_pasajero_telefono: otro ? $("o-tel").value.trim() : null };
+  const tramos = [];
+  if (tipo === "ida") tramos.push({ ...base, p_tipo_servicio: "ida", p_fecha_hora: iso, p_origen: domTxt, p_destino: AERO.texto,
+    p_origen_lat: dom.lat, p_origen_lng: dom.lng, p_destino_lat: AERO.lat, p_destino_lng: AERO.lng, p_vuelo: $("vuelo").value.trim() || null,
+    p_tarifa: p.ida ?? null, p_retiro_detalle: $("det").value.trim() || null,
+    p_comentarios: [iv ? "Ida y vuelta (regreso al valor de la ida)." : "", com].filter(Boolean).join(" ") || null });
+  if (tipo === "regreso" || iv) tramos.push({ ...base, p_tipo_servicio: "regreso", p_fecha_hora: iv ? iso2 : iso, p_origen: AERO.texto, p_destino: domTxt,
+    p_origen_lat: AERO.lat, p_origen_lng: AERO.lng, p_destino_lat: dom.lat, p_destino_lng: dom.lng,
+    p_vuelo: (iv ? $("vuelo2") : $("vuelo")).value.trim() || null, p_tarifa: (iv ? p.regreso : p.ida) ?? null,
+    p_comentarios: [iv ? "Ida y vuelta (regreso al valor de la ida)." : "", "Hora indicada = aterrizaje.", com].filter(Boolean).join(" ") });
+  if (tipo === "punto_a_punto") tramos.push({ ...base, p_tipo_servicio: "punto_a_punto", p_fecha_hora: iso, p_origen: domTxt, p_destino: $("dest").value.trim(),
+    p_origen_lat: dom.lat, p_origen_lng: dom.lng, p_destino_lat: dest.lat, p_destino_lng: dest.lng,
+    p_tarifa: p.ida ?? null, p_tarifa_estimada: !!p.estimado, p_retiro_detalle: $("det").value.trim() || null, p_comentarios: com || null });
+
+  $("enviar").disabled = true; $("enviar").textContent = "Enviando…";
+  const codigos = [], tokens = [];
+  for (const t of tramos) {
+    const { data, error } = await sb.rpc("crear_reserva_enlace", t);
+    if (error) { $("enviar").disabled = false; $("enviar").textContent = "Solicitar reserva"; return msg("msg", (codigos.length ? `La ida quedó registrada (${codigos[0]}), pero el regreso no: ` : "") + errText(error), "err"); }
+    codigos.push(data[0].o_codigo); tokens.push(data[0].o_token);
+  }
+  $("enviar").disabled = false; $("enviar").textContent = "Solicitar reserva";
+  $("ok-cod").textContent = codigos.join(" · ");
+  $("v-reservar").hidden = true; $("v-ok").hidden = false; scrollTo(0, 0);
+  ["com", "vuelo", "vuelo2", "fh", "fh2"].forEach(k => $(k).value = "");
+  $("ok-seg").href = "/seguimiento/?t=" + tokens[0];
+  $("ok-wa").href = "https://wa.me/56922275399?text=" + encodeURIComponent(`Hola Flota-K, acabo de completar el formulario de reserva (${codigos.join(", ")}). Quedo atento a la confirmación.`);
+  guardar("fk_reserva_datos", { nom, tel, mail });
+});
+$("ok-otra").addEventListener("click", () => { $("v-ok").hidden = true; $("v-reservar").hidden = false; scrollTo(0, 0); });
+// Datos de la última reserva en este teléfono (para no escribirlos de nuevo)
+(() => { const d = leer("fk_reserva_datos", null); if (d) { $("nom").value = d.nom || ""; $("tel").value = d.tel || ""; $("mail").value = d.mail || ""; } })();
+// El enlace puede traer el tipo: /reservar/?tipo=regreso | punto_a_punto
+(() => { const t = new URLSearchParams(location.search).get("tipo"); const b = t && document.querySelector(`#tipo [data-t="${t}"]`); if (b) b.click(); else ajustar(); })();
+</script>
+</body>
+</html>
