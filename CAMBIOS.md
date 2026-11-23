@@ -1,5 +1,11 @@
 # Cambios
 
+## 23 nov 2026 · Reservar y pagar en línea, fuera de Santiago por WhatsApp, dos direcciones al aeropuerto
+- Portada y páginas por comuna: los botones «Reservar por WhatsApp» ahora llevan a /reservar (pago con tarjeta en Flow; la reserva entra sola al sistema). El cotizador punto a punto abre /reservar con origen, destino, vehículo y ruta ya cargados.
+- Fuera de Santiago (fuera de la Región Metropolitana: Viña, Valparaíso, Rancagua, Los Andes y cualquier punto sin comuna de la RM) siempre se cotiza por WhatsApp: el servidor (flow v21) no lo cobra en línea, tampoco el tramo fijo Oriente ↔ Viña/Valparaíso.
+- Aeropuerto con dos direcciones (/reservar, casilla «segunda dirección»): la dirección principal se cobra con la tarifa fija de su sector y el tramo entre las dos direcciones, con taxímetro (+ TAG). Al aeropuerto se retira primero en la segunda dirección; desde el aeropuerto se deja primero en la principal. No se combina con ida y vuelta.
+- Pendiente de aprobar en Supabase: migración etapa73 (papelera completa + guardar la segunda dirección como parada de la reserva). Mientras no se aplique, las dos direcciones quedan en los comentarios de la reserva.
+
 ## 23 nov 2026 · Peajes de carretera (Quinta y Sexta región) a precio costo, ida y vuelta
 - Regla del dueño: los peajes de carretera se suman **a precio costo y de ida y vuelta** (el móvil vuelve), **solo en los viajes por km**. Las **tarifas fijas** (aeropuerto y tramos como Santiago oriente ↔ Viña / Valparaíso) **ya incluyen los peajes**: no se les suma nada (función `flow` v20).
 - Datos: `osm_datos` clave `casetas` (93 casetas `barrier=toll_booth` de OpenStreetMap entre Til Til/Los Andes y Curicó, con valor 2026 autos y camionetas, horario normal): Lo Prado y Zapata $2.700 (punta $4.000), Troncal Sur $1.100, Angostura $3.800, Quinta $3.800, laterales Ruta 5 Sur $900, Chacabuco $3.300, Lampa $900, Las Vegas y El Melón $2.900, Panquehue $2.300 (punta $3.450). Las casetas sin nombre o sin valor confirmado **no se cobran** (valor null) hasta verificarlas.

@@ -245,6 +245,19 @@ async function detectarSector(sb: ReturnType<typeof db>, lat: number, lng: numbe
   return { comunas: [comuna], ...(sectorPorUbicacion(d, { lat, lon: lng }, [comuna]) || {}) };
 }
 
+// Viajes fuera de Santiago (fuera de la Región Metropolitana): siempre se cotizan por WhatsApp (decisión del dueño, 23 nov 2026).
+// Los límites guardados incluyen las 52 comunas de la RM y, aparte, Valparaíso, Viña del Mar, Rancagua y Los Andes.
+const FUERA_RM = new Set(["valparaiso", "vina del mar", "rancagua", "los andes"]);
+const MSG_FUERA = "Los viajes fuera de Santiago se los cotizamos por WhatsApp al +56 9 2227 5399.";
+async function exigirRM(sb: ReturnType<typeof db>, ...puntos: any[]) {
+  const d = await datosSector(sb);
+  for (const p of puntos) {
+    if (!p) continue;
+    const c = comunaDe(d, { lat: +p.lat, lon: +p.lng });
+    if (!c || FUERA_RM.has(norm(c))) throw new Error(MSG_FUERA);
+  }
+}
+
 // ---------- Precio (servidor) ----------
 type Tramo = Record<string, unknown>;
 async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<string, unknown>) {
@@ -255,6 +268,9 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
     // El sector lo decide SIEMPRE el punto marcado en el mapa (no lo que eligió el pasajero)
     const o0 = b.origen as any;
     if (!o0 || !enChile(+o0.lat, +o0.lng)) throw new Error("Marque en el mapa el punto exacto de su dirección.");
+    const pa = b.parada as any, hayParada = !!(pa && pa.lat != null && pa.lng != null);
+    if (hayParada && !enChile(+pa.lat, +pa.lng)) throw new Error("Marque en el mapa el punto exacto de la segunda dirección.");
+    await exigirRM(sb, o0, hayParada ? pa : null);
     const ds = await detectarSector(sb, +o0.lat, +o0.lng);
     if ((ds as any)?.fuera) throw new Error((ds as any).fuera);
     if (!ds?.zona) throw new Error("Su dirección queda fuera de nuestras zonas con tarifa fija: se la cotizamos por WhatsApp al +56 9 2227 5399.");
@@ -264,6 +280,19 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
     const sectorAuto = z.zona !== String(b.zona ?? "") ? z.zona : null;
     const iv = tipo === "ida" && b.ida_vuelta === true;
     const ida = veh === "van" ? z.van : tipo === "regreso" ? z.regreso : z.ida;
+    // Dos direcciones (regla del dueño, 23 nov 2026): la dirección principal se cobra con la tarifa fija de su sector
+    // y el tramo entre las dos direcciones, con taxímetro (ruta real + TAG).
+    // Al aeropuerto: se retira primero en la segunda dirección y luego en la principal. Desde el aeropuerto: se deja primero en la principal.
+    if (hayParada) {
+      if (iv) throw new Error("Para ida y vuelta con dos direcciones, reserve cada viaje por separado.");
+      if (distKm({ lat: +pa.lat, lng: +pa.lng }, AERO) < 3) throw new Error("La segunda dirección no puede ser el aeropuerto.");
+      if (distKm({ lat: +pa.lat, lng: +pa.lng }, { lat: +o0.lat, lng: +o0.lng }) < 0.05) throw new Error("La segunda dirección es la misma que la principal.");
+      const tramo = await cotizar(sb, empresaId, { tipo: "punto_a_punto", vehiculo: veh, pasajeros: pax,
+        origen: tipo === "ida" ? pa : o0, destino: tipo === "ida" ? o0 : pa }) as any;
+      const t = { ida: tramo.ida, km: tramo.km, min: tramo.min, porticos: tramo.porticos ?? 0, tag: tramo.tag ?? 0, nombres_porticos: tramo.nombres_porticos ?? [] };
+      return { zona: z.zona, ida: ida + t.ida, tarifa_zona: ida, tramo_parada: t, regreso: null, estimado: false, km: null, sector_auto: sectorAuto, motivo: ds.motivo ?? "",
+        comuna, opciones: null, precisar: false, vehiculo: veh, van_forzada: vanForzada, aviso_direccion: avisoDireccion(String(o0.texto ?? ""), comuna) };
+    }
     return { zona: z.zona, ida, regreso: iv ? (veh === "van" ? z.van : z.ida) : null, estimado: false, km: null, sector_auto: sectorAuto, motivo: ds.motivo ?? "",
       comuna, opciones: null, precisar: false, vehiculo: veh, van_forzada: vanForzada, aviso_direccion: avisoDireccion(String(o0.texto ?? ""), comuna) };
   }
@@ -271,6 +300,7 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const o = b.origen as any, d = b.destino as any;
   if (!o || !d || !enChile(+o.lat, +o.lng) || !enChile(+d.lat, +d.lng)) throw new Error("Marque en el mapa el origen y el destino.");
   if (distKm(o, AERO) < 3 || distKm(d, AERO) < 3) throw new Error("Para viajes desde o hacia el aeropuerto elija «Al aeropuerto» o «Desde el aeropuerto»: tienen tarifa fija.");
+  await exigirRM(sb, o, d);
   // Tramos con tarifa fija (por comuna en el texto de la dirección)
   const { data: tramos } = await sb.from("tarifas_tramos").select("*").eq("empresa_id", empresaId);
   const to = norm(o.texto), td = norm(d.texto), tiene = (t: string, l: string[]) => l.some((c) => t.includes(c));
@@ -343,6 +373,7 @@ async function pagar(req: Request) {
   if (!enChile(+o.lat, +o.lng) || txt(o.texto, 300).length < 3) return json({ error: "Marque en el mapa el punto exacto de retiro." }, 400);
   if (String(b.tipo) !== "punto_a_punto" && distKm({ lat: +o.lat, lng: +o.lng }, AERO) < 3)
     return json({ error: "La dirección de retiro (o de destino, si viene desde el aeropuerto) debe ser su domicilio u otro lugar, no el aeropuerto." }, 400);
+  if (b.parada && txt(b.parada.texto, 300).length < 3) return json({ error: "Escriba la segunda dirección." }, 400);
   const pax = Math.min(15, Math.max(1, parseInt(b.pasajeros) || 1)), mal = Math.min(30, Math.max(0, parseInt(b.maletas) || 0));
 
   // Control de abuso
@@ -364,10 +395,23 @@ async function pagar(req: Request) {
   const d = b.destino ?? {}, base = { pasajeros: pax, maletas: mal, vehiculo: veh, comuna: p.zona, comentarios: [aviso, txt(b.comentarios, 500)].filter(Boolean).join(" ") };
   const tramos: Tramo[] = [];
   const ivTxt = p.regreso ? "Ida y vuelta (regreso al valor de la ida)." : "";
-  if (tipo === "ida") tramos.push({ ...base, tipo_servicio: "ida", fecha_hora: fh.toISOString(), origen: txt(o.texto, 300), origen_lat: +o.lat, origen_lng: +o.lng,
+  const tp = (p as any).tramo_parada, pa = b.parada ?? {};
+  if (tp) {
+    // Dos direcciones: la principal queda como parada; la otra es el primer retiro (al aeropuerto) o el destino final (desde el aeropuerto)
+    const prin = { lat: +o.lat, lng: +o.lng, direccion: txt(o.texto, 300) };
+    const nota = `DOS DIRECCIONES: tarifa fija ${p.zona} $${(p as any).tarifa_zona} + tramo con taxímetro entre las direcciones $${tp.ida} (${tp.km} km${tp.porticos ? `, incluye TAG ${tp.porticos} pórtico(s) = $${tp.tag}` : ""}).`;
+    const com = [nota, base.comentarios].filter(Boolean).join(" ");
+    if (tipo === "ida") tramos.push({ ...base, tipo_servicio: "ida", fecha_hora: fh.toISOString(), origen: txt(pa.texto, 300), origen_lat: +pa.lat, origen_lng: +pa.lng,
+      paradas: [prin], destino: AERO.texto, destino_lat: AERO.lat, destino_lng: AERO.lng, vuelo: txt(b.vuelo, 12) || null, retiro_detalle: txt(b.retiro_detalle, 200), monto: p.ida,
+      comentarios: `Primer retiro: ${txt(pa.texto, 300)}. Segundo retiro: ${prin.direccion}. ${com}` });
+    else tramos.push({ ...base, tipo_servicio: "regreso", fecha_hora: fh.toISOString(), origen: AERO.texto, origen_lat: AERO.lat, origen_lng: AERO.lng,
+      paradas: [prin], destino: txt(pa.texto, 300), destino_lat: +pa.lat, destino_lng: +pa.lng, vuelo: txt(b.vuelo, 12) || null, monto: p.ida,
+      comentarios: `Primera parada: ${prin.direccion}. Destino final: ${txt(pa.texto, 300)}. Hora indicada = aterrizaje. ${com}` });
+  }
+  if (tipo === "ida" && !tp) tramos.push({ ...base, tipo_servicio: "ida", fecha_hora: fh.toISOString(), origen: txt(o.texto, 300), origen_lat: +o.lat, origen_lng: +o.lng,
     destino: AERO.texto, destino_lat: AERO.lat, destino_lng: AERO.lng, vuelo: txt(b.vuelo, 12) || null, retiro_detalle: txt(b.retiro_detalle, 200), monto: p.ida,
     comentarios: [ivTxt, base.comentarios].filter(Boolean).join(" ") });
-  if (tipo === "regreso" || p.regreso) {
+  if ((tipo === "regreso" && !tp) || p.regreso) {
     const fh2 = p.regreso ? new Date(String(b.fecha_hora_regreso)) : fh;
     if (isNaN(+fh2) || +fh2 <= +fh && p.regreso) return json({ error: "El regreso debe ser después de la ida." }, 400);
     tramos.push({ ...base, tipo_servicio: "regreso", fecha_hora: fh2.toISOString(), origen: AERO.texto, origen_lat: AERO.lat, origen_lng: AERO.lng,

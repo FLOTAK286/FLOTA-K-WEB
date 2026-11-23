@@ -247,7 +247,7 @@ footer .wrap { display: grid; gap: 14px; }
         <p class="lead">Traslados privados al Aeropuerto de Santiago con tarifa fija: sabe cuánto paga antes de subir. Peajes y TAG de la Región Metropolitana incluidos, y el estacionamiento del aeropuerto cubierto durante su tiempo de espera.</p>
         <p class="promise"><strong>Comprometidos con su traslado.</strong> Planificamos cada viaje con anticipación, seguimos su vuelo en tiempo real y le enviamos los datos de su conductor y su vehículo, para que siga el recorrido en vivo desde su teléfono.</p>
         <div class="hero-cta">
-          <a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20reservar%20un%20traslado%20al%20aeropuerto" target="_blank" rel="noopener">Reservar por WhatsApp</a>
+          <a class="btn" href="/reservar/">Reservar y pagar en línea</a>
           <a class="btn ghost" href="#punto">Cotizar punto a punto</a>
           <a class="btn ghost" href="#empresas">Soy empresa</a>
         </div>
@@ -347,7 +347,7 @@ footer .wrap { display: grid; gap: 14px; }
           <p class="eyebrow">Ida y vuelta</p>
           <h2>Su regreso, al mismo valor de la ida</h2>
           <p class="muted">Reserve ida y regreso en una sola solicitud y su regreso queda al mismo valor de la ida. A su vuelta seguimos su vuelo y lo esperamos al aterrizar, sin que tenga que coordinar nada.</p>
-          <div style="margin-top:12px"><a class="btn" href="https://wa.me/56922275399?text=Hola%20Flota-K%2C%20quiero%20reservar%20ida%20y%20vuelta%20al%20aeropuerto" target="_blank" rel="noopener">Reservar ida y vuelta</a></div>
+          <div style="margin-top:12px"><a class="btn" href="/reservar/?tipo=ida&amp;iv=1">Reservar ida y vuelta</a></div>
         </div>
         <div class="ticket" aria-label="Ejemplo con Providencia">
           <span class="eyebrow">Ejemplo · Providencia</span>
@@ -523,7 +523,8 @@ footer .wrap { display: grid; gap: 14px; }
     const ca = a.comunas.map(norm), cb = b.comunas.map(norm), es = (l, x) => l.some(t => x.some(c => t.includes(c)));
     const costa = (window.FK_INTERURBANOS || []).find(x => (es(ca, x.oriente) && es(cb, x.costa)) || (es(ca, x.costa) && es(cb, x.oriente)));
     let valor, det;
-    if (costa) { valor = veh === "van" ? costa.van : costa.auto; det = costa.nombre + " · tarifa fija por tramo"; }
+    // Fuera de Santiago: siempre se cotiza por WhatsApp (regla del dueño)
+    if (costa || [...ca, ...cb].some(c => /vi(n|ñ)a|valpara|rancagua|los andes/i.test(c))) return pinta('<b>Viaje fuera de Santiago</b><small>Los viajes fuera de Santiago se los cotizamos por WhatsApp.</small>' + boton(null));
     else {
       pinta("<small>Calculando la ruta…</small>");
       // Valor del servidor: el mismo que se cobra al reservar, con $900 por cada pórtico TAG de la ruta
@@ -535,7 +536,7 @@ footer .wrap { display: grid; gap: 14px; }
         const o = FKCotizar.opcion(sv, sinAuto), esSin = !!(sinAuto && sv.alternativas && sv.alternativas.sin);
         tagTxt = o.km != null ? (esSin ? "ruta sin autopista, " : "") + FKCotizar.textoTag(o) : "";
         const d2 = o.km != null ? `${String(o.km).replace(".", ",")} km · ~${o.min} min con tráfico${tagTxt ? " · " + tagTxt : ""}` : (sv.nota || "Tarifa fija por tramo");
-        pinta(`<small>${sv.estimado ? "Valor estimado · " : ""}${sv.vehiculo === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(o.ida)}${sv.estimado ? ' <small style="font-size:1rem">aprox.</small>' : ""}</span><small>${escH(d2)}.${sv.estimado ? " Valor referencial: se confirma al reservar." : ""}</small><div id="pp-vista" hidden></div>` + boton(o.ida));
+        pinta(`<small>${sv.vehiculo === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(o.ida)}</span><small>${escH(d2)}.</small><div id="pp-vista" hidden></div>` + reservar());
         FKCotizar.vista(document.getElementById("pp-vista"), sv, { sin: sinAuto, alElegir: s => { sinAuto = s; calcular(); } });
         return;
       }
@@ -555,9 +556,15 @@ footer .wrap { display: grid; gap: 14px; }
     }
     pinta(`<small>${veh === "van" ? "Van" : "Auto ejecutivo"}</small><span class="pp-v">${fmt(valor)}</span><small>${escH(det)}.</small>` + boton(valor));
   }
+  // Reservar y pagar en línea con el viaje ya cargado en /reservar
+  function reservar() {
+    const q = new URLSearchParams({ tipo: "punto_a_punto", o: pts.a.completo, olat: pts.a.lat, olng: pts.a.lng, d: pts.b.completo, dlat: pts.b.lat, dlng: pts.b.lng });
+    if (veh === "van") q.set("veh", "van"); if (sinAuto) q.set("sin", "1");
+    return `<a class="btn" style="margin-top:6px" href="/reservar/?${q}">Reservar y pagar en línea</a>`;
+  }
   function boton(valor) {
     const t = `Hola Flota-K, quiero reservar un viaje punto a punto.\nOrigen: ${pts.a.completo}\nDestino: ${pts.b.completo}\nVehículo: ${veh === "van" ? "Van" : "Auto ejecutivo"}${valor ? "\nValor estimado en la web: " + fmt(valor) + (tagTxt ? " (" + tagTxt + ")" : "") : ""}\nFecha y hora: `;
-    return `<a class="btn" style="margin-top:6px" href="https://wa.me/56922275399?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">Reservar por WhatsApp</a>`;
+    return `<a class="btn" style="margin-top:6px" href="https://wa.me/56922275399?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">Cotizar por WhatsApp</a>`;
   }
 })();
 </script>
@@ -589,7 +596,7 @@ function render() {
     const price = mode === "van" ? x.van : x.auto;
     const li = document.createElement("li");
     li.className = "row";
-    li.innerHTML = `<span class="place"></span><span class="fare">${fmt(price)}</span><a class="book" target="_blank" rel="noopener">Reservar este viaje por WhatsApp →</a>`;
+    li.innerHTML = `<span class="place"></span><span class="fare">${fmt(price)}</span><a class="book" target="_blank" rel="noopener">Cotizar este viaje por WhatsApp →</a>`;
     li.querySelector(".place").append(document.createTextNode(x.nombre));
     const route = document.createElement("span"); route.className = "route";
     route.textContent = (mode === "van" ? "Van para grupos" : "Auto ejecutivo") + " · puerta a puerta, ida o regreso";
@@ -609,14 +616,17 @@ function render() {
     const price = r[idx[mode]];
     const li = document.createElement("li");
     li.className = "row";
-    li.innerHTML = `<span class="place"></span><span class="fare">${fmt(price)}</span><a class="book" target="_blank" rel="noopener">Reservar este traslado por WhatsApp →</a>`;
+    const fueraRM = /vi(n|ñ)a|valpara|rancagua|los andes/i.test(r[0]);
+    li.innerHTML = `<span class="place"></span><span class="fare">${fmt(price)}</span><a class="book">${fueraRM ? "Cotizar por WhatsApp →" : "Reservar y pagar en línea →"}</a>`;
     li.querySelector(".place").innerHTML = "";
     li.querySelector(".place").append(document.createTextNode(r[0]));
     const route = document.createElement("span");
     route.className = "route";
     route.textContent = routeLabel[mode];
     li.querySelector(".place").append(route);
-    li.querySelector("a.book").href = waLink(r[0], price);
+    const bk = li.querySelector("a.book");
+    if (fueraRM) { bk.href = waLink(r[0], price); bk.target = "_blank"; bk.rel = "noopener"; }
+    else bk.href = "/reservar/?tipo=" + (mode === "regreso" ? "regreso" : "ida") + (mode === "van" ? "&veh=van" : "");
     list.appendChild(li);
   }
 }
