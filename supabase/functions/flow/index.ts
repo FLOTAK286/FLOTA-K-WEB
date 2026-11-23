@@ -57,6 +57,9 @@ async function flow(metodo: "GET" | "POST", ruta: string, p: Record<string, stri
 // ---------- Pórticos TAG (OpenStreetMap, tabla osm_datos clave "porticos") ----------
 type Portico = { id: number; nombre: string; lat: number; lng: number; rumbo: number | null; caseta: boolean };
 let PORTICOS: Portico[] | null = null, porticosCargados = 0;
+// Vespucio Oriente (AVO): cobra por km entre entrada y salida. Regla del dueño (23 nov 2026): si la ruta pasa por AVO
+// se cobran 2 pórticos fijos (entrada y salida). osm_datos "avo" = nodos de sus calzadas.
+let AVO: Set<number> = new Set();
 const rumbo = (a: number[], b: number[]) => { // grados, a y b = [lat, lng]
   const r = (x: number) => x * Math.PI / 180, y = Math.sin(r(b[1] - a[1])) * Math.cos(r(b[0]));
   const x = Math.cos(r(a[0])) * Math.sin(r(b[0])) - Math.sin(r(a[0])) * Math.cos(r(b[0])) * Math.cos(r(b[1] - a[1]));
@@ -65,6 +68,8 @@ const rumbo = (a: number[], b: number[]) => { // grados, a y b = [lat, lng]
 async function porticos(sb: ReturnType<typeof db>) {
   if (PORTICOS && Date.now() - porticosCargados < 3600e3) return PORTICOS;
   const { data } = await sb.from("osm_datos").select("datos").eq("clave", "porticos").maybeSingle();
+  const { data: avo } = await sb.from("osm_datos").select("datos").eq("clave", "avo").maybeSingle();
+  AVO = new Set<number>((avo?.datos?.nodos ?? []).map((x: any) => Number(x)));
   const els: any[] = data?.datos?.elements ?? [];
   const vias = els.filter((e) => e.type === "way");
   PORTICOS = els.filter((e) => e.type === "node").map((n) => {
@@ -92,7 +97,21 @@ async function porticos(sb: ReturnType<typeof db>) {
 // es un nodo de la calzada; así solo se cuenta el pórtico de la calzada y el sentido que se recorren (las dos calzadas de una
 // autopista quedan a 15-20 m y antes se cobraban ambas). Si no hay nodos, se usa la cercanía (< 8 m) como respaldo.
 function porticosEnRuta(ruta: number[][], lista: Portico[], nodos: number[] = []) { // ruta = [[lng, lat], ...]
-  if (nodos.length) { const set = new Set(nodos); return lista.filter((p) => set.has(p.id)); }
+  if (nodos.length) {
+    const set = new Set(nodos);
+    let res = lista.filter((p) => set.has(p.id));
+    // Vespucio Oriente: si la ruta la usa, 2 pórticos fijos (entrada y salida) en vez de los del mapa
+    const idx: number[] = [];
+    if (AVO.size) for (let i = 0; i < nodos.length; i++) if (AVO.has(nodos[i])) idx.push(i);
+    if (idx.length >= 3) {
+      res = res.filter((p) => !AVO.has(p.id) && !/vespucio oriente/i.test(p.nombre));
+      const pt = (i: number) => ruta.length === nodos.length && ruta[i] ? { lat: ruta[i][1], lng: ruta[i][0] } : { lat: -33.42, lng: -70.575 };
+      const a = pt(idx[0]), b = pt(idx[idx.length - 1]);
+      res.push({ id: -1, nombre: "Vespucio Oriente · entrada", lat: a.lat, lng: a.lng, rumbo: null, caseta: false },
+               { id: -2, nombre: "Vespucio Oriente · salida", lat: b.lat, lng: b.lng, rumbo: null, caseta: false });
+    }
+    return res;
+  }
   const res: Portico[] = [];
   const cosLat = Math.cos(-33.45 * Math.PI / 180), M = 111320;
   for (const p of lista) {

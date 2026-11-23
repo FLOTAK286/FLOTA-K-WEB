@@ -1,5 +1,9 @@
 # Cambios
 
+## 23 nov 2026 · Vespucio Oriente: 2 pórticos fijos
+- Regla del dueño: si la ruta pasa por **Autopista Vespucio Oriente (AVO)** se cobran **2 pórticos fijos** (entrada y salida, $900 c/u), en vez de los pórticos del mapa (AVO cobra por km y en OpenStreetMap tiene uno solo).
+- Datos: `osm_datos` clave `avo` (507 nodos de 63 tramos de calzada de AVO, OpenStreetMap, 23 nov). Función `flow` v18: si la ruta (nodos de OSRM) recorre AVO, quita el pórtico de AVO y agrega "Vespucio Oriente · entrada" y "· salida" (también en `accion=porticos`, cierre del conductor y panel). Ej.: La Reina → Huechuraba: P101 + entrada + salida = 3 pórticos ($2.700).
+
 ## 22 nov 2026 · Ruta con pórticos, opción sin autopista y TAG automático al cerrar
 - **Tiempo extra sin autopista** (función `flow` v17, aprobado por el dueño 23 nov): la diferencia de minutos respecto de la ruta con autopista se cobra como la espera ($180/min auto, $270/min van). "Sin autopista" solo se ofrece si tiene menos pórticos **y** sale más barata. Ej.: Vitacura → Maipú $31.100 con autopista / $30.500 sin (incluye 34 min extra = $6.120); La Florida → Santiago Centro $18.700 / $16.000; Las Condes → Quilicura no ofrece "sin autopista".
 - Publicado en `main` el 23 nov 2026 con aprobación del dueño.
