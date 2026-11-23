@@ -2,7 +2,7 @@
 
 ## 23 nov 2026 · El pasajero ya no elige el sector: la tarifa la decide el sistema
 - /reservar, app del pasajero (/app) y portal de empresas (/empresa): se quitó el campo «Su sector». El pasajero escribe su dirección, la elige de la lista y el sistema calcula la tarifa fija según el punto del mapa (Edge Function flow, acción «sector»: límites de comunas y calles límite, p. ej. Las Condes antes o después de Manquehue).
-- Se muestra «Tarifa fija · sector X (según su dirección)». En la app, los viajes fuera de Santiago piden cotizar por WhatsApp (en el portal de empresas no, por los convenios).
+- Se muestra «Tarifa fija · sector X (según su dirección)». En la app y en el portal de empresas, los viajes fuera de Santiago (incluido Oriente ↔ Viña/Valparaíso) no se cotizan solos: piden cotizar por WhatsApp (decisión del dueño: llevan recargo y los revisa alguien autorizado). Los servicios habituales que carga el admin siguen igual.
 - Ayudante común FKCotizar.autoSector / sectorDe (assets/cotizar.js). App sw v13, empresa sw v7. Precios de tarifas.js verificados contra tarifas_aeropuerto (87 zonas iguales).
 
 ## 23 nov 2026 · Reservar y pagar en línea, fuera de Santiago por WhatsApp, dos direcciones al aeropuerto

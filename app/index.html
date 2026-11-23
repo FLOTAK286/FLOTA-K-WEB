@@ -498,7 +498,7 @@ function calcular() {
   if (tipo === "punto_a_punto") {
     const a = lugDom.get(), b = lugDest.get(); if (!a || !b) return null;
     const costa = viajeCosta(a, b);
-    if (costa) return { ida: veh === "van" ? costa.van : costa.auto, nota: costa.nombre + " · tarifa fija por tramo", km: ruta && ruta.km };
+    if (costa) return { srvError: "Los viajes fuera de Santiago se los cotizamos por WhatsApp al +56 9 2227 5399." }; // fuera de Santiago: siempre se cotiza
     if (FKLugar.enAeropuerto(a) || FKLugar.enAeropuerto(b)) return { aeropuerto: true };
     if (!ruta) return { calculando: true };
     // Valor del servidor (el mismo de /reservar): ruta real + $900 por pórtico TAG

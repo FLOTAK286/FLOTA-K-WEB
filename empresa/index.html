@@ -450,9 +450,9 @@ function precioOtro() {
     const a = lugDom && lugDom.get(), b = lugDest && lugDest.get(); if (!a || !b) return null;
     const lado = p => [...(p.comunas || [])].map(norm), es = (l, lista) => l.some(t => lista.some(c => t.includes(c)));
     const c = (window.FK_INTERURBANOS || []).find(x => (es(lado(a), x.oriente) && es(lado(b), x.costa)) || (es(lado(a), x.costa) && es(lado(b), x.oriente)));
-    return c ? (veh === "van" ? c.van : c.auto) : null;
+    return null; // fuera de Santiago (también Oriente ↔ Viña/Valparaíso): se cotiza por WhatsApp; el servidor lo informa
   }
-  if (!autoSec) autoSec = FKCotizar.autoSector(T, () => ajustar());
+  if (!autoSec) autoSec = FKCotizar.autoSector(T, () => ajustar(), { soloRM: true }); // fuera de Santiago: siempre se cotiza (decisión del dueño)
   secEst = autoSec.estado(lugDom && lugDom.get());
   zona = secEst.zona || null;
   if (!zona) return null;
@@ -522,6 +522,7 @@ $("agendar").addEventListener("click", async () => {
     if (aero && !zona) return msg("a-msg", secEst.error || "Escriba la dirección, elíjala de la lista y espere a que aparezca la tarifa.", "err");
     if (!$("dom").value.trim() || !lugDom.exigir()) return msg("a-msg", "Escriba la dirección y marque su punto exacto en el mapa.", "err");
     if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("a-msg", "Escriba el destino y marque su punto en el mapa.", "err");
+    if (!aero && estRes && /fuera de Santiago/i.test(estRes[0])) return msg("a-msg", estRes[0], "err");
     const paradas = parE ? parE.get() : [];
     if (!paradas) { parE.exigir(); return msg("a-msg", "Marque en el mapa el punto exacto de cada parada (o quítela).", "err"); }
     const dom = lugDom.get(), dest = lugDest.get(), txt = $("dom").value.trim();
