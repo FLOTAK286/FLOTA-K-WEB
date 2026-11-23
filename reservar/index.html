@@ -162,6 +162,9 @@
         <div class="f"><label for="com">Comentarios (opcional)</label><textarea id="com" rows="2" maxlength="500" placeholder="Mascota en canil, silla de ruedas plegable, etc."></textarea></div>
 
         <div class="f"><label for="como">¿Cómo nos conoció? (opcional)</label><select id="como"><option value="">Elegir…</option><option value="google">Google</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option><option value="recomendacion">Me lo recomendaron</option><option value="cliente_frecuente">Ya he viajado con Flota-K</option><option value="otro">Otro</option></select></div>
+        <div class="f" id="b-cod"><label for="cod">Código de descuento (opcional)</label>
+          <div style="display:flex;gap:8px"><input id="cod" type="text" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" style="flex:1;text-transform:uppercase" placeholder="Si tiene un código, escríbalo aquí"><button type="button" class="btn ghost" id="cod-ok">Aplicar</button></div>
+          <span class="small" id="cod-msg" hidden></span></div>
         <div class="precio" id="precio"><span id="precio-l" class="small">Valor</span><b id="precio-v">—</b></div>
         <div id="ruta-vista" hidden></div>
         <div id="msg" class="msg" hidden></div>
@@ -384,7 +387,22 @@ async function actualizarRuta() {
   if (rutaKey === k) { ruta = r; precio(); }
 }
 const WA_LINK = () => "https://wa.me/56922275399?text=" + encodeURIComponent(`Hola Flota-K, quiero cotizar un viaje${$("dom").value.trim() ? " desde " + $("dom").value.trim() : ""}${tipo === "punto_a_punto" && $("dest").value.trim() ? " hasta " + $("dest").value.trim() : tipo === "ida" ? " al aeropuerto" : tipo === "regreso" ? " desde el aeropuerto" : ""}. Fecha y hora: `);
-let montoAceptado = null; // valor que informó el servidor (si difiere del calculado aquí)
+let montoAceptado = null;
+// Código de descuento: lo valida el servidor; se descuenta del total (siempre se cobra al menos $1.000)
+let codigo = null; // { codigo, monto }
+const descuentoDe = total => codigo ? Math.min(codigo.monto, Math.max(0, total - 1000)) : 0;
+function codMsg(t, ok) { const m = $("cod-msg"); m.hidden = !t; m.textContent = t || ""; m.style.color = ok ? "#2e7d4f" : "#b3261e"; }
+$("cod").addEventListener("input", () => { if (codigo) { codigo = null; precio(); } codMsg(""); });
+$("cod").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("cod-ok").click(); } });
+$("cod-ok").addEventListener("click", async () => {
+  const c = $("cod").value.trim(); if (!c) return codMsg("Escriba el código.");
+  $("cod-ok").disabled = true;
+  try {
+    const j = await fetch(FN + "?accion=codigo&c=" + encodeURIComponent(c), { headers: { apikey: FK_CONFIG.anonKey, Authorization: "Bearer " + FK_CONFIG.anonKey } }).then(r => r.json());
+    if (j.codigo) { codigo = j; codMsg(`✓ Código aplicado: descuento de ${clp(j.monto)}.`, true); } else { codigo = null; codMsg(j.error || "No pudimos revisar el código."); }
+  } catch (_) { codMsg("Sin conexión. Intente de nuevo."); }
+  $("cod-ok").disabled = false; precio();
+}); // valor que informó el servidor (si difiere del calculado aquí)
 function precio() {
   montoAceptado = null;
   sugerirZona();
@@ -402,7 +420,9 @@ function precio() {
   L.innerHTML = p.regreso ? `Ida ${clp(p.ida)} + regreso ${clp(p.regreso)}<br><span class="muted">Regreso al mismo valor de la ida</span>`
     : p.estimado ? `Valor estimado<br><span class="muted">${esc(p.nota)} · se lo confirmamos al aprobar la reserva</span>`
     : p.nota ? esc(p.nota) : "Tarifa fija · peajes y TAG de la RM incluidos";
-  V.textContent = clp(total);
+  const d = descuentoDe(total);
+  if (d) L.innerHTML += `<br><span style="color:#2e7d4f">Código ${esc(codigo.codigo)}: −${clp(d)} (antes ${clp(total)})</span>`;
+  V.textContent = clp(total - d);
 }
 
 // ---------- Enviar ----------
@@ -435,7 +455,8 @@ $("f").addEventListener("submit", async e => {
   if (otro && ($("o-nom").value.trim().length < 2 || $("o-tel").value.replace(/\D/g, "").length < 8)) return msg("msg", "Escriba el nombre y el teléfono de la persona que viaja.", "err");
 
   const dom = lugDom.get(), dest = lugDest.get();
-  const total = p.ida != null ? p.ida + (p.regreso || 0) : null;
+  const bruto = p.ida != null ? p.ida + (p.regreso || 0) : null;
+  const total = bruto != null ? bruto - descuentoDe(bruto) : null;
   if (total == null) return msg("msg", p.error || "Espere a que aparezca el valor de su viaje.", "err");
   if (!mail) { $("mail").focus(); return msg("msg", "Escriba su correo: ahí le llega el comprobante de pago.", "err"); }
   const cuerpo = { nombre: nom, telefono: tel, correo: mail, como: $("como").value || null,
@@ -445,7 +466,7 @@ $("f").addEventListener("submit", async e => {
     origen: { texto: $("dom").value.trim(), lat: dom.lat, lng: dom.lng },
     destino: aero ? null : { texto: $("dest").value.trim(), lat: dest.lat, lng: dest.lng },
     retiro_detalle: $("det").value.trim() || null, pasajeros: cont.pax, maletas: cont.mal, comentarios: $("com").value.trim() || null, monto_visto: montoAceptado ?? total,
-    sin_autopista: tipo === "punto_a_punto" && !!(sinAuto && cotServ && cotServ.alternativas && cotServ.alternativas.sin), parada: parada() };
+    sin_autopista: tipo === "punto_a_punto" && !!(sinAuto && cotServ && cotServ.alternativas && cotServ.alternativas.sin), parada: parada(), codigo: codigo ? codigo.codigo : null };
   guardar("fk_reserva_datos", { nom, tel, mail });
   $("enviar").disabled = true; $("enviar").textContent = "Conectando con Flow…";
   try {
@@ -453,6 +474,7 @@ $("f").addEventListener("submit", async e => {
     const j = await r.json().catch(() => ({}));
     if (j.url) { location.href = j.url; return; }
     if (j.cambio && j.monto) { montoAceptado = j.monto; $("precio-v").textContent = clp(j.monto); $("precio-l").textContent = "Valor confirmado por el sistema"; }
+    if (j.codigo_error) { codigo = null; codMsg(j.error); precio(); }
     msg("msg", j.error || "No pudimos iniciar el pago. Intente de nuevo.", "err");
   } catch (_) { msg("msg", "Sin conexión. Revise su internet e intente de nuevo.", "err"); }
   $("enviar").disabled = false; $("enviar").textContent = "Pagar y reservar";

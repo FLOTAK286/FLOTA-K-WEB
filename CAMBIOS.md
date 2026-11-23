@@ -1,5 +1,10 @@
 # Cambios
 
+## 23 nov 2026 · Paradas paso a paso en la app del conductor y códigos de descuento
+- App del conductor, servicio con paradas y pasajero a bordo: panel paso a paso. «Ir a la parada N (Waze)» → «Llegué a la parada N» (corre la espera, 5 min sin costo) → «Continuar a la parada siguiente / al destino (Waze)», que cierra la espera y abre Waze al siguiente punto. Reemplaza el botón de Google Maps con todas las paradas.
+- /reservar: campo «Código de descuento». El servidor (flow v22, acción «codigo») lo valida; se descuenta del total (mínimo a cobrar $1.000) y del precio del primer tramo, con nota en la reserva. Códigos en osm_datos «codigos_descuento» (sin acceso público); un uso = una solicitud pagada con ese código (solicitudes_pago.datos.codigo). Provisional hasta tener tabla y pestaña propias.
+- Primer código: AMIGO-LRBFM, $5.000, 1 uso, vence el 28 feb 2027.
+
 ## 23 nov 2026 · El pasajero ya no elige el sector: la tarifa la decide el sistema
 - /reservar, app del pasajero (/app) y portal de empresas (/empresa): se quitó el campo «Su sector». El pasajero escribe su dirección, la elige de la lista y el sistema calcula la tarifa fija según el punto del mapa (Edge Function flow, acción «sector»: límites de comunas y calles límite, p. ej. Las Condes antes o después de Manquehue).
 - Se muestra «Tarifa fija · sector X (según su dirección)». En la app y en el portal de empresas, los viajes fuera de Santiago (incluido Oriente ↔ Viña/Valparaíso) no se cotizan solos: piden cotizar por WhatsApp (decisión del dueño: llevan recargo y los revisa alguien autorizado). Los servicios habituales que carga el admin siguen igual.

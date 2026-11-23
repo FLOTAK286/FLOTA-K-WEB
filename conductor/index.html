@@ -788,6 +788,48 @@ function htmlParada(r, i) {
     <span class="small">${!e.aplica ? "Este servicio no cobra espera en paradas." : libre > 0 ? `Sin costo por ${FKEspera.reloj(libre)} más. Después: ${clp(e.tarifa_min)} por minuto.` : `Cobrando espera: <b>${clp(monto)}</b> (${min} min × ${clp(e.tarifa_min)})`}</span></div>
     <button type="button" class="btn go sm par-btn" data-acc="salgo">➤ Seguimos (salir de la parada ${i + 1})</button>`;
 }
+// Servicio con paradas, paso a paso (pedido del dueño, 23 nov 2026):
+//   1) "Ir a la parada N" abre Waze a esa parada.  2) "Llegué a la parada N" empieza a correr la espera (5 min sin costo).
+//   3) "Continuar" cierra la espera y abre Waze al siguiente punto (otra parada o el destino final).  4) Al final, "Ir al destino".
+function htmlPaso(r) {
+  const ps = r.paradas || [], x = paradaEsp[r.id], lista = (x && x.lista) || [];
+  if (!x) return `<p class="small muted" style="margin:0">Cargando las paradas…</p>`;
+  const sale = i => lista.find(y => y.indice === i && y.salida_en), abierta = lista.find(y => !y.salida_en);
+  const i = abierta ? abierta.indice : ps.findIndex((_, k) => !sale(k));
+  const destino = { direccion: r.destino, lat: r.destino_lat, lng: r.destino_lng };
+  const punto = k => k < ps.length ? ps[k] : destino;
+  const nombre = k => k < ps.length ? `a la parada ${k + 1}` : "al destino";
+  const linkWaze = (k, txt, extra = "") => `<a class="btn navegar ${extra}" href="${waze(punto(k).direccion, punto(k).lat, punto(k).lng)}" target="_blank" rel="noopener" ${extra ? `data-i="${k - 1}"` : ""}>${txt}</a>`;
+  const cab = (k, t) => `<div class="small muted" style="margin:0 0 6px">Paso ${Math.min(k, ps.length) + 1} de ${ps.length + 1} · ${t}</div>`;
+  if (i === -1) return cab(ps.length, `Destino final: ${esc(r.destino)}`) + linkWaze(ps.length, "➤ Ir al destino (Waze)");
+  if (abierta) {
+    const sig = i + 1;
+    return cab(i, `En la parada ${i + 1}: ${esc(ps[i].direccion)}`) + `<div class="par-esp-paso">${htmlParada(r, i)}</div>`
+      + linkWaze(sig, `➤ Continuar ${nombre(sig)} (Waze)`, "paso-sigue");
+  }
+  return cab(i, `Parada ${i + 1}: ${esc(ps[i].direccion)}`) + linkWaze(i, `➤ Ir a la parada ${i + 1} (Waze)`)
+    + `<button type="button" class="btn ghost paso-llegue" data-i="${i}" style="width:100%;margin-top:8px">📍 Llegué a la parada ${i + 1}</button>`;
+}
+setInterval(() => {
+  document.querySelectorAll("[data-paso]").forEach(el => {
+    const id = el.dataset.paso, r = items.find(x => x.id === id); if (!r) return;
+    const x = paradaEsp[id];
+    if (!x || Date.now() - x.en > 30000) traerParadas(id);
+    // Dentro del panel, la espera de la parada abierta se muestra sin su propio botón "Seguimos" (lo reemplaza "Continuar")
+    const h = htmlPaso(r).replace(/<button type="button" class="btn go sm par-btn"[^]*?<\/button>/, "");
+    if (el.innerHTML !== h) el.innerHTML = h;
+  });
+}, 1000);
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest(".paso-llegue, .paso-sigue"); if (!b) return;
+  const el = b.closest("[data-paso]"), id = el.dataset.paso;
+  const llegue = b.classList.contains("paso-llegue");
+  // "Continuar" es un enlace: abre Waze al siguiente punto y, al mismo tiempo, cierra la espera de la parada
+  if (llegue) b.disabled = true;
+  const { error } = await sb.rpc("conductor_parada", { p_reserva: id, p_indice: Number(b.dataset.i), p_accion: llegue ? "llegue" : "salgo" });
+  if (error) { if (llegue) b.disabled = false; return alert(error.message || "No se pudo guardar"); }
+  await traerParadas(id);
+});
 setInterval(() => {
   document.querySelectorAll("[data-parada]").forEach(el => {
     const id = el.dataset.parada, r = items.find(x => x.id === id); if (!r) return;
@@ -1397,8 +1439,8 @@ function pintar() {
       ${vista === "inicio" && EN_CURSO.includes(r.estado) ? `<button type="button" class="linkbtn det-ruta">${detallesRuta ? "Ver pantalla simple" : "Ver detalles"}</button>` : ""}
       ${porResponder(r) ? `<div class="nuevo"><b>🔔 Servicio nuevo asignado</b><span class="small">¿Puede tomarlo?</span>
         <div class="actions"><button class="btn go acepta" type="button">Aceptar</button><button class="btn ghost rechaza" type="button">No puedo</button></div></div>` : ""}
-      ${!fin ? (r.estado === "a_bordo" && (r.paradas || []).length && r.destino_lat != null
-        ? `<a class="btn navegar" href="${gmapsRuta(r)}" target="_blank" rel="noopener">➤ Navegar con ${r.paradas.length} parada(s) hasta el destino (Google Maps)</a>`
+      ${!fin ? (r.estado === "a_bordo" && (r.paradas || []).length
+        ? `<div class="paso" data-paso="${esc(r.id)}">${htmlPaso(r)}</div>`
         : `<a class="btn navegar" href="${(r.estado === "a_bordo" ? waze(r.destino, r.destino_lat, r.destino_lng) : waze(r.origen, r.origen_lat, r.origen_lng))}" target="_blank" rel="noopener">➤ Navegar ${r.estado === "a_bordo" ? "al destino" : "al punto de retiro"} (Waze)</a>`) : ""}
       <div class="who">${esc(r.nombre_pasajero)}</div>${r.solicitante_nombre ? `<div class="small muted">Reservado por ${esc(r.solicitante_nombre)}</div>` : ""}
       ${r.estado === "en_lugar" || (esPaP(r) && ["asignada", "en_camino", "a_bordo", "finalizada"].includes(r.estado)) ? `<div class="espera" data-espera="${esc(r.id)}"></div>` : ""}
@@ -1407,7 +1449,7 @@ function pintar() {
       <div class="place"><small>Retiro</small><span>${esc(r.origen)}</span>${r.retiro_detalle ? `<span class="small" style="color:var(--gold)">📍 ${esc(r.retiro_detalle)}</span>` : ""}
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.origen, r.origen_lat, r.origen_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>
       ${(r.paradas || []).map((p, i) => `<div class="place"><small>Parada ${i + 1}</small><span>${esc(p.direccion)}</span>
-        ${r.estado === "a_bordo" || (fin && (r.paradas || []).length) ? `<div class="par-esp" data-parada="${esc(r.id)}" data-i="${i}"></div>` : ""}
+        ${fin && (r.paradas || []).length ? `<div class="par-esp" data-parada="${esc(r.id)}" data-i="${i}"></div>` : ""}
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(p.direccion, p.lat, p.lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(p.direccion, p.lat, p.lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>`).join("")}
       <div class="place"><small>Destino</small><span>${esc(r.destino)}</span>
         ${fin ? "" : `<div class="nav"><a class="btn ghost sm" href="${waze(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Waze</a><a class="btn ghost sm" href="${gmaps(r.destino, r.destino_lat, r.destino_lng)}" target="_blank" rel="noopener">Google Maps</a></div>`}</div>

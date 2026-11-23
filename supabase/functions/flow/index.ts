@@ -350,6 +350,22 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
     alternativas: { con: vCon, sin: vSin }, vehiculo: veh, van_forzada: vanForzada };
 }
 
+// ---------- Códigos de descuento ----------
+// Guardados en osm_datos, clave "codigos_descuento" (tabla sin acceso público: solo este servidor los lee).
+// { codigos: [{ codigo, monto, usos_max, vence: "AAAA-MM-DD", activo, nota }] }. Un uso = una solicitud de pago pagada con ese código.
+// Los crea el dueño (con Claude). Provisional hasta tener una tabla propia con su pestaña en el panel.
+async function validarCodigo(sb: ReturnType<typeof db>, codigo: unknown) {
+  const c = txt(codigo, 40).toUpperCase().replace(/\s+/g, "");
+  if (!c) return null;
+  const { data } = await sb.from("osm_datos").select("datos").eq("clave", "codigos_descuento").maybeSingle();
+  const x = ((data?.datos?.codigos ?? []) as any[]).find((y) => String(y.codigo).toUpperCase() === c);
+  if (!x || x.activo === false) throw new Error("El código de descuento no existe o ya no está activo.");
+  if (x.vence && Date.now() > new Date(x.vence + "T23:59:59-03:00").getTime()) throw new Error("El código de descuento ya venció.");
+  const { count } = await sb.from("solicitudes_pago").select("id", { count: "exact", head: true }).eq("estado", "pagada").eq("datos->>codigo", c);
+  if ((count ?? 0) >= (x.usos_max ?? 1)) throw new Error("Este código de descuento ya fue usado.");
+  return { codigo: c, monto: Math.max(0, Math.round(Number(x.monto) || 0)) };
+}
+
 // ---------- Acciones ----------
 async function pagar(req: Request) {
   const sb = db();
@@ -386,7 +402,12 @@ async function pagar(req: Request) {
   let p;
   try { p = await cotizar(sb, emp!.id, b); } catch (e) { return json({ error: (e as Error).message }, 400); }
   if ((p as any).precisar) return json({ error: `Su dirección está en ${(p as any).comuna || "una comuna"} con varias tarifas: elija su sector exacto antes de pagar.`, precisar: true, opciones: (p as any).opciones }, 400);
-  const total = p.ida + (p.regreso ?? 0);
+  const bruto = p.ida + (p.regreso ?? 0);
+  // Código de descuento (opcional): se descuenta del total; siempre se cobra al menos $1.000
+  let cod: { codigo: string; monto: number } | null = null;
+  try { cod = await validarCodigo(sb, b.codigo); } catch (e) { return json({ error: (e as Error).message, codigo_error: true }, 400); }
+  const descuento = cod ? Math.min(cod.monto, Math.max(0, bruto - 1000)) : 0;
+  const total = bruto - descuento;
   // Si el valor que vio el pasajero no coincide con el del servidor, se le muestra el correcto antes de cobrar
   if (Number(b.monto_visto) !== total) return json({ monto: total, cambio: true, error: `El valor de su viaje es $${total.toLocaleString("es-CL")}. Revíselo y toque de nuevo «Pagar y reservar».` }, 409);
 
@@ -425,8 +446,13 @@ async function pagar(req: Request) {
       base.comentarios, (p as any).porticos ? `Incluye TAG: ${(p as any).porticos} pórtico(s) = $${(p as any).tag} (${((p as any).nombres_porticos || []).join(", ")}).` : "",
       (p as any).peajes_cobro ? `Incluye peajes de carretera ida y vuelta: ${((p as any).peajes || []).map((c: any) => c.plaza).join(", ")} = $${(p as any).peajes_cobro}.` : ""].filter(Boolean).join(" ") });
 
+  // El descuento se aplica al primer tramo (lo que queda como precio de la reserva es lo que se pagó)
+  if (descuento && tramos[0]) {
+    tramos[0].monto = Math.max(0, Number(tramos[0].monto) - descuento);
+    tramos[0].comentarios = [`CÓDIGO DE DESCUENTO ${cod!.codigo}: -$${descuento.toLocaleString("es-CL")} (valor de lista $${bruto.toLocaleString("es-CL")}).`, tramos[0].comentarios].filter(Boolean).join(" ");
+  }
   const orden = "FKW-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
-  const { data: sol, error } = await sb.from("solicitudes_pago").insert({ empresa_id: emp!.id, orden, datos: { contacto: c, tramos }, monto: total, telefono: tel, correo: c.correo }).select("id").single();
+  const { data: sol, error } = await sb.from("solicitudes_pago").insert({ empresa_id: emp!.id, orden, datos: { contacto: c, tramos, codigo: cod?.codigo ?? null, descuento }, monto: total, telefono: tel, correo: c.correo }).select("id").single();
   if (error) return json({ error: "No pudimos guardar su solicitud. Intente de nuevo." }, 500);
 
   const fn = `${env("SUPABASE_URL")}/functions/v1/flow`;
@@ -493,6 +519,13 @@ Deno.serve(async (req) => {
       const pj = peajesEnRuta(ru.geo, ru.nodos), pjIda = pj.reduce((a, c) => a + c.valor, 0);
       return json({ porticos: pp.length, valor_tag: e?.valor_tag ?? 900, tag: pp.length * (e?.valor_tag ?? 900), km: ru.km, nombres: pp.map((p) => p.nombre),
         peajes: pj.map((c) => ({ plaza: c.plaza, valor: c.valor })), peajes_ida: pjIda, peajes_cobro: 2 * pjIda });
+    }
+    if (accion === "codigo") {
+      // Revisa un código de descuento antes de pagar: { codigo, monto } o { error }
+      try {
+        const r = await validarCodigo(db(), u.searchParams.get("c"));
+        return r ? json(r) : json({ error: "Escriba el código." }, 400);
+      } catch (e) { return json({ error: (e as Error).message }, 400); }
     }
     if (accion === "sector") {
       const lat = Number(u.searchParams.get("lat")), lng = Number(u.searchParams.get("lng"));
