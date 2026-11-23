@@ -275,15 +275,8 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const { data: tramos } = await sb.from("tarifas_tramos").select("*").eq("empresa_id", empresaId);
   const to = norm(o.texto), td = norm(d.texto), tiene = (t: string, l: string[]) => l.some((c) => t.includes(c));
   const tf = (tramos || []).find((x: any) => (tiene(to, x.lado_a) && tiene(td, x.lado_b)) || (tiene(to, x.lado_b) && tiene(td, x.lado_a)));
-  if (tf) {
-    // Tarifa fija por tramo + peajes de carretera de ida y vuelta, a precio costo
-    await porticos(sb);
-    const ru = await rutaOsrm([{ lat: +o.lat, lng: +o.lng }, { lat: +d.lat, lng: +d.lng }]);
-    const pj = ru ? peajesEnRuta(ru.geo, ru.nodos) : [], pjIda = pj.reduce((a, c) => a + c.valor, 0), fijo = veh === "van" ? tf.van : tf.auto;
-    return { zona: null, ida: fijo + 2 * pjIda, regreso: null, estimado: false, km: ru?.km ?? null, min: ru?.min ?? null, nota: tf.nombre, base: fijo,
-      peajes: pj.map((c) => ({ plaza: c.plaza, valor: c.valor, lat: c.lat, lng: c.lng })), peajes_ida: pjIda, peajes_cobro: 2 * pjIda, peajes_pendiente: !ru,
-      porticos: 0, tag: 0, nombres_porticos: [], porticos_mapa: [], ruta: ru ? rutaParaMapa(ru.geo) : null, vehiculo: veh, van_forzada: vanForzada };
-  }
+  // Tarifa fija por tramo: ya incluye los peajes (decisión del dueño, 23 nov 2026); los peajes de carretera se suman solo a los viajes por km
+  if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre, vehiculo: veh, van_forzada: vanForzada };
   // Dos opciones: con autopista (la más rápida, OSRM) y sin autopista (evita peajes, Valhalla).
   // Si no hay ruta, no se cobra en línea: mejor confirmar el valor por WhatsApp.
   const pts = [{ lat: +o.lat, lng: +o.lng }, { lat: +d.lat, lng: +d.lng }];

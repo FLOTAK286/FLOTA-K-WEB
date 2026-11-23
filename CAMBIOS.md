@@ -1,11 +1,11 @@
 # Cambios
 
 ## 23 nov 2026 · Peajes de carretera (Quinta y Sexta región) a precio costo, ida y vuelta
-- Regla del dueño: los peajes de carretera se suman **a precio costo y de ida y vuelta** (el móvil vuelve). Santiago oriente ↔ Viña / Valparaíso mantiene su tarifa fija, más los peajes.
+- Regla del dueño: los peajes de carretera se suman **a precio costo y de ida y vuelta** (el móvil vuelve), **solo en los viajes por km**. Las **tarifas fijas** (aeropuerto y tramos como Santiago oriente ↔ Viña / Valparaíso) **ya incluyen los peajes**: no se les suma nada (función `flow` v20).
 - Datos: `osm_datos` clave `casetas` (93 casetas `barrier=toll_booth` de OpenStreetMap entre Til Til/Los Andes y Curicó, con valor 2026 autos y camionetas, horario normal): Lo Prado y Zapata $2.700 (punta $4.000), Troncal Sur $1.100, Angostura $3.800, Quinta $3.800, laterales Ruta 5 Sur $900, Chacabuco $3.300, Lampa $900, Las Vegas y El Melón $2.900, Panquehue $2.300 (punta $3.450). Las casetas sin nombre o sin valor confirmado **no se cobran** (valor null) hasta verificarlas.
-- Función `flow` v19: troncales por cercanía a la ruta (< 60 m, una vez por plaza); laterales solo si la ruta pasa por ese nodo exacto. Se suman ×2 en punto a punto (con y sin autopista) y en los tramos con tarifa fija; la reserva pagada anota "Incluye peajes de carretera ida y vuelta…". `accion=porticos` devuelve también los peajes (cierre del conductor).
+- Función `flow` v19: troncales por cercanía a la ruta (< 60 m, una vez por plaza); laterales solo si la ruta pasa por ese nodo exacto. Se suman ×2 en punto a punto por km (con y sin autopista); la reserva pagada anota "Incluye peajes de carretera ida y vuelta…". `accion=porticos` devuelve también los peajes (cierre del conductor).
 - Pantallas: el cotizador (portada, app, /reservar) muestra "peajes de carretera ida y vuelta ($X)", el detalle por plaza y marcadores morados en el mapa; la app del conductor rellena "Peajes ($)" al cerrar con taxímetro.
-- Ejemplos: Las Condes → Viña (tramo fijo $170.000) + Lo Prado y Zapata ×2 = $10.800; Providencia → Rancagua: Angostura + lateral ×2; Providencia → Los Andes: Chacabuco ×2.
+- Ejemplos: Las Condes → Viña: tramo fijo $170.000 (sin peajes extra); Providencia → Rancagua: Angostura + lateral ×2; Providencia → Los Andes: Chacabuco ×2.
 
 ## 23 nov 2026 · Vespucio Oriente: 2 pórticos fijos
 - Regla del dueño: si la ruta pasa por **Autopista Vespucio Oriente (AVO)** se cobran **2 pórticos fijos** (entrada y salida, $900 c/u), en vez de los pórticos del mapa (AVO cobra por km y en OpenStreetMap tiene uno solo).
