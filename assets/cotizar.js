@@ -32,7 +32,11 @@
   // Opción elegida (con o sin autopista) de una cotización del servidor
   const opcion = (j, sin) => (j && j.alternativas && (sin ? j.alternativas.sin : j.alternativas.con)) || j;
   // Texto del TAG para mostrar junto al valor
-  const textoTag = j => !j || j.porticos == null ? "" : j.porticos ? `incluye ${j.porticos} pórtico${j.porticos > 1 ? "s" : ""} TAG (${clp(j.tag)})` : "sin pórticos TAG";
+  const textoTag = j => {
+    if (!j || j.porticos == null) return "";
+    const t = j.porticos ? `incluye ${j.porticos} pórtico${j.porticos > 1 ? "s" : ""} TAG (${clp(j.tag)})` : "sin pórticos TAG";
+    return j.peajes_cobro ? `${t} y peajes de carretera ida y vuelta (${clp(j.peajes_cobro)})` : t;
+  };
   const tiempo = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + " min" : ""}`.trim();
 
   // Leaflet bajo demanda (la portada no lo trae)
@@ -66,13 +70,14 @@
     const con = j.alternativas.con, sin = j.alternativas.sin, elegSin = !!(op.sin && sin), sel = elegSin ? sin : con;
     const boton = (o, esSin) => `<button type="button" class="fkc-op" data-sin="${esSin ? 1 : 0}" aria-pressed="${esSin === elegSin}">
         <small>${esSin ? "🏙 Sin autopista" : "🛣 Con autopista"}</small><b>${clp(o.ida)}</b>
-        <small>${String(o.km).replace(".", ",")} km · ~${tiempo(o.min)}</small><small>${o.porticos ? `${o.porticos} pórtico${o.porticos > 1 ? "s" : ""} TAG (${clp(o.tag)})` : "Sin TAG"}</small>
+        <small>${String(o.km).replace(".", ",")} km · ~${tiempo(o.min)}</small><small>${o.porticos ? `${o.porticos} pórtico${o.porticos > 1 ? "s" : ""} TAG (${clp(o.tag)})` : "Sin TAG"}</small>${o.peajes_cobro ? `<small>Peajes ida y vuelta ${clp(o.peajes_cobro)}</small>` : ""}
         ${o.min_extra ? `<small>Incluye ${o.min_extra} min extra (${clp(o.cargo_tiempo)})</small>` : ""}</button>`;
     caja.innerHTML = `<div class="fkc">
       ${sin ? `<div class="fkc-ops" role="group" aria-label="Ruta">${boton(con, false)}${boton(sin, true)}</div>` : ""}
       <div class="fkc-mapa" aria-label="Mapa de la ruta"></div>
       ${sel.porticos ? `<details class="fkc-lista"><summary>Ver los ${sel.porticos} pórtico${sel.porticos > 1 ? "s" : ""} TAG de esta ruta</summary><ol>${(sel.nombres_porticos || []).map(n => `<li>${esc(n)}</li>`).join("")}</ol></details>`
         : `<div class="fkc-lista">Esta ruta no pasa por pórticos TAG.</div>`}
+      ${(sel.peajes || []).length ? `<div class="fkc-lista">🛣 Peajes de carretera (se cobran de ida y de vuelta, porque el móvil regresa): ${sel.peajes.map(c => `${esc(c.plaza)} ${clp(c.valor)}`).join(" · ")} → <b>${clp(sel.peajes_cobro)}</b></div>` : ""}
       ${sin && elegSin ? `<div class="fkc-lista">El conductor irá sin usar autopistas: el viaje es más lento, pero sin TAG.${sin.min_extra ? ` El valor incluye los ${sin.min_extra} min extra de viaje a ${clp(Math.round(sin.cargo_tiempo / sin.min_extra))} el minuto.` : ""}</div>` : ""}
     </div>`;
     caja.querySelectorAll(".fkc-op").forEach(b => b.addEventListener("click", () => { if (op.alElegir) op.alElegir(b.dataset.sin === "1"); }));
@@ -89,6 +94,8 @@
       L.circleMarker(fin, { radius: 8, color: "#fff", weight: 2, fillColor: "#c9a35a", fillOpacity: 1 }).bindTooltip("Destino").addTo(m);
       (sel.porticos_mapa || []).forEach(p => L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", html: '<div class="fkc-tag"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }) })
         .bindTooltip("TAG · " + p.n).addTo(m));
+      (sel.peajes || []).forEach(c => L.marker([c.lat, c.lng], { icon: L.divIcon({ className: "", html: '<div class="fkc-tag" style="background:#7b2cbf;box-shadow:0 0 0 1px #7b2cbf;width:14px;height:14px"></div>', iconSize: [14, 14], iconAnchor: [7, 7] }) })
+        .bindTooltip("Peaje · " + c.plaza + " " + clp(c.valor)).addTo(m));
       m.fitBounds(linea.getBounds(), { padding: [18, 18] });
     });
   }

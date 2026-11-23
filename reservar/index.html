@@ -286,7 +286,7 @@ function calcular() {
     if (!cotServ || cotServ.key !== claveCot()) return { calculando: true };
     if (cotServ.error) return { error: cotServ.error };
     const c = FKCotizar.opcion(cotServ, sinAuto), esSin = !!(sinAuto && cotServ.alternativas && cotServ.alternativas.sin);
-    const nota = cotServ.estimado ? `${esSin ? "Sin autopista · " : ""}${String(c.km).replace(".", ",")} km · ~${c.min} min` + (c.porticos ? ` · incluye TAG: ${c.porticos} pórtico${c.porticos > 1 ? "s" : ""} (${clp(c.tag)})` : " · sin pórticos TAG")
+    const nota = cotServ.estimado ? `${esSin ? "Sin autopista · " : ""}${String(c.km).replace(".", ",")} km · ~${c.min} min` + (c.porticos ? ` · incluye TAG: ${c.porticos} pórtico${c.porticos > 1 ? "s" : ""} (${clp(c.tag)})` : " · sin pórticos TAG") + (c.peajes_cobro ? ` · peajes de carretera ida y vuelta ${clp(c.peajes_cobro)}` : "")
       : (cotServ.nota || "Tarifa fija por tramo");
     return { ida: c.ida, estimado: false, nota: (cotServ.van_forzada ? "Valor de van (más de 4 pasajeros) · " : "") + nota, km: c.km, sinAuto: esSin };
   }

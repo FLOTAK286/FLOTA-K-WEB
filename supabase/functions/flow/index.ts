@@ -60,6 +60,11 @@ let PORTICOS: Portico[] | null = null, porticosCargados = 0;
 // Vespucio Oriente (AVO): cobra por km entre entrada y salida. Regla del dueño (23 nov 2026): si la ruta pasa por AVO
 // se cobran 2 pórticos fijos (entrada y salida). osm_datos "avo" = nodos de sus calzadas.
 let AVO: Set<number> = new Set();
+// Peajes de carretera (plazas con caseta, osm_datos "casetas"): se cobran a precio costo y de ida y vuelta (el móvil vuelve).
+// Regla del dueño (23 nov 2026). Las plazas troncales se detectan por cercanía a la ruta (< 60 m; una plaza tiene varias pistas);
+// las laterales (salidas) solo si la ruta pasa por ese nodo exacto (para no cobrar la salida que no se usa).
+type Caseta = { id: number; plaza: string; lat: number; lng: number; valor: number; punta: number | null; troncal: boolean };
+let CASETAS: Caseta[] = [];
 const rumbo = (a: number[], b: number[]) => { // grados, a y b = [lat, lng]
   const r = (x: number) => x * Math.PI / 180, y = Math.sin(r(b[1] - a[1])) * Math.cos(r(b[0]));
   const x = Math.cos(r(a[0])) * Math.sin(r(b[0])) - Math.sin(r(a[0])) * Math.cos(r(b[0])) * Math.cos(r(b[1] - a[1]));
@@ -70,6 +75,9 @@ async function porticos(sb: ReturnType<typeof db>) {
   const { data } = await sb.from("osm_datos").select("datos").eq("clave", "porticos").maybeSingle();
   const { data: avo } = await sb.from("osm_datos").select("datos").eq("clave", "avo").maybeSingle();
   AVO = new Set<number>((avo?.datos?.nodos ?? []).map((x: any) => Number(x)));
+  const { data: cas } = await sb.from("osm_datos").select("datos").eq("clave", "casetas").maybeSingle();
+  CASETAS = (cas?.datos?.casetas ?? []).filter((c: any) => c.valor != null).map((c: any) => ({ id: Number(c.id), plaza: c.plaza, lat: +c.lat, lng: +c.lng,
+    valor: +c.valor, punta: c.punta == null ? null : +c.punta, troncal: !c.verificar && !/^lateral/i.test(c.plaza) }));
   const els: any[] = data?.datos?.elements ?? [];
   const vias = els.filter((e) => e.type === "way");
   PORTICOS = els.filter((e) => e.type === "node").map((n) => {
@@ -129,6 +137,30 @@ function porticosEnRuta(ruta: number[][], lista: Portico[], nodos: number[] = []
     res.push(p);
   }
   return res;
+}
+
+// Peajes de carretera de una ruta (cada plaza una vez). geo = [[lng, lat], ...]
+function peajesEnRuta(ruta: number[][], nodos: number[] = []) {
+  const set = new Set(nodos), vistos = new Map<string, Caseta>();
+  const cosLat = Math.cos(-33.45 * Math.PI / 180), M = 111320;
+  for (const c of CASETAS) {
+    let pasa = set.has(c.id);
+    if (!pasa && c.troncal && ruta.length > 1) {
+      let mejor = Infinity;
+      for (let i = 1; i < ruta.length && mejor > 60; i++) {
+        const x1 = (ruta[i - 1][0] - c.lng) * M * cosLat, y1 = (ruta[i - 1][1] - c.lat) * M, x2 = (ruta[i][0] - c.lng) * M * cosLat, y2 = (ruta[i][1] - c.lat) * M;
+        if (Math.min(Math.abs(x1), Math.abs(x2)) > 2000 && Math.sign(x1) === Math.sign(x2)) continue;
+        if (Math.min(Math.abs(y1), Math.abs(y2)) > 2000 && Math.sign(y1) === Math.sign(y2)) continue;
+        const dx = x2 - x1, dy = y2 - y1, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L)) : 0;
+        mejor = Math.min(mejor, Math.hypot(x1 + t * dx, y1 + t * dy));
+      }
+      pasa = mejor <= 60;
+    }
+    if (!pasa) continue;
+    const k = c.troncal ? c.plaza : "id" + c.id;
+    if (!vistos.has(k)) vistos.set(k, c);
+  }
+  return [...vistos.values()];
 }
 
 // ---------- Rutas ----------
@@ -243,7 +275,15 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const { data: tramos } = await sb.from("tarifas_tramos").select("*").eq("empresa_id", empresaId);
   const to = norm(o.texto), td = norm(d.texto), tiene = (t: string, l: string[]) => l.some((c) => t.includes(c));
   const tf = (tramos || []).find((x: any) => (tiene(to, x.lado_a) && tiene(td, x.lado_b)) || (tiene(to, x.lado_b) && tiene(td, x.lado_a)));
-  if (tf) return { zona: null, ida: veh === "van" ? tf.van : tf.auto, regreso: null, estimado: false, km: null, nota: tf.nombre, vehiculo: veh, van_forzada: vanForzada };
+  if (tf) {
+    // Tarifa fija por tramo + peajes de carretera de ida y vuelta, a precio costo
+    await porticos(sb);
+    const ru = await rutaOsrm([{ lat: +o.lat, lng: +o.lng }, { lat: +d.lat, lng: +d.lng }]);
+    const pj = ru ? peajesEnRuta(ru.geo, ru.nodos) : [], pjIda = pj.reduce((a, c) => a + c.valor, 0), fijo = veh === "van" ? tf.van : tf.auto;
+    return { zona: null, ida: fijo + 2 * pjIda, regreso: null, estimado: false, km: ru?.km ?? null, min: ru?.min ?? null, nota: tf.nombre, base: fijo,
+      peajes: pj.map((c) => ({ plaza: c.plaza, valor: c.valor, lat: c.lat, lng: c.lng })), peajes_ida: pjIda, peajes_cobro: 2 * pjIda, peajes_pendiente: !ru,
+      porticos: 0, tag: 0, nombres_porticos: [], porticos_mapa: [], ruta: ru ? rutaParaMapa(ru.geo) : null, vehiculo: veh, van_forzada: vanForzada };
+  }
   // Dos opciones: con autopista (la más rápida, OSRM) y sin autopista (evita peajes, Valhalla).
   // Si no hay ruta, no se cobra en línea: mejor confirmar el valor por WhatsApp.
   const pts = [{ lat: +o.lat, lng: +o.lng }, { lat: +d.lat, lng: +d.lng }];
@@ -261,7 +301,10 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
     const enRuta = ru.geo.length > 1 || ru.nodos.length ? porticosEnRuta(ru.geo, lista, ru.nodos) : [];
     const pp = enRuta.filter((p) => !p.caseta), nPort = pp.length, tag = nPort * valorTag;
     const base = redondear(veh === "van" ? Math.max(25000, auto * factorVan) : auto);
-    return { ida: base + tag, km: ru.km, min: ru.min, base, porticos: nPort, tag, casetas: enRuta.filter((p) => p.caseta).map((p) => p.nombre),
+    // Peajes de carretera: precio costo, ida y vuelta
+    const pj = peajesEnRuta(ru.geo, ru.nodos), pjIda = pj.reduce((a, c) => a + c.valor, 0);
+    return { ida: base + tag + 2 * pjIda, km: ru.km, min: ru.min, base, porticos: nPort, tag, casetas: enRuta.filter((p) => p.caseta).map((p) => p.nombre),
+      peajes: pj.map((c) => ({ plaza: c.plaza, valor: c.valor, lat: c.lat, lng: c.lng })), peajes_ida: pjIda, peajes_cobro: 2 * pjIda,
       nombres_porticos: pp.map((p) => p.nombre), porticos_mapa: pp.map((p) => ({ n: p.nombre, lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) })), ruta: rutaParaMapa(ru.geo) };
   };
   const vCon = valorar(con);
@@ -273,7 +316,7 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
       const vs: any = valorar(sin);
       // Tiempo extra respecto de la ruta con autopista: se cobra como la espera ($180/min auto, $270/min van)
       const minExtra = Math.max(0, sin.min - con.min), cargo = minExtra * (veh === "van" ? 270 : 180);
-      vs.min_extra = minExtra; vs.cargo_tiempo = cargo; vs.ida = redondear(vs.base + cargo) + vs.tag;
+      vs.min_extra = minExtra; vs.cargo_tiempo = cargo; vs.ida = redondear(vs.base + cargo) + vs.tag + vs.peajes_cobro;
       // Solo se ofrece si tiene menos pórticos y sale más barata que la ruta con autopista
       if (vs.porticos < vCon.porticos && vs.ida < vCon.ida) vSin = vs;
     }
@@ -343,7 +386,7 @@ async function pagar(req: Request) {
     porticos: (p as any).porticos ?? 0, tag: (p as any).tag ?? 0,
     comentarios: [(p as any).sin_autopista ? `RUTA SIN AUTOPISTAS: el pasajero eligió y pagó el viaje sin autopistas (no usar autopistas con TAG; incluye ${(p as any).min_extra ?? 0} min extra = $${(p as any).cargo_tiempo ?? 0}).` : "",
       base.comentarios, (p as any).porticos ? `Incluye TAG: ${(p as any).porticos} pórtico(s) = $${(p as any).tag} (${((p as any).nombres_porticos || []).join(", ")}).` : "",
-      (p as any).casetas?.length ? `Ruta con peaje troncal: ${(p as any).casetas.join(", ")} (no incluido).` : ""].filter(Boolean).join(" ") });
+      (p as any).peajes_cobro ? `Incluye peajes de carretera ida y vuelta: ${((p as any).peajes || []).map((c: any) => c.plaza).join(", ")} = $${(p as any).peajes_cobro}.` : ""].filter(Boolean).join(" ") });
 
   const orden = "FKW-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
   const { data: sol, error } = await sb.from("solicitudes_pago").insert({ empresa_id: emp!.id, orden, datos: { contacto: c, tramos }, monto: total, telefono: tel, correo: c.correo }).select("id").single();
@@ -410,7 +453,9 @@ Deno.serve(async (req) => {
       if (!ru) return json({ error: "No pudimos calcular la ruta" }, 502);
       const sb = db(), pp = porticosEnRuta(ru.geo, await porticos(sb), ru.nodos).filter((p) => !p.caseta);
       const { data: e } = await sb.from("empresas").select("valor_tag").eq("slug", "flota-k").single();
-      return json({ porticos: pp.length, valor_tag: e?.valor_tag ?? 900, tag: pp.length * (e?.valor_tag ?? 900), km: ru.km, nombres: pp.map((p) => p.nombre) });
+      const pj = peajesEnRuta(ru.geo, ru.nodos), pjIda = pj.reduce((a, c) => a + c.valor, 0);
+      return json({ porticos: pp.length, valor_tag: e?.valor_tag ?? 900, tag: pp.length * (e?.valor_tag ?? 900), km: ru.km, nombres: pp.map((p) => p.nombre),
+        peajes: pj.map((c) => ({ plaza: c.plaza, valor: c.valor })), peajes_ida: pjIda, peajes_cobro: 2 * pjIda });
     }
     if (accion === "sector") {
       const lat = Number(u.searchParams.get("lat")), lng = Number(u.searchParams.get("lng"));
