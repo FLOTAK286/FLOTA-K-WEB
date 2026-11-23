@@ -248,7 +248,17 @@ async function cotizar(sb: ReturnType<typeof db>, empresaId: string, b: Record<s
   const vCon = valorar(con);
   // La opción sin autopista solo se calcula si la ruta rápida tiene pórticos
   let vSin: ReturnType<typeof valorar> | null = null;
-  if (vCon.porticos > 0) { const sin = await rutaSinAutopista(pts); if (sin && sin.km <= 120) { const vs = valorar(sin); if (vs.porticos < vCon.porticos) vSin = vs; } }
+  if (vCon.porticos > 0) {
+    const sin = await rutaSinAutopista(pts);
+    if (sin && sin.km <= 120) {
+      const vs: any = valorar(sin);
+      // Tiempo extra respecto de la ruta con autopista: se cobra como la espera ($180/min auto, $270/min van)
+      const minExtra = Math.max(0, sin.min - con.min), cargo = minExtra * (veh === "van" ? 270 : 180);
+      vs.min_extra = minExtra; vs.cargo_tiempo = cargo; vs.ida = redondear(vs.base + cargo) + vs.tag;
+      // Solo se ofrece si tiene menos pórticos y sale más barata que la ruta con autopista
+      if (vs.porticos < vCon.porticos && vs.ida < vCon.ida) vSin = vs;
+    }
+  }
   const eligeSin = b.sin_autopista === true && vSin != null;
   const v = eligeSin ? vSin! : vCon;
   return { zona: null, ...v, regreso: null, estimado: true, sin_autopista: eligeSin,
@@ -312,7 +322,7 @@ async function pagar(req: Request) {
   if (tipo === "punto_a_punto") tramos.push({ ...base, tipo_servicio: "punto_a_punto", fecha_hora: fh.toISOString(), origen: txt(o.texto, 300), origen_lat: +o.lat, origen_lng: +o.lng,
     destino: txt(d.texto, 300), destino_lat: +d.lat, destino_lng: +d.lng, retiro_detalle: txt(b.retiro_detalle, 200), monto: p.ida, estimado: p.estimado, km: p.km,
     porticos: (p as any).porticos ?? 0, tag: (p as any).tag ?? 0,
-    comentarios: [(p as any).sin_autopista ? "RUTA SIN AUTOPISTAS: el pasajero eligió y pagó el viaje sin autopistas (no usar autopistas con TAG)." : "",
+    comentarios: [(p as any).sin_autopista ? `RUTA SIN AUTOPISTAS: el pasajero eligió y pagó el viaje sin autopistas (no usar autopistas con TAG; incluye ${(p as any).min_extra ?? 0} min extra = $${(p as any).cargo_tiempo ?? 0}).` : "",
       base.comentarios, (p as any).porticos ? `Incluye TAG: ${(p as any).porticos} pórtico(s) = $${(p as any).tag} (${((p as any).nombres_porticos || []).join(", ")}).` : "",
       (p as any).casetas?.length ? `Ruta con peaje troncal: ${(p as any).casetas.join(", ")} (no incluido).` : ""].filter(Boolean).join(" ") });
 

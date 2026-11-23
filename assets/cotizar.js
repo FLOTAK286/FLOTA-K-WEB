@@ -66,13 +66,14 @@
     const con = j.alternativas.con, sin = j.alternativas.sin, elegSin = !!(op.sin && sin), sel = elegSin ? sin : con;
     const boton = (o, esSin) => `<button type="button" class="fkc-op" data-sin="${esSin ? 1 : 0}" aria-pressed="${esSin === elegSin}">
         <small>${esSin ? "🏙 Sin autopista" : "🛣 Con autopista"}</small><b>${clp(o.ida)}</b>
-        <small>${String(o.km).replace(".", ",")} km · ~${tiempo(o.min)}</small><small>${o.porticos ? `${o.porticos} pórtico${o.porticos > 1 ? "s" : ""} TAG (${clp(o.tag)})` : "Sin TAG"}</small></button>`;
+        <small>${String(o.km).replace(".", ",")} km · ~${tiempo(o.min)}</small><small>${o.porticos ? `${o.porticos} pórtico${o.porticos > 1 ? "s" : ""} TAG (${clp(o.tag)})` : "Sin TAG"}</small>
+        ${o.min_extra ? `<small>Incluye ${o.min_extra} min extra (${clp(o.cargo_tiempo)})</small>` : ""}</button>`;
     caja.innerHTML = `<div class="fkc">
       ${sin ? `<div class="fkc-ops" role="group" aria-label="Ruta">${boton(con, false)}${boton(sin, true)}</div>` : ""}
       <div class="fkc-mapa" aria-label="Mapa de la ruta"></div>
       ${sel.porticos ? `<details class="fkc-lista"><summary>Ver los ${sel.porticos} pórtico${sel.porticos > 1 ? "s" : ""} TAG de esta ruta</summary><ol>${(sel.nombres_porticos || []).map(n => `<li>${esc(n)}</li>`).join("")}</ol></details>`
         : `<div class="fkc-lista">Esta ruta no pasa por pórticos TAG.</div>`}
-      ${sin && elegSin ? `<div class="fkc-lista">El conductor irá sin usar autopistas: el viaje es más lento, pero sin TAG.</div>` : ""}
+      ${sin && elegSin ? `<div class="fkc-lista">El conductor irá sin usar autopistas: el viaje es más lento, pero sin TAG.${sin.min_extra ? ` El valor incluye los ${sin.min_extra} min extra de viaje a ${clp(Math.round(sin.cargo_tiempo / sin.min_extra))} el minuto.` : ""}</div>` : ""}
     </div>`;
     caja.querySelectorAll(".fkc-op").forEach(b => b.addEventListener("click", () => { if (op.alElegir) op.alElegir(b.dataset.sin === "1"); }));
     const el = caja.querySelector(".fkc-mapa");

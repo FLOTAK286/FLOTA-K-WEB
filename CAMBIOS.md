@@ -1,6 +1,8 @@
 # Cambios
 
 ## 22 nov 2026 · Ruta con pórticos, opción sin autopista y TAG automático al cerrar
+- **Tiempo extra sin autopista** (función `flow` v17, aprobado por el dueño 23 nov): la diferencia de minutos respecto de la ruta con autopista se cobra como la espera ($180/min auto, $270/min van). "Sin autopista" solo se ofrece si tiene menos pórticos **y** sale más barata. Ej.: Vitacura → Maipú $31.100 con autopista / $30.500 sin (incluye 34 min extra = $6.120); La Florida → Santiago Centro $18.700 / $16.000; Las Condes → Quilicura no ofrece "sin autopista".
+- Publicado en `main` el 23 nov 2026 con aprobación del dueño.
 - Función `flow` v16 (publicada): `cotizar` punto a punto entrega dos opciones en `alternativas`: **con autopista** (OSRM, la más rápida; pórticos exactos por nodos) y **sin autopista** (Valhalla de OpenStreetMap con `use_tolls: 0, use_highways: 0`; pórticos por cercanía < 8 m y mismo sentido). Cada opción trae valor, km, minutos, pórticos (nombres y posición) y la ruta para el mapa. "Sin autopista" solo se ofrece si tiene menos pórticos. Con `sin_autopista: true` se cobra esa opción; la reserva pagada queda con "RUTA SIN AUTOPISTAS…" y la lista de pórticos.
 - Acción nueva `flow?accion=porticos` ({ puntos: [origen, paradas…, destino] }) → pórticos de la ruta, para el cierre con taxímetro.
 - El sentido de cada pórtico se toma del tramo de calzada que pasa por él (las vías guardadas traen geometría, no lista de nodos).
