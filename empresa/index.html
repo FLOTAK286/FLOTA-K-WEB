@@ -408,6 +408,8 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
 
 // ---------- Agendar ----------
 let modo = "hab", habSel = null, tipo = "ida", veh = "auto", zona = null, lugDom = null, lugDest = null;
+// Sector de la tarifa fija: lo decide el sistema según el punto de la dirección (no se elige a mano)
+let autoSec = null, secEst = {};
 function prepararAgendar() {
   // Para quién
   const per = enc() ? (D.equipo || []).filter(u => u.activo) : [];
@@ -450,6 +452,9 @@ function precioOtro() {
     const c = (window.FK_INTERURBANOS || []).find(x => (es(lado(a), x.oriente) && es(lado(b), x.costa)) || (es(lado(a), x.costa) && es(lado(b), x.oriente)));
     return c ? (veh === "van" ? c.van : c.auto) : null;
   }
+  if (!autoSec) autoSec = FKCotizar.autoSector(T, () => ajustar());
+  secEst = autoSec.estado(lugDom && lugDom.get());
+  zona = secEst.zona || null;
   if (!zona) return null;
   return veh === "van" ? zona[3] : tipo === "regreso" ? zona[2] : zona[1];
 }
@@ -483,13 +488,14 @@ async function estimarPaP() {
 function precioActual() { return modo === "hab" ? (habSel ? habSel.precio : null) : precioOtro(); }
 function ajustar() {
   const aero = tipo !== "punto_a_punto";
-  $("b-zona").hidden = !aero; $("b-dest").hidden = aero; $("b-det").hidden = tipo === "regreso";
+  $("b-zona").hidden = true; $("b-dest").hidden = aero; $("b-det").hidden = tipo === "regreso";
   $("dom-l").textContent = tipo === "regreso" ? "Dirección de destino" : "Dirección de retiro";
   const tipoEf = modo === "hab" ? (habSel && habSel.tipo) : tipo;
   $("b-vuelo").hidden = !["ida", "regreso"].includes(tipoEf);
   $("fh-l").textContent = tipoEf === "regreso" ? "Fecha y hora de aterrizaje" : "Fecha y hora de retiro";
   const p = precioActual();
-  $("precio-l").textContent = modo === "hab" ? (habSel ? habSel.nombre + " · tarifa fija" : "Elija un servicio habitual") : p != null ? "Tarifa fija" : parE && parE.cantidad() ? "Con paradas: el valor se lo confirmamos" : tipo === "punto_a_punto" ? "Valor: se lo confirmamos" : "Elija el sector para ver la tarifa";
+  $("precio-l").textContent = modo === "hab" ? (habSel ? habSel.nombre + " · tarifa fija" : "Elija un servicio habitual") : p != null ? (tipo !== "punto_a_punto" && zona ? `Tarifa fija · sector ${zona[0]} (según la dirección)` : "Tarifa fija") : parE && parE.cantidad() ? "Con paradas: el valor se lo confirmamos" : tipo === "punto_a_punto" ? "Valor: se lo confirmamos"
+    : secEst.cargando ? "Calculando la tarifa según la dirección…" : secEst.error ? secEst.error : "Escriba la dirección y elíjala de la lista: la tarifa se calcula sola";
   $("precio-v").textContent = p != null ? clp(p) : "—";
   if (p == null && modo !== "hab" && tipo === "punto_a_punto" && !(parE && parE.cantidad())) estimarPaP();
   // Presupuesto de quien viaja
@@ -513,7 +519,7 @@ $("agendar").addEventListener("click", async () => {
     args = { ...base, p_habitual: habSel.id };
   } else {
     const aero = tipo !== "punto_a_punto";
-    if (aero && !zona) { $("zona").focus(); return msg("a-msg", "Elija el sector de la lista para calcular la tarifa.", "err"); }
+    if (aero && !zona) return msg("a-msg", secEst.error || "Escriba la dirección, elíjala de la lista y espere a que aparezca la tarifa.", "err");
     if (!$("dom").value.trim() || !lugDom.exigir()) return msg("a-msg", "Escriba la dirección y marque su punto exacto en el mapa.", "err");
     if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("a-msg", "Escriba el destino y marque su punto en el mapa.", "err");
     const paradas = parE ? parE.get() : [];

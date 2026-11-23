@@ -426,6 +426,8 @@ let tipo = "ida", veh = "auto", zona = null, ruta = null, rutaKey = "";
 let sinAuto = false, vistaKey = ""; // punto a punto: el pasajero eligió la ruta sin autopista
 const lugDom = FKLugar.montar($("dom"), { alCambiar: () => precio() });
 const lugDest = FKLugar.montar($("dest"), { alCambiar: () => precio() });
+// Sector de la tarifa fija: lo decide el sistema según el punto de la dirección (no lo elige el pasajero)
+const autoSec = FKCotizar.autoSector(T, () => precio(), { soloRM: true });
 const cont = { pax: 1, mal: 1 };
 document.querySelectorAll(".contador").forEach(c => c.addEventListener("click", e => {
   const b = e.target.closest("[data-d]"); if (!b) return;
@@ -442,7 +444,7 @@ $("otro").onchange = () => { $("b-otro").hidden = !$("otro").checked; };
 
 function ajustar() {
   const aero = tipo !== "punto_a_punto";
-  $("b-zona").hidden = !aero; $("b-dest").hidden = aero; $("b-vuelo").hidden = !aero;
+  $("b-zona").hidden = true; $("b-dest").hidden = aero; $("b-vuelo").hidden = !aero; // el sector lo decide el sistema
   $("b-iv").hidden = tipo !== "ida"; if (tipo !== "ida") $("iv").checked = false;
   $("b-reg").hidden = !(tipo === "ida" && $("iv").checked);
   $("dom-l").textContent = tipo === "regreso" ? "¿A dónde lo llevamos? (su destino)" : "Dirección de retiro";
@@ -469,6 +471,7 @@ $("zona-sug").addEventListener("mousedown", e => { const b = e.target.closest("[
 $("zona").addEventListener("blur", () => setTimeout(() => $("zona-sug").hidden = true, 150));
 // Si la dirección trae una comuna con un solo sector, se elige solo
 function sugerirZona() {
+  return; // ya no se adivina por el nombre de la comuna: lo decide el punto del mapa (autoSector)
   if (zona || tipo === "punto_a_punto") return;
   const p = lugDom.get(); if (!p || !p.comunas || !p.comunas.length) return;
   const cs = p.comunas.map(norm);
@@ -509,11 +512,15 @@ function calcular() {
     if (ruta.km > 120) return { lejos: true, km: ruta.km };
     return { ida: cotizarRuta(ruta.km), estimado: true, km: ruta.km, nota: `${String(ruta.km).replace(".", ",")} km · ~${ruta.min} min${ruta.aprox ? " (aprox.)" : ""} · más TAG según los pórticos de la ruta` };
   }
-  if (!zona) return null;
-  const iv = tipo === "ida" && $("iv").checked;
-  if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null };
-  if (tipo === "regreso") return { ida: zona[2] };
-  return { ida: zona[1], regreso: iv ? zona[1] : null };
+  const st = autoSec.estado(lugDom.get());
+  if (!lugDom.get()) { zona = null; return null; }
+  if (st.cargando) return { calculando: true };
+  if (st.error) { zona = null; return { srvError: st.error }; }
+  zona = st.zona; if (!zona) return null;
+  const iv = tipo === "ida" && $("iv").checked, nota = `Tarifa fija · sector ${zona[0]} (según su dirección) · peajes y TAG de la RM incluidos`;
+  if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null, nota };
+  if (tipo === "regreso") return { ida: zona[2], nota };
+  return { ida: zona[1], regreso: iv ? zona[1] : null, nota };
 }
 async function actualizarRuta() {
   const a = lugDom.get(), b = lugDest.get();
@@ -531,8 +538,8 @@ function precio() {
   // Mapa con la ruta, los pórticos TAG y la opción sin autopista (solo punto a punto con valor del servidor)
   const sv = tipo === "punto_a_punto" && ruta && ruta.srv && ruta.srv.alternativas ? ruta.srv : null, vk = sv ? rutaKey + "|" + sinAuto : "";
   if (vk !== vistaKey) { vistaKey = vk; FKCotizar.vista($("ruta-vista"), sv, { sin: sinAuto, alElegir: s => { sinAuto = s; precio(); } }); }
-  if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
-  if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
+  if (!p) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : "Escriba su dirección y elíjala de la lista: el sistema calcula su tarifa fija"; V.textContent = "—"; return; }
+  if (p.calculando) { L.textContent = tipo === "punto_a_punto" ? "Calculando la ruta…" : "Calculando su tarifa según la dirección…"; V.textContent = "…"; return; }
   if (p.aeropuerto) { L.innerHTML = "Su viaje es desde o hacia el aeropuerto: elija <b>Al aeropuerto</b> o <b>Desde el aeropuerto</b> para su tarifa fija."; V.textContent = "—"; return; }
   if (p.srvError) { L.textContent = p.srvError; V.textContent = "A cotizar"; return; }
   if (p.lejos) { L.textContent = `Viaje largo (${String(p.km).replace(".", ",")} km): le confirmamos el valor después de solicitarlo.`; V.textContent = "A cotizar"; return; }
@@ -540,6 +547,7 @@ function precio() {
   L.innerHTML = p.regreso ? `Ida ${clp(p.ida)} + regreso ${clp(p.regreso)}<br><span class="muted">Regreso al mismo valor de la ida</span>`
     : p.estimado ? `Valor estimado<br><span class="muted">${esc(p.nota)} · se lo confirmamos al aprobar la reserva</span>`
     : p.nota ? esc(p.nota) : "Tarifa fija · peajes y TAG de la RM incluidos";
+  if (p.regreso && p.nota) L.innerHTML += `<br><span class="muted">${esc(p.nota)}</span>`;
   V.textContent = clp(total);
 }
 
@@ -563,9 +571,9 @@ function pintarFavsReserva() {
 $("f").addEventListener("submit", async e => {
   e.preventDefault(); msg("msg", "");
   const aero = tipo !== "punto_a_punto";
-  if (aero && !zona) { $("zona").focus(); return msg("msg", "Elija su sector de la lista para calcular la tarifa fija.", "err"); }
   if (!$("dom").value.trim()) { $("dom").focus(); return msg("msg", "Escriba la dirección.", "err"); }
   if (!lugDom.exigir()) return msg("msg", "Marque en el mapa el punto exacto: elija una sugerencia o toque el mapa.", "err");
+  if (aero) { const st = autoSec.estado(lugDom.get()); if (st.error) return msg("msg", st.error, "err"); if (!st.zona) return msg("msg", "Espere un momento: estamos calculando su tarifa según la dirección.", "err"); zona = st.zona; }
   if (!aero && (!$("dest").value.trim() || !lugDest.exigir())) return msg("msg", "Escriba el destino y marque su punto en el mapa.", "err");
   const p = calcular() || {};
   if (p.aeropuerto) return msg("msg", "Para viajes desde o hacia el aeropuerto elija «Al aeropuerto» o «Desde el aeropuerto»: tienen tarifa fija.", "err");

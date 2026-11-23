@@ -107,7 +107,7 @@
           <label for="dom" id="dom-l">Dirección de retiro</label>
           <div class="favs" id="favs-dom"></div>
           <input id="dom" type="text" placeholder="Calle y número, o nombre del lugar">
-          <span class="small muted">Elija su dirección de la lista y revise que el pin quede en la entrada exacta (puede moverlo): con ese punto calculamos su tarifa.</span>
+          <span class="small muted">Elija su dirección de la lista y revise que el pin quede en la entrada exacta (puede moverlo): con ese punto el sistema calcula su tarifa fija, no necesita elegir sector.</span>
         </div>
         <div class="f lugar-f" id="b-dest" hidden>
           <label for="dest">Destino</label>
@@ -242,7 +242,7 @@ $("otro").onchange = () => { $("b-otro").hidden = !$("otro").checked; };
 
 function ajustar() {
   const aero = tipo !== "punto_a_punto";
-  $("b-zona").hidden = !aero; $("b-dest").hidden = aero; $("b-vuelo").hidden = !aero;
+  $("b-zona").hidden = true; $("b-dest").hidden = aero; $("b-vuelo").hidden = !aero; // el sector lo decide el sistema según la dirección
   $("b-iv").hidden = tipo !== "ida"; if (tipo !== "ida") $("iv").checked = false;
   $("b-reg").hidden = !(tipo === "ida" && $("iv").checked);
   $("dom-l").textContent = tipo === "regreso" ? "¿A dónde lo llevamos? (su destino)" : "Dirección de retiro";
@@ -315,8 +315,9 @@ function calcular() {
     if (cotServ.error) return { error: cotServ.error };
     if (cotServ.ida && cotServ.tramo_parada) { const t = cotServ.tramo_parada;
       return { ida: cotServ.ida, nota: `Tarifa fija ${cotServ.zona} ${clp(cotServ.tarifa_zona)} + tramo entre las dos direcciones con taxímetro ${clp(t.ida)} (${String(t.km).replace(".", ",")} km${t.porticos ? `, incluye ${t.porticos} pórtico${t.porticos > 1 ? "s" : ""} TAG` : ""})${cotServ.van_forzada ? " · valor de van (más de 4 pasajeros)" : ""}` }; }
-    if (cotServ.ida) return { ida: cotServ.ida, regreso: cotServ.regreso || null, nota: cotServ.van_forzada ? "Valor de van: con más de 4 pasajeros el viaje es en van · peajes y TAG de la RM incluidos" : "" };
+    if (cotServ.ida) return { ida: cotServ.ida, regreso: cotServ.regreso || null, nota: `Tarifa fija · sector ${cotServ.zona} (según su dirección)` + (cotServ.van_forzada ? " · valor de van: con más de 4 pasajeros el viaje es en van" : "") + " · peajes y TAG de la RM incluidos" };
   }
+  return null;
   if (!zona) return null;
   const iv = tipo === "ida" && $("iv").checked;
   if (veh === "van") return { ida: zona[3], regreso: iv ? zona[3] : null };
@@ -392,8 +393,8 @@ function precio() {
   // Mapa con la ruta, los pórticos TAG y la opción sin autopista (punto a punto)
   const sv = tipo === "punto_a_punto" && cotServ && cotServ.key === claveCot() && cotServ.alternativas ? cotServ : null, vk = sv ? sv.key + "|" + sinAuto : "";
   if (vk !== vistaKey) { vistaKey = vk; FKCotizar.vista($("ruta-vista"), sv, { sin: sinAuto, alElegir: s => { sinAuto = s; precio(); } }); }
-  if (!p || (conParada() && !lugPar.get())) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : conParada() ? "Elija las dos direcciones para calcular el valor" : "Elija su sector para ver la tarifa fija"; V.textContent = "—"; return; }
-  if (p.calculando) { L.textContent = "Calculando la ruta…"; V.textContent = "…"; return; }
+  if (!p || (conParada() && !lugPar.get())) { L.textContent = tipo === "punto_a_punto" ? "Elija origen y destino para calcular el valor" : conParada() ? "Elija las dos direcciones para calcular el valor" : "Escriba su dirección y elíjala de la lista: el sistema calcula su tarifa fija"; V.textContent = "—"; return; }
+  if (p.calculando) { L.textContent = tipo === "punto_a_punto" ? "Calculando la ruta…" : "Calculando su tarifa según la dirección…"; V.textContent = "…"; return; }
   if (p.error) { L.innerHTML = esc(p.error) + (/whatsapp/i.test(p.error) ? ` <a href="${WA_LINK()}" target="_blank" rel="noopener">Escribir por WhatsApp</a>` : ""); V.textContent = "—"; return; }
   if (p.aeropuerto) { L.innerHTML = "Su viaje es desde o hacia el aeropuerto: elija <b>Al aeropuerto</b> o <b>Desde el aeropuerto</b> para su tarifa fija."; V.textContent = "—"; return; }
   if (p.lejos) { L.textContent = `Viaje largo (${String(p.km).replace(".", ",")} km): le confirmamos el valor después de solicitarlo.`; V.textContent = "A cotizar"; return; }
@@ -439,7 +440,7 @@ $("f").addEventListener("submit", async e => {
   if (!mail) { $("mail").focus(); return msg("msg", "Escriba su correo: ahí le llega el comprobante de pago.", "err"); }
   const cuerpo = { nombre: nom, telefono: tel, correo: mail, como: $("como").value || null,
     pasajero_nombre: otro ? $("o-nom").value.trim() : null, pasajero_telefono: otro ? $("o-tel").value.trim() : null,
-    tipo, vehiculo: veh, zona: aero ? zona[0] : null, ida_vuelta: iv, fecha_hora: iso, fecha_hora_regreso: iso2,
+    tipo, vehiculo: veh, zona: aero ? (cotServ && cotServ.zona) || (zona && zona[0]) || null : null, ida_vuelta: iv, fecha_hora: iso, fecha_hora_regreso: iso2,
     vuelo: $("vuelo").value.trim() || null, vuelo_regreso: $("vuelo2").value.trim() || null,
     origen: { texto: $("dom").value.trim(), lat: dom.lat, lng: dom.lng },
     destino: aero ? null : { texto: $("dest").value.trim(), lat: dest.lat, lng: dest.lng },

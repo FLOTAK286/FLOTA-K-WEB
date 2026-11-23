@@ -119,5 +119,48 @@
   }
   // Puntos de una reserva: origen, paradas (con punto) y destino
   const puntosReserva = r => [{ lat: r.origen_lat, lng: r.origen_lng }, ...((r.paradas || []).filter(p => p && p.lat != null)), { lat: r.destino_lat, lng: r.destino_lng }];
-  window.FKCotizar = { puntoAPunto, textoTag, opcion, vista, porticosRuta, puntosReserva };
+  // Sector de la tarifa fija al aeropuerto según el punto marcado en el mapa (lo decide el sistema, no el pasajero).
+  // Mismo cálculo que el cobro en /reservar (Edge Function "flow", acción "sector": límites de comunas y calles límite).
+  const cacheSec = new Map();
+  async function sectorDe(p) {
+    const k = (+p.lat).toFixed(5) + "," + (+p.lng).toFixed(5);
+    if (cacheSec.has(k)) return cacheSec.get(k);
+    const C = window.FK_CONFIG;
+    try {
+      const r = await fetch(C.url + "/functions/v1/flow?accion=sector&lat=" + p.lat + "&lng=" + p.lng, { headers: { apikey: C.anonKey, Authorization: "Bearer " + C.anonKey } });
+      const j = await r.json().catch(() => null);
+      if (!j) return { red: true };
+      cacheSec.set(k, j); return j;
+    } catch (_) { return { red: true }; }
+  }
+  const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const FUERA_RM = ["valparaiso", "vina del mar", "rancagua", "los andes"];
+  // Uso: const s = FKCotizar.autoSector(T, () => precio(), { soloRM: true }); en el cálculo: const st = s.estado(lugDom.get())
+  //   → {} sin dirección · { cargando: true } · { error: "..." } · { zona: fila del tarifario, motivo }
+  function autoSector(T, alListo, op = {}) {
+    let key = "", est = {};
+    return {
+      estado(p) {
+        if (!p || p.lat == null) { key = ""; est = {}; return est; }
+        const k = (+p.lat).toFixed(5) + "," + (+p.lng).toFixed(5);
+        if (k !== key) {
+          key = k; est = { cargando: true };
+          sectorDe(p).then(j => {
+            if (key !== k) return;
+            const comuna = (j.comunas || [])[0] || "";
+            if (j.red) est = { error: "Sin conexión para calcular la tarifa. Revise su internet." };
+            else if (op.soloRM && (!comuna || FUERA_RM.includes(norm(comuna)))) est = { error: "Los viajes fuera de Santiago se los cotizamos por WhatsApp al +56 9 2227 5399." };
+            else if (j.fuera) est = { error: j.fuera };
+            else {
+              const z = j.zona && T.find(r => r[0] === j.zona);
+              est = z ? { zona: z, motivo: j.motivo || "", comuna } : { error: "Su dirección queda fuera de nuestras zonas con tarifa fija: se la cotizamos por WhatsApp al +56 9 2227 5399." };
+            }
+            alListo && alListo();
+          });
+        }
+        return est;
+      }
+    };
+  }
+  window.FKCotizar = { puntoAPunto, textoTag, opcion, vista, porticosRuta, puntosReserva, sectorDe, autoSector };
 })();
