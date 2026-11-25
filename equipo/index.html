@@ -554,16 +554,27 @@ const nombreConductor = id => (conductores.find(c => c.id === id) || {}).nombre;
 // Categorías: el servicio pide auto (cualquiera), suv (SUV o van) o van (solo van). Si no calza, se advierte.
 // Semáforo del conductor en cada servicio: sin aceptar, aceptó, no puede, en camino, ubicado, a bordo, finalizado
 const SEM = { sin_aceptar: ["#8b5a2b", "#fff", "Sin aceptar"], acepto: ["#2e9e5f", "#fff", "Aceptó"], no_puede: ["#e5533d", "#fff", "No puede"],
-  en_camino: ["#f2c94c", "#2b2100", "En camino"], en_lugar: ["#56ccf2", "#06283a", "Ubicado"], a_bordo: ["#2563eb", "#fff", "Pasajero a bordo"], finalizada: ["#9aa0a6", "#17191c", "Finalizado"] };
+  en_camino: ["#f2c94c", "#2b2100", "En camino"], en_lugar: ["#56ccf2", "#06283a", "Ubicado"], a_bordo: ["#2563eb", "#fff", "Pasajero a bordo"], finalizada: ["#9aa0a6", "#17191c", "Finalizado"],
+  derivado: ["#7c4dff", "#fff", "Con partner"] };
 function semClave(r) {
   if (!r || r.estado === "cancelada") return null;
   if (r.estado === "finalizada") return "finalizada";
   if (["en_camino", "en_lugar", "a_bordo"].includes(r.estado)) return r.estado;
+  if (r.derivado_a) return "derivado"; // lo realiza un partner: no hay conductor propio que acepte ni GPS
   if (r.conductor_respuesta === "rechazado") return "no_puede";
   if (!r.conductor_id) return null;
   return r.conductor_respuesta === "aceptado" ? "acepto" : "sin_aceptar";
 }
 const semaforo = r => { const k = semClave(r); if (!k) return ""; const [bg, fg, t] = SEM[k]; return `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`; };
+// Servicio derivado a un partner: Flota-K lo cierra a mano cuando el partner lo realizó (su conductor no usa nuestra app)
+const puedeFinalizarDerivado = r => !!r.derivado_a && !["finalizada", "cancelada"].includes(r.estado) && new Date(r.fecha_hora).getTime() <= Date.now() + 30 * 60000;
+async function finalizarDerivado(r, btn) {
+  if (!confirm(`¿Marcar ${r.codigo} como FINALIZADO?\nLo realizó el partner (${r.derivado_a}).`)) return false;
+  if (btn) btn.disabled = true;
+  const { error } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: "finalizada", p_nota: "Finalizado: servicio realizado por el partner (" + r.derivado_a + ")" });
+  if (error) { if (btn) btn.disabled = false; alert(errText(error)); return false; }
+  return true;
+}
 const semLeyenda = () => `<div class="sem-ley small">${Object.values(SEM).map(([bg, fg, t]) => `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`).join(" ")}</div>`;
 const CAT = { taxi_basico: "Taxi básico", taxi_turismo: "Taxi turismo", taxi_ejecutivo: "Taxi ejecutivo", suv: "SUV", van: "Van", particular_sedan: "Particular sedán", particular_suv: "Particular SUV", particular_vip: "Particular VIP" };
 // "Taxi ejecutivo Volkswagen Virtus, color azul · patente SSHY88"
@@ -1398,6 +1409,7 @@ async function abrir(id) {
     </div>
     <p id="a-margen" class="small muted"></p>
     <div id="a-choque" class="msg err" hidden></div>
+    ${puedeFinalizarDerivado(r) ? `<div class="pay" style="margin:6px 0;border-color:#7c4dff"><b>🚘 Servicio derivado a ${esc(r.derivado_a)}</b><span class="small muted">El conductor del partner no usa la app de Flota-K, así que el estado no avanza solo. Cuando el partner termine el servicio, márquelo aquí: queda finalizado, sin alerta de atraso, y entra a los reportes y la facturación.</span><div class="actions"><button class="btn" type="button" id="a-fin-der">✅ Marcar finalizado (lo realizó el partner)</button></div></div>` : ""}
     <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button>
       ${!r.en_bolsa && ["recibida", "confirmada", "asignada"].includes(r.estado) && new Date(r.fecha_hora) > Date.now() ? '<button class="btn ghost" id="a-bolsa" type="button">📢 Publicar en Reservas</button>' : ""}
       ${r.en_bolsa ? '<button class="btn ghost" id="a-bolsa-x" type="button">↩ Quitar de Reservas</button>' : ""}</div>
@@ -1557,8 +1569,14 @@ async function abrir(id) {
       if (e2 && (e2.code === "PGRST202" || /could not find the function/i.test(e2.message || ""))) { alert("La asignación quedó guardada. Los datos del partner (enlace y conductor) se activan cuando se aplique el cambio pendiente de la base de datos."); }
       else if (e2) return msg("d-msg", errText(e2), "err");
     }
+    // Si además se cambió el estado (por ejemplo a Finalizada), se guarda aquí mismo: antes solo lo guardaba "Guardar cambios"
+    if ($("d-estado") && $("d-estado").value !== r.estado) {
+      const { error: e3 } = await sb.rpc("cambiar_estado_reserva", { p_reserva: r.id, p_estado: $("d-estado").value, p_nota: $("d-nota").value || (der ? "Servicio realizado por el partner (" + der + ")" : "") });
+      if (e3) return msg("d-msg", errText(e3), "err");
+    }
     $("det").close(); refrescar();
   };
+  if ($("a-fin-der")) $("a-fin-der").onclick = async () => { if (await finalizarDerivado(r, $("a-fin-der"))) { $("det").close(); refrescar(); } };
   // ---- Cambiar la fecha u hora de la reserva
   const isoALocal = iso => {
     const p = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
@@ -2501,7 +2519,11 @@ function alertasDe(r, extra) {
   if (r.conductor_id && !r.conductor_respuesta && antesDeSalirR(r) && min < 180) a.push({ n: min < 60 ? 3 : 2, c: min < 60 ? "roja" : "amarilla", t: "Conductor no ha aceptado" });
   if (sinAsig && !r.en_bolsa && r.estado !== "finalizada") a.push(min < 120 ? { n: 3, c: "roja", t: "Sin asignar" } : min < 1440 ? { n: 2, c: "amarilla", t: "Sin asignar" } : { n: 1, c: "gris", t: "Sin asignar" });
   if (antesDeSalir && !sinAsig && !r.derivado_a && min <= 45 && min > 0) a.push({ n: 3, c: "roja", t: `Debía salir · faltan ${min} min` });
-  if (antesDeSalir && min <= 0) a.push({ n: 3, c: "roja", t: `Atrasado ${-min} min` });
+  // Servicio derivado: el partner no actualiza los estados en Flota-K. No es "atrasado": pasada la hora del
+  // servicio más su duración, solo se pide marcarlo como finalizado (botón ✅ en la fila o en la ficha).
+  if (r.derivado_a && antesDeSalir && min <= 0) {
+    if (-min >= (r.duracion_min || 90)) a.push({ n: 2, c: "amarilla", t: "Derivado: márquelo finalizado" });
+  } else if (antesDeSalir && min <= 0) a.push({ n: 3, c: "roja", t: `Atrasado ${-min} min` });
   if (r.estado === "en_camino" && min < -5) a.push({ n: 2, c: "amarilla", t: `Llegada tarde ${-min} min` });
   if (r.estado === "en_lugar" && extra.enLugarDesde) {
     const esp = Math.round((ahora - extra.enLugarDesde) / 60000);
@@ -2664,11 +2686,16 @@ function pintarDespacho() {
       <td class="nowrap">${vueloLink(r.vuelo)}</td>
       <td class="nowrap"><select class="tb-cond" aria-label="Conductor de ${esc(r.codigo)}" ${r.estado === "finalizada" ? "disabled" : ""}>${opcCond(r)}</select>${semClave(r) ? `<br>${semaforo(r)}` : ""}${r.negativo_estado === "solicitado" && r.estado !== "finalizada" ? '<br><span class="sem" style="background:#e5533d;color:#fff">🚫 Negativo por autorizar</span>' : r.no_presentado ? '<br><span class="sem" style="background:#9aa0a6;color:#17191c">🚫 No presentado</span>' : ""}${patente(r) ? `<br><span class="muted small">${esc(patente(r))}</span>` : ""}</td>
       <td class="nowrap">${r.tipo_cobro === "taximetro" && r.estado !== "finalizada" ? '<span class="muted small">Taxímetro</span>' : clp(r.precio ?? r.tarifa_web)}<br><span class="small ${r.pagado ? "muted" : ""}">${r.pagado ? "Pagado" : "Por cobrar"}</span></td>
-      <td>${r._al.map(x => `<span class="alerta ${x.c}">${esc(x.t)}</span>`).join(" ") || '<span class="muted small">—</span>'}</td>
+      <td>${r._al.map(x => `<span class="alerta ${x.c}">${esc(x.t)}</span>`).join(" ") || '<span class="muted small">—</span>'}${puedeFinalizarDerivado(r) ? ` <button class="btn sm tb-fin-der" type="button" title="El partner ya realizó el servicio">✅ Finalizar</button>` : ""}</td>
     </tr>`).join("") : `<tr><td colspan="8" class="muted">No hay servicios en este filtro.</td></tr>`;
   $("tb-body").querySelectorAll("tr[data-id]").forEach(tr => tr.addEventListener("click", ev => {
-    if (ev.target.closest("select, a")) return;
+    if (ev.target.closest("select, a, button")) return;
     abrir(tr.dataset.id);
+  }));
+  $("tb-body").querySelectorAll(".tb-fin-der").forEach(b => b.addEventListener("click", async ev => {
+    ev.stopPropagation();
+    const r = tablero.find(x => x.id === ev.target.closest("tr").dataset.id);
+    if (r && await finalizarDerivado(r, b)) cargarDespacho();
   }));
   $("tb-body").querySelectorAll(".tb-cond").forEach(sel => sel.addEventListener("change", async ev => {
     const id = ev.target.closest("tr").dataset.id, cond = ev.target.value || null;

@@ -1,5 +1,11 @@
 # Cambios
 
+## 25 nov 2026 · Servicios derivados: se finalizan sin quedar "atrasados"
+- Panel y app de Operaciones (equipo/index.html): un servicio derivado a un partner ya no marca «Atrasado» cuando pasa su hora (el conductor del partner no usa la app de Flota-K, así que el estado no avanza solo). Semáforo nuevo «Con partner».
+- Pasada la hora del servicio más su duración aparece el aviso amarillo «Derivado: márquelo finalizado» y, en la fila del despacho, el botón «✅ Finalizar». En la ficha, recuadro «Servicio derivado» con el botón «✅ Marcar finalizado (lo realizó el partner)». Deja nota en el historial (cambiar_estado_reserva).
+- Causa del servicio «atrapado»: el estado elegido en la ficha solo se guardaba con «Guardar cambios»; si se tocaba «Guardar asignación» se perdía. Ahora «Guardar asignación» también guarda el estado si se cambió.
+- Sin cambios en la base de datos.
+
 ## 25 nov 2026 · Medir de dónde vienen las ventas
 - assets/origen.js (portada, páginas por comuna y /reservar): guarda 30 días en el navegador de dónde llegó la visita (utm_source/ref, ttclid de TikTok, fbclid de Facebook/Instagram, gclid de Google, o la página de origen) y /reservar prellena «¿Cómo nos conoció?». Así cada pago en línea queda con su canal en reservas.como_nos_conocio. Sin servicios externos ni costo.
 - Para anuncios usar enlaces como fk-servicios.com/reservar/?utm_source=tiktok (o instagram, facebook, google).
