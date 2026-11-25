@@ -566,6 +566,14 @@ function semClave(r) {
   return r.conductor_respuesta === "aceptado" ? "acepto" : "sin_aceptar";
 }
 const semaforo = r => { const k = semClave(r); if (!k) return ""; const [bg, fg, t] = SEM[k]; return `<span class="sem" style="background:${bg};color:${fg}">● ${t}</span>`; };
+// Cambiar o quitar el conductor de un servicio que ya está en curso: el servicio vuelve a empezar (etapa 75).
+// Si solo se equivocó la hora, lo correcto es "Cambiar fecha u hora": la espera se recalcula sola.
+function confirmarCambioEnCurso(r, condNuevo, derNuevo) {
+  const cambia = (condNuevo || null) !== (r.conductor_id || null) || (derNuevo || null) !== (r.derivado_a || null);
+  if (!cambia || !["en_camino", "en_lugar", "a_bordo"].includes(r.estado)) return true;
+  if (r.estado === "a_bordo") { alert("El pasajero ya está a bordo: no se puede cambiar el conductor. Finalice o cancele el servicio."); return false; }
+  return confirm(`${r.codigo} está ${r.estado === "en_lugar" ? "EN EL LUGAR" : "EN CAMINO"}.\n\nSi solo se equivocó en la hora, NO quite al conductor: use "✏ Cambiar fecha u hora" en la ficha (la espera se recalcula sola).\n\n¿${condNuevo || derNuevo ? "Cambiar" : "Quitar"} el conductor igual? El servicio vuelve a "Asignada" y el conductor parte de nuevo.`);
+}
 // Servicio derivado a un partner: Flota-K lo cierra a mano cuando el partner lo realizó (su conductor no usa nuestra app)
 const puedeFinalizarDerivado = r => !!r.derivado_a && !["finalizada", "cancelada"].includes(r.estado) && new Date(r.fecha_hora).getTime() <= Date.now() + 30 * 60000;
 async function finalizarDerivado(r, btn) {
@@ -1544,6 +1552,7 @@ async function abrir(id) {
     const der = $("a-der").value.trim() || null, costo = $("a-costo").value === "" ? null : Number($("a-costo").value);
     const dur = Math.max(15, Math.min(1440, Number($("a-dur").value) || 90));
     if (cond && der) return msg("d-msg", "Elija un conductor o un partner, no ambos.", "err");
+    if (!confirmarCambioEnCurso(r, cond, der)) return;
     if (cond && !confirmarCategoria(r, cond, veh)) return;
     if (cond && !confirmarChoque) {
       const ch = await choques(cond, r.fecha_hora, dur, r.id);
@@ -2701,6 +2710,7 @@ function pintarDespacho() {
     const id = ev.target.closest("tr").dataset.id, cond = ev.target.value || null;
     const r = tablero.find(x => x.id === id);
     const veh = cond ? (vehiculos.find(v => v.conductor_habitual === cond) || {}).id || null : null;
+    if (!confirmarCambioEnCurso(r, cond, null)) { ev.target.value = r.conductor_id || ""; return; }
     if (cond && !confirmarCategoria(r, cond, veh)) { ev.target.value = r.conductor_id || ""; return; }
     if (cond) {
       const ch = await choques(cond, r.fecha_hora, r.duracion_min || 90, r.id);
