@@ -4,7 +4,7 @@
 - Panel (detalle de la reserva → Asignación): al escribir «Derivado a», aparecen el enlace de seguimiento del partner (el de «compartir viaje» de su app) y el conductor, vehículo y patente del partner. Se guardan con staff_datos_derivado (deja nota en reserva_eventos).
 - Seguimiento (/seguimiento): con ver_reserva_publica_v4, si la reserva está derivada muestra «Su traslado lo realiza un conductor de nuestra red asociada» (sin nombrar al partner), los datos de ese conductor y el botón «Ver su traslado en vivo» al enlace del partner. Se ocultan el mapa propio, el chat con el conductor y la calificación (son para conductores de Flota-K).
 - Si la reserva deja de estar derivada, los datos del partner se borran solos (trigger).
-- Migración etapa74 pendiente de aprobar en Supabase (archivo PENDIENTE_etapa74_servicios_derivados.sql). Hasta aplicarla, la página usa v3 como antes.
+- Migraciones aplicadas el 25 nov 2026: etapa74 (servicios derivados) y etapa73 (papelera completa + segunda dirección guardada como parada). La papelera quedó vacía (se purgaron las 4 reservas canceladas) y el borrado automático diario ya funciona.
 
 ## 23 nov 2026 · Paradas paso a paso en la app del conductor y códigos de descuento
 - App del conductor, servicio con paradas y pasajero a bordo: panel paso a paso. «Ir a la parada N (Waze)» → «Llegué a la parada N» (corre la espera, 5 min sin costo) → «Continuar a la parada siguiente / al destino (Waze)», que cierra la espera y abre Waze al siguiente punto. Reemplaza el botón de Google Maps con todas las paradas.
@@ -20,7 +20,7 @@
 - Portada y páginas por comuna: los botones «Reservar por WhatsApp» ahora llevan a /reservar (pago con tarjeta en Flow; la reserva entra sola al sistema). El cotizador punto a punto abre /reservar con origen, destino, vehículo y ruta ya cargados.
 - Fuera de Santiago (fuera de la Región Metropolitana: Viña, Valparaíso, Rancagua, Los Andes y cualquier punto sin comuna de la RM) siempre se cotiza por WhatsApp: el servidor (flow v21) no lo cobra en línea, tampoco el tramo fijo Oriente ↔ Viña/Valparaíso.
 - Aeropuerto con dos direcciones (/reservar, casilla «segunda dirección»): la dirección principal se cobra con la tarifa fija de su sector y el tramo entre las dos direcciones, con taxímetro (+ TAG). Al aeropuerto se retira primero en la segunda dirección; desde el aeropuerto se deja primero en la principal. No se combina con ida y vuelta.
-- Pendiente de aprobar en Supabase: migración etapa73 (papelera completa + guardar la segunda dirección como parada de la reserva). Mientras no se aplique, las dos direcciones quedan en los comentarios de la reserva.
+- Migración etapa73 aplicada el 25 nov 2026 (papelera completa + segunda dirección guardada como parada de la reserva).
 
 ## 23 nov 2026 · Peajes de carretera (Quinta y Sexta región) a precio costo, ida y vuelta
 - Regla del dueño: los peajes de carretera se suman **a precio costo y de ida y vuelta** (el móvil vuelve), **solo en los viajes por km**. Las **tarifas fijas** (aeropuerto y tramos como Santiago oriente ↔ Viña / Valparaíso) **ya incluyen los peajes**: no se les suma nada (función `flow` v20).
