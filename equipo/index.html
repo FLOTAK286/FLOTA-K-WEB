@@ -1553,7 +1553,9 @@ async function abrir(id) {
       if (link && !/^https:\/\//i.test(link)) return msg("d-msg", "El enlace de seguimiento del partner debe empezar con https://", "err");
       const { error: e2 } = await sb.rpc("staff_datos_derivado", { p_reserva: r.id, p_enlace: link || null,
         p_conductor: $("a-der-cond").value.trim() || null, p_vehiculo: $("a-der-veh").value.trim() || null, p_patente: $("a-der-pat").value.trim() || null });
-      if (e2) return msg("d-msg", errText(e2), "err");
+      // Si la base de datos aún no tiene esta función (cambio pendiente de aplicar), la asignación ya quedó guardada: solo se avisa
+      if (e2 && (e2.code === "PGRST202" || /could not find the function/i.test(e2.message || ""))) { alert("La asignación quedó guardada. Los datos del partner (enlace y conductor) se activan cuando se aplique el cambio pendiente de la base de datos."); }
+      else if (e2) return msg("d-msg", errText(e2), "err");
     }
     $("det").close(); refrescar();
   };
