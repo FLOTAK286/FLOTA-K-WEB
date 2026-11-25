@@ -481,6 +481,8 @@ $("f").addEventListener("submit", async e => {
 });
 // Datos de la última reserva en este teléfono (para no escribirlos de nuevo)
 (() => { const d = leer("fk_reserva_datos", null); if (d) { $("nom").value = d.nom || ""; $("tel").value = d.tel || ""; $("mail").value = d.mail || ""; } })();
+// "¿Cómo nos conoció?": si la visita llegó desde una red o un anuncio, queda elegido solo (la persona lo puede cambiar)
+window.addEventListener("load", () => { const o = window.FKOrigen && FKOrigen.get(); if (o && !$("como").value && $("como").querySelector(`option[value="${o}"]`)) $("como").value = o; });
 // El enlace puede traer el tipo: /reservar/?tipo=regreso | punto_a_punto
 // /reservar/?tipo=ida|regreso|punto_a_punto&veh=van&iv=1&o=<texto>&olat=&olng=&d=<texto>&dlat=&dlng=&sin=1
 (() => {
@@ -495,5 +497,6 @@ $("f").addEventListener("submit", async e => {
   if (q.get("sin") === "1") { sinAuto = true; vistaKey = ""; precio(); }
 })();
 </script>
+<script src="/assets/origen.js"></script>
 </body>
 </html>

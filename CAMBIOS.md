@@ -1,5 +1,9 @@
 # Cambios
 
+## 25 nov 2026 · Medir de dónde vienen las ventas
+- assets/origen.js (portada, páginas por comuna y /reservar): guarda 30 días en el navegador de dónde llegó la visita (utm_source/ref, ttclid de TikTok, fbclid de Facebook/Instagram, gclid de Google, o la página de origen) y /reservar prellena «¿Cómo nos conoció?». Así cada pago en línea queda con su canal en reservas.como_nos_conocio. Sin servicios externos ni costo.
+- Para anuncios usar enlaces como fk-servicios.com/reservar/?utm_source=tiktok (o instagram, facebook, google).
+
 ## 25 nov 2026 · Servicios derivados a un partner con su propio seguimiento
 - Panel (detalle de la reserva → Asignación): al escribir «Derivado a», aparecen el enlace de seguimiento del partner (el de «compartir viaje» de su app) y el conductor, vehículo y patente del partner. Se guardan con staff_datos_derivado (deja nota en reserva_eventos).
 - Seguimiento (/seguimiento): con ver_reserva_publica_v4, si la reserva está derivada muestra «Su traslado lo realiza un conductor de nuestra red asociada» (sin nombrar al partner), los datos de ese conductor y el botón «Ver su traslado en vivo» al enlace del partner. Se ocultan el mapa propio, el chat con el conductor y la calificación (son para conductores de Flota-K).
