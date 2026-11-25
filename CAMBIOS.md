@@ -1,5 +1,10 @@
 # Cambios
 
+## 25 nov 2026 · Quitar o cambiar el conductor de un servicio en curso
+- Problema: en FK-966355 (en el lugar, hora ingresada 15:00 en vez de 15:30) se quitó y se volvió a asignar al conductor para "reiniciar" la espera; el servicio siguió «En el lugar» con la espera contando desde la primera llegada y quedó pegado. Se corrigió la hora a 15:30 en la base (pedido del dueño).
+- Base (migración etapa75, aplicada): asignar_reserva, si se quita o cambia el conductor (o se deriva) de un servicio en camino o en el lugar, lo devuelve a «Asignada» (o «Confirmada» sin conductor) y anota «el servicio vuelve a empezar». Con el pasajero a bordo no se permite. espera_calculo cuenta la llegada posterior a la última asignación.
+- Panel: al cambiar el conductor de un servicio en curso pide confirmar y recuerda que, si solo se equivocó la hora, se usa «✏ Cambiar fecha u hora» (la espera se recalcula sola).
+
 ## 25 nov 2026 · Servicios derivados: se finalizan sin quedar "atrasados"
 - Panel y app de Operaciones (equipo/index.html): un servicio derivado a un partner ya no marca «Atrasado» cuando pasa su hora (el conductor del partner no usa la app de Flota-K, así que el estado no avanza solo). Semáforo nuevo «Con partner».
 - Pasada la hora del servicio más su duración aparece el aviso amarillo «Derivado: márquelo finalizado» y, en la fila del despacho, el botón «✅ Finalizar». En la ficha, recuadro «Servicio derivado» con el botón «✅ Marcar finalizado (lo realizó el partner)». Deja nota en el historial (cambiar_estado_reserva).
