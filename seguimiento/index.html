@@ -57,8 +57,9 @@ let estado = null, mapa = null, pin = null, centrado = false, timerUb = null;
 
 async function cargar() {
   if (!token || !/^[0-9a-f-]{36}$/i.test(token)) { box.innerHTML = '<p class="msg err">El enlace de seguimiento no es válido. Revise el enlace que le enviamos.</p>'; return; }
-  // v3 agrega la categoría del vehículo; si aún no existe, se usa v2
-  let { data, error } = await sb.rpc("ver_reserva_publica_v3", { p_token: token });
+  // v4 agrega los datos del partner (servicios derivados); si aún no existe, se usa v3 y luego v2
+  let { data, error } = await sb.rpc("ver_reserva_publica_v4", { p_token: token });
+  if (error) ({ data, error } = await sb.rpc("ver_reserva_publica_v3", { p_token: token }));
   if (error) ({ data, error } = await sb.rpc("ver_reserva_publica_v2", { p_token: token }));
   if (error || !data || !data.length) { box.innerHTML = '<p class="msg err">No encontramos esta reserva. Revise el enlace o escríbanos por WhatsApp.</p>'; return; }
   const r = data[0]; reserva = r;
@@ -70,7 +71,9 @@ async function cargar() {
   const pasos = r.o_estado === "cancelada"
     ? '<p class="msg err">Esta reserva fue cancelada.</p>'
     : '<ol class="steps-track">' + ORDEN.map((e, k) => `<li class="${k < i ? "done" : k === i ? "done now" : ""}">${esc(ESTADOS[e].t)}</li>`).join("") + "</ol>";
-  const enCurso = EN_CURSO.includes(r.o_estado);
+  // Servicio derivado a un conductor de la red asociada: el mapa en vivo es el de la app del partner
+  const deriv = !!r.o_derivado, enlaceExt = deriv && /^https:\/\//i.test(r.o_enlace_externo || "") ? r.o_enlace_externo : "";
+  const enCurso = EN_CURSO.includes(r.o_estado) && !deriv;
   mapa = null; pin = null; centrado = false;
   box.innerHTML = `
     <div class="top" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
@@ -78,6 +81,10 @@ async function cargar() {
     </div>
     <div id="ocupado" class="retiro" hidden style="border-color:var(--gold, #d4a64a);border-width:2px"></div>
     ${r.o_estado === "en_camino" ? '<p class="eta" id="eta" hidden></p>' : ""}
+    ${deriv && !["finalizada", "cancelada"].includes(r.o_estado) ? `<div class="retiro" style="border-color:var(--gold, #d4a64a);border-width:2px">
+      <b>🚘 Su traslado lo realiza un conductor de nuestra red asociada</b>
+      <span class="small muted">Flota-K coordina y responde por su servicio. ${enlaceExt ? "Siga el vehículo en vivo con el botón de abajo." : "Apenas el conductor salga hacia usted, aquí aparecerá el enlace para seguirlo en vivo."}</span>
+      ${enlaceExt ? `<a class="btn" href="${esc(enlaceExt)}" target="_blank" rel="noopener noreferrer" style="margin-top:8px">📍 Ver su traslado en vivo</a>` : ""}</div>` : ""}
     ${enCurso ? `<div id="ub-box"><h3 style="margin:0 0 6px">Ubicación de su conductor</h3><div id="mapa" class="mapa"></div><p class="muted small" id="ub-txt" style="margin-top:6px">Buscando la ubicación del conductor…</p></div>` : ""}
     ${r.o_conductor && r.o_estado !== "cancelada" ? `<div class="quien">
       <div class="q-cond"><div class="q-foto">${r.o_foto_conductor ? `<img src="${esc(fotoUrl(r.o_foto_conductor))}" alt="Foto de su conductor">` : `<span>${esc(r.o_conductor[0])}</span>`}</div>
@@ -111,8 +118,9 @@ async function cargar() {
   clearInterval(timerUb);
   if (enCurso) { ubicar(); timerUb = setInterval(ubicar, 15000); }
   mensajes(); pintarRetiro(); cargarEspera(); cargarParadas();
-  if (["confirmada", "asignada", "en_camino"].includes(r.o_estado) && r.o_conductor) revisarOcupado(r);
-  if (r.o_estado === "finalizada") calificacion(); else $("calif-panel").hidden = true;
+  if (!deriv && ["confirmada", "asignada", "en_camino"].includes(r.o_estado) && r.o_conductor) revisarOcupado(r);
+  // La calificación es para los conductores de Flota-K; en servicios derivados no se muestra
+  if (r.o_estado === "finalizada" && !deriv) calificacion(); else $("calif-panel").hidden = true;
 }
 
 // ---- Punto exacto de retiro: el pasajero mueve el pin hasta donde esperará (hasta 20 min antes, a menos de 2 km)
@@ -165,7 +173,7 @@ async function mensajes() {
   const { data, error } = await sb.rpc("ver_mensajes_publico_v2", { p_token: token });
   if (error || !data || !data.length) return;
   const todos = data.filter(m => m.o_id).map(m => ({ id: m.o_id, autor: m.o_autor, texto: m.o_texto, creado_en: m.o_creado, canal: m.o_canal }));
-  viajeAbierto = !!data[0].o_abierto;
+  viajeAbierto = !!data[0].o_abierto && !(reserva && reserva.o_derivado);
   // Chat con el conductor: solo mientras va en camino, en el lugar o a bordo
   $("chat-panel").hidden = !viajeAbierto;
   if (viajeAbierto) {

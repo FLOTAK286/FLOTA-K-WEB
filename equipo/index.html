@@ -1387,6 +1387,15 @@ async function abrir(id) {
       <div class="f"><label for="a-der">O derivado a (red / partner)</label><input id="a-der" value="${esc(r.derivado_a || "")}" placeholder="Ej: Servimóvil"></div>
       <div class="f"><label for="a-costo">Costo que cobra el partner</label><input id="a-costo" type="number" min="0" step="1000" value="${esc(r.costo_partner ?? "")}"></div>
     </div>
+    <div id="a-der-extra" ${r.derivado_a ? "" : "hidden"} style="border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-top:4px">
+      <p class="small muted" style="margin:0 0 6px">Datos del partner para el pasajero: se muestran en su página de seguimiento (sin nombrar al partner). Pegue el enlace de «compartir viaje» de la app del partner.</p>
+      <div class="f"><label for="a-der-link">Enlace de seguimiento del partner</label><input id="a-der-link" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${esc(r.derivado_enlace || "")}"></div>
+      <div class="row3">
+        <div class="f"><label for="a-der-cond">Conductor</label><input id="a-der-cond" maxlength="80" value="${esc(r.derivado_conductor || "")}" placeholder="Nombre"></div>
+        <div class="f"><label for="a-der-veh">Vehículo</label><input id="a-der-veh" maxlength="80" value="${esc(r.derivado_vehiculo || "")}" placeholder="Ej: Toyota Corolla gris"></div>
+        <div class="f"><label for="a-der-pat">Patente</label><input id="a-der-pat" maxlength="12" value="${esc(r.derivado_patente || "")}" placeholder="ABCD12" style="text-transform:uppercase"></div>
+      </div>
+    </div>
     <p id="a-margen" class="small muted"></p>
     <div id="a-choque" class="msg err" hidden></div>
     <div class="actions"><button class="btn" id="a-save" type="button">Guardar asignación</button>
@@ -1517,6 +1526,7 @@ async function abrir(id) {
     const v = vehiculos.find(x => x.conductor_habitual === $("a-cond").value);
     if (v) $("a-veh").value = v.id;
     confirmarChoque = false; $("a-choque").hidden = true; $("a-save").textContent = "Guardar asignación"; };
+  $("a-der")?.addEventListener("input", () => { $("a-der-extra").hidden = !$("a-der").value.trim(); });
   $("a-save").onclick = async () => {
     const cond = $("a-cond").value || null, veh = $("a-veh").value || null;
     const der = $("a-der").value.trim() || null, costo = $("a-costo").value === "" ? null : Number($("a-costo").value);
@@ -1537,6 +1547,14 @@ async function abrir(id) {
     }
     const { error } = await sb.rpc("asignar_reserva", { p_reserva: r.id, p_conductor: cond, p_vehiculo: veh, p_derivado_a: der, p_costo_partner: costo });
     if (error) return msg("d-msg", errText(error), "err");
+    // Servicio derivado: enlace de seguimiento y datos del conductor del partner (los ve el pasajero en su seguimiento)
+    if (der) {
+      const link = $("a-der-link").value.trim();
+      if (link && !/^https:\/\//i.test(link)) return msg("d-msg", "El enlace de seguimiento del partner debe empezar con https://", "err");
+      const { error: e2 } = await sb.rpc("staff_datos_derivado", { p_reserva: r.id, p_enlace: link || null,
+        p_conductor: $("a-der-cond").value.trim() || null, p_vehiculo: $("a-der-veh").value.trim() || null, p_patente: $("a-der-pat").value.trim() || null });
+      if (e2) return msg("d-msg", errText(e2), "err");
+    }
     $("det").close(); refrescar();
   };
   // ---- Cambiar la fecha u hora de la reserva

@@ -1,5 +1,11 @@
 # Cambios
 
+## 25 nov 2026 · Servicios derivados a un partner con su propio seguimiento
+- Panel (detalle de la reserva → Asignación): al escribir «Derivado a», aparecen el enlace de seguimiento del partner (el de «compartir viaje» de su app) y el conductor, vehículo y patente del partner. Se guardan con staff_datos_derivado (deja nota en reserva_eventos).
+- Seguimiento (/seguimiento): con ver_reserva_publica_v4, si la reserva está derivada muestra «Su traslado lo realiza un conductor de nuestra red asociada» (sin nombrar al partner), los datos de ese conductor y el botón «Ver su traslado en vivo» al enlace del partner. Se ocultan el mapa propio, el chat con el conductor y la calificación (son para conductores de Flota-K).
+- Si la reserva deja de estar derivada, los datos del partner se borran solos (trigger).
+- Migración etapa74 pendiente de aprobar en Supabase (archivo PENDIENTE_etapa74_servicios_derivados.sql). Hasta aplicarla, la página usa v3 como antes.
+
 ## 23 nov 2026 · Paradas paso a paso en la app del conductor y códigos de descuento
 - App del conductor, servicio con paradas y pasajero a bordo: panel paso a paso. «Ir a la parada N (Waze)» → «Llegué a la parada N» (corre la espera, 5 min sin costo) → «Continuar a la parada siguiente / al destino (Waze)», que cierra la espera y abre Waze al siguiente punto. Reemplaza el botón de Google Maps con todas las paradas.
 - /reservar: campo «Código de descuento». El servidor (flow v22, acción «codigo») lo valida; se descuenta del total (mínimo a cobrar $1.000) y del precio del primer tramo, con nota en la reserva. Códigos en osm_datos «codigos_descuento» (sin acceso público); un uso = una solicitud pagada con ese código (solicitudes_pago.datos.codigo). Provisional hasta tener tabla y pestaña propias.
