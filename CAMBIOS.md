@@ -1,5 +1,12 @@
 # Cambios
 
+## 26 nov 2026 · Crédito de clientes y pago en línea de servicios pendientes (etapa 76)
+- Panel → Cuentas de clientes → «💳 Crédito de clientes» (solo admin): casilla «Cuenta con crédito» y «Límite de deuda» por empresa (un crédito para toda la empresa) y por cliente particular o de la app (uno por persona). Muestra lo que debe hoy y si está bloqueado. Funciones admin_creditos y admin_credito_guardar.
+- Bloqueo: si la deuda (servicios finalizados sin pagar) supera el límite, no puede agendar desde el portal de empresas ni desde la app (trigger reservas_credito_bloqueo, mensaje con la deuda y el límite). El equipo puede seguir agendando desde el panel. Sin la casilla, nada cambia.
+- Pagos: portal de empresas (pestaña «💳 Pagos»: encargado de convenio, directivo y clientes particulares) y app del pasajero (arriba de «Mis viajes»): lista de servicios pendientes de pago, el cliente elige uno, varios o todos y paga con tarjeta en Flow. Al confirmar Flow, quedan pagados (pagado, pagado_en, pagado_medio «Flow · …») con nota en el historial. assets/pagos.js (común), funciones mis_pendientes, deuda_crear_solicitud y deuda_marcar_pagada.
+- Edge Function nueva «flow-deuda» (verify_jwt false; usa los mismos secretos de Flow) para no tocar el cobro de /reservar. Órdenes «FKD-…» en solicitudes_pago con datos.tipo = 'deuda'. Un servicio con un pago en curso no se puede volver a elegir por 35 minutos; si llegara a pagarse dos veces, queda anotado en solicitudes_pago.error para devolver.
+- Migración etapa76 aplicada el 26 nov 2026. Service workers: fk-app-v14, fk-empresa-v8.
+
 ## 25 nov 2026 · Quitar o cambiar el conductor de un servicio en curso
 - Problema: en FK-966355 (en el lugar, hora ingresada 15:00 en vez de 15:30) se quitó y se volvió a asignar al conductor para "reiniciar" la espera; el servicio siguió «En el lugar» con la espera contando desde la primera llegada y quedó pegado. Se corrigió la hora a 15:30 en la base (pedido del dueño).
 - Base (migración etapa75, aplicada): asignar_reserva, si se quita o cambia el conductor (o se deriva) de un servicio en camino o en el lugar, lo devuelve a «Asignada» (o «Confirmada» sin conductor) y anota «el servicio vuelve a empezar». Con el pasajero a bordo no se permite. espera_calculo cuenta la llegada posterior a la última asignación.

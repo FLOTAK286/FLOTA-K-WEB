@@ -231,6 +231,7 @@
         <div><p class="eyebrow" style="margin:0">Su historial</p><h1>Mis viajes</h1></div>
         <button class="btn ghost sm" type="button" id="refrescar">↻ Actualizar</button>
       </div>
+      <div id="pagos-box" class="panel" hidden style="display:grid;gap:8px"></div>
       <div id="lista" class="list"></div>
       <details class="panel">
         <summary><b>¿No ve un viaje?</b></summary>
@@ -312,6 +313,7 @@
 <script src="/assets/cotizar.js"></script>
 <script src="/assets/lugar.js"></script>
 <script src="/assets/recuperar.js"></script>
+<script src="/assets/pagos.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText } = FK;
 const $ = id => document.getElementById(id);
@@ -377,6 +379,7 @@ $("reenviar").addEventListener("click", async () => {
 $("ya-confirme").addEventListener("click", () => { modoAuth("entrar"); $("e-mail").value = $("revise-mail").textContent; $("e-pass").focus(); });
 
 // ================= INICIO DE LA SESIÓN =================
+let pagosUI = null;
 async function iniciar() {
   const { data, error } = await sb.rpc("pasajero_inicio");
   $("cargando").hidden = true;
@@ -393,8 +396,20 @@ async function iniciar() {
   $("v-auth").hidden = true; $("nav").hidden = false;
   $("saludo").textContent = "Hola, " + ((D.yo.nombre || "").split(" ")[0] || "bienvenido");
   pintarCuenta(); pintarFavsReserva(); precio();
-  const h = location.hash.slice(1);
-  ver(["viajes", "cuenta"].includes(h) ? h : "reservar");
+  const h = location.hash.slice(1), volvioDePago = new URLSearchParams(location.search).has("pago");
+  // Pagos pendientes (etapa 76): se muestran arriba de "Mis viajes"; si la cuenta superó su límite de crédito, se avisa al reservar
+  if (!pagosUI) pagosUI = FKPagos.montar($("pagos-box"), { sb, volver: "app", alCargar: i => {
+    const n = (i && i.viajes || []).length;
+    $("pagos-box").hidden = !n && !(i && i.bloqueado) && !new URLSearchParams(location.search).has("pago");
+    if (n) $("nav-punto").hidden = false;
+    let b = $("bloqueo-credito");
+    if (i && i.bloqueado) {
+      if (!b) { b = document.createElement("div"); b.id = "bloqueo-credito"; b.className = "msg err"; $("v-reservar").firstElementChild.prepend(b); }
+      b.innerHTML = '⛔ <b>Su cuenta superó el límite de crédito.</b> Para volver a reservar, pague sus viajes pendientes en <b>Mis viajes</b>.';
+    } else if (b) b.remove();
+  } });
+  pagosUI.cargar();
+  ver(volvioDePago ? "viajes" : ["viajes", "cuenta"].includes(h) ? h : "reservar");
   if (FK.enlaceTipo === "signup") msgBienvenida();
   cargarViajes(true);
 }

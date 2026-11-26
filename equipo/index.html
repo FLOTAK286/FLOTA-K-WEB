@@ -496,6 +496,11 @@ details.paso > summary { cursor: pointer; }
       <div id="cc-datos" class="pay" hidden></div>
       <div class="actions" style="margin-top:8px"><input id="cc-buscar" type="search" placeholder="🔎 Buscar por nombre, empresa o correo" style="flex:1;min-width:200px"></div>
       <div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="cc-lista"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
+      <h3 style="margin:16px 0 0">💳 Crédito de clientes (pueden deber)</h3>
+      <p class="small muted" style="margin:4px 0">Marque <b>Cuenta con crédito</b> a los clientes que pueden quedar debiendo y fije su <b>límite de deuda</b>. Si lo que deben (servicios finalizados sin pagar) supera el límite, no pueden agendar desde el portal ni desde la app hasta pagar. Todos los clientes con cuenta ven sus servicios pendientes en <b>💳 Pagos</b> y pueden pagarlos con tarjeta, uno, varios o todos. Las empresas tienen un solo crédito para toda la empresa; los particulares, uno por persona. Usted puede seguir agendándoles desde el panel aunque estén bloqueados.</p>
+      <div class="actions" style="margin:4px 0"><label class="small"><input type="checkbox" id="cr-solo"> Mostrar solo los que tienen crédito o deuda</label></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Cuenta con crédito</th><th>Límite de deuda</th><th>Debe hoy</th><th>Estado</th><th></th></tr></thead><tbody id="cr-lista"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody></table></div>
+      <div id="cr-msg" class="msg" hidden></div>
     </div>
 
     <div data-pane="reportar" class="panel" style="margin-top:14px" hidden>
@@ -3698,7 +3703,46 @@ async function cargarCuentasClientes() {
   const res = await Promise.all(cuentas.concat(cuentaPart ? [cuentaPart] : []).map(c => sb.rpc("convenio_admin_ver", { p_cuenta: c.id }).then(({ data }) => ((data && data.usuarios) || []).map(u => ({ ...u, cuenta: c })))));
   ccUsuarios = res.flat().sort((a, b) => (a.cuenta.razon_social || "").localeCompare(b.cuenta.razon_social || "") || (a.nombre || "").localeCompare(b.nombre || ""));
   pintarCuentasClientes();
+  cargarCreditos();
 }
+// ---- Crédito de clientes (etapa 76): cuenta con crédito + límite de deuda; sobre el límite no agendan en el portal ni en la app
+let creditos = [];
+async function cargarCreditos() {
+  const { data, error } = await sb.rpc("admin_creditos");
+  if (error) { $("cr-lista").innerHTML = `<tr><td colspan="6" class="msg err">${esc(/admin_creditos/.test(error.message || "") ? "Falta aplicar el cambio de la base de datos (etapa 76)." : errText(error))}</td></tr>`; return; }
+  creditos = [...(data.empresas || []).filter(e => e.activa !== false || e.credito || e.deuda).map(e => ({ ...e, tipo: "empresa" })), ...(data.personas || []).map(p => ({ ...p, tipo: "persona" }))];
+  pintarCreditos();
+}
+function pintarCreditos() {
+  const q = norm($("cc-buscar").value.trim()), solo = $("cr-solo").checked;
+  const xs = creditos.filter(c => (!q || norm([c.nombre, c.correo, c.telefono].join(" ")).includes(q)) && (!solo || c.credito || c.deuda > 0));
+  $("cr-lista").innerHTML = xs.length ? xs.map((c, i) => {
+    const bloq = c.credito && c.limite != null && c.deuda > c.limite;
+    return `<tr data-i="${creditos.indexOf(c)}">
+      <td>${c.tipo === "empresa" ? "🏢" : "👤"} <b>${esc(c.nombre)}</b>${c.correo ? `<br><span class="muted small">${esc(FK.usuarioVisible(c.correo))}</span>` : ""}</td>
+      <td><label class="small nowrap"><input type="checkbox" class="cr-on" ${c.credito ? "checked" : ""}> Sí, puede deber</label></td>
+      <td><input type="number" class="cr-lim" min="0" step="1000" inputmode="numeric" placeholder="Sin límite" value="${c.limite ?? ""}" style="max-width:130px" ${c.credito ? "" : "disabled"}></td>
+      <td class="nowrap">${c.deuda > 0 ? `<b>${clp(c.deuda)}</b>` : '<span class="muted">$0</span>'}</td>
+      <td class="small">${!c.credito ? '<span class="muted">Sin crédito</span>' : bloq ? '<span class="alerta roja">⛔ Bloqueado: superó el límite</span>' : c.limite == null ? "✅ Crédito sin límite" : `✅ Disponible ${clp(c.limite - c.deuda)}`}</td>
+      <td><button class="btn sm cr-save" type="button">Guardar</button></td></tr>`; }).join("")
+    : `<tr><td colspan="6" class="muted">${creditos.length ? "Nada coincide." : "Aún no hay clientes con cuenta."}</td></tr>`;
+  $("cr-lista").querySelectorAll("tr[data-i]").forEach(tr => {
+    const c = creditos[+tr.dataset.i], on = tr.querySelector(".cr-on"), lim = tr.querySelector(".cr-lim");
+    on.onchange = () => { lim.disabled = !on.checked; if (on.checked && lim.value === "") lim.focus(); };
+    tr.querySelector(".cr-save").onclick = async ev => {
+      const v = lim.value.trim() === "" ? null : Number(lim.value);
+      if (v != null && !(v >= 0)) return msg("cr-msg", "Revise el límite: debe ser un número en pesos.", "err");
+      if (on.checked && v == null && !confirm(`¿Dejar a ${c.nombre} con crédito SIN límite? Nunca se le bloquearán las reservas.`)) return;
+      ev.target.disabled = true;
+      const { error } = await sb.rpc("admin_credito_guardar", { p_tipo: c.tipo, p_id: c.id, p_credito: on.checked, p_limite: on.checked ? v : null });
+      ev.target.disabled = false;
+      if (error) return msg("cr-msg", errText(error), "err");
+      msg("cr-msg", `Guardado: ${c.nombre} ${on.checked ? (v == null ? "con crédito sin límite" : "con crédito hasta " + clp(v)) : "sin crédito"}.`, "ok");
+      cargarCreditos();
+    };
+  });
+}
+$("cr-solo").addEventListener("change", pintarCreditos);
 function pintarCuentasClientes() {
   const q = norm($("cc-buscar").value.trim());
   const us = ccUsuarios.filter(u => !q || norm([u.nombre, u.correo, u.telefono, u.cuenta.razon_social].join(" ")).includes(q));
@@ -3725,7 +3769,7 @@ function pintarCuentasClientes() {
     cargarCuentasClientes();
   });
 }
-$("cc-buscar").addEventListener("input", pintarCuentasClientes);
+$("cc-buscar").addEventListener("input", () => { pintarCuentasClientes(); pintarCreditos(); });
 // Cliente particular: siempre "pasajero" (agenda a su nombre y ve sus viajes)
 function verRolCuenta() { const p = $("cc-emp").value === "particular"; $("cc-rol").closest(".f").hidden = p; if (p) $("cc-rol").value = "pasajero"; }
 $("cc-emp").addEventListener("change", verRolCuenta);

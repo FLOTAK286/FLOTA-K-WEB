@@ -152,6 +152,7 @@
         <button role="tab" data-t="agendar" aria-selected="true"><span class="ic">🚘</span><span>Agendar</span></button>
         <button role="tab" data-t="viajes" aria-selected="false"><span class="ic">🗓️</span><span id="t-viajes">Viajes</span></button>
         <button role="tab" data-t="equipo" aria-selected="false" class="enc"><span class="ic">👥</span><span><span class="lg">Presupuesto y </span>Personas</span></button>
+        <button role="tab" data-t="pagos" aria-selected="false" id="tab-pagos" hidden><span class="ic">💳</span><span>Pagos<span id="t-pagos-n"></span></span></button>
         <button role="tab" data-t="fact" aria-selected="false" class="enc"><span class="ic">🧾</span><span>Facturación</span></button>
       </nav>
       <div class="cont" style="display:grid;gap:14px;min-width:0">
@@ -235,6 +236,9 @@
       </div>
 
       <!-- FACTURACIÓN (encargado) -->
+      <!-- PAGOS: servicios pendientes de pago, el cliente elige cuáles y paga con tarjeta (etapa 76) -->
+      <div data-p="pagos" class="panel" hidden><div id="pagos-box" style="display:grid;gap:8px"></div></div>
+
       <div data-p="fact" class="panel" hidden>
         <div id="ec-box" style="display:grid;gap:8px;margin-bottom:14px">
           <h2 style="margin:0">Estado de cuenta</h2>
@@ -274,6 +278,7 @@
 <script src="/assets/carga.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="/assets/paradas.js"></script>
+<script src="/assets/pagos.js"></script>
 <script>
 const { sb, esc, clp, fecha, pill, errText } = FK;
 document.addEventListener("change", e => { if (e.target && e.target.id === "ec-per") pintarEstadoCuenta(); });
@@ -283,7 +288,7 @@ document.addEventListener("change", e => { if (e.target && e.target.id === "ec-p
 // solo se permiten las dos consultas de lectura; todo lo que guarda o cancela queda bloqueado aquí.
 const COMO = new URLSearchParams(location.search).get("como");
 if (COMO) {
-  const rpc0 = sb.rpc.bind(sb), LECTURA = ["convenio_inicio", "convenio_reservas"];
+  const rpc0 = sb.rpc.bind(sb), LECTURA = ["convenio_inicio", "convenio_reservas", "mis_pendientes"];
   const bloqueo = { data: null, error: { message: "Vista previa: solo lectura. Aquí no se guarda ni se cancela nada." } };
   sb.rpc = (fn, args) => LECTURA.includes(fn) ? rpc0(fn, { ...(args || {}), p_como: COMO }) : Promise.resolve(bloqueo);
   sb.functions.invoke = () => Promise.resolve(bloqueo);
@@ -393,12 +398,32 @@ function pintar() {
   } else $("pend").hidden = true;
   prepararAgendar();
   if (enc()) { pintarEquipo(); pintarFact(); montarCargaEmpresa(); }
-  ir(location.hash === "#viajes" ? "viajes" : "agendar");
+  montarPagos();
+  const volvioDePago = new URLSearchParams(location.search).has("pago");
+  ir(volvioDePago && !$("tab-pagos").hidden ? "pagos" : location.hash === "#viajes" ? "viajes" : location.hash === "#pagos" && !$("tab-pagos").hidden ? "pagos" : "agendar");
+}
+// Pagos pendientes: los ven el cliente particular y, en empresas, el encargado de convenio y el directivo
+let pagosUI = null;
+function montarPagos() {
+  const pagador = !!D.particular || ["encargado", "directivo"].includes(D.yo.rol);
+  $("tab-pagos").hidden = !pagador;
+  if (!pagador || pagosUI) return;
+  pagosUI = FKPagos.montar($("pagos-box"), { sb, volver: "empresa", soloLectura: !!COMO, alCargar: i => {
+    const n = (i && i.viajes || []).length;
+    $("t-pagos-n").textContent = n ? ` (${n})` : "";
+    // Cuenta bloqueada por superar el límite de crédito: aviso arriba, en todas las pestañas
+    if (i && i.bloqueado && D.empresa.datos_completos) {
+      $("pend").hidden = false;
+      $("pend").innerHTML = `<b>⛔ Su cuenta superó el límite de crédito.</b> Para volver a agendar, pague los servicios pendientes en la pestaña <b>💳 Pagos</b>.`;
+    } else if (D.empresa.datos_completos) $("pend").hidden = true;
+  } });
+  pagosUI.cargar();
 }
 function ir(t) {
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.t === t)));
   document.querySelectorAll("[data-p]").forEach(p => p.hidden = p.dataset.p !== t);
   if (t === "viajes") cargarViajes();
+  if (t === "pagos" && pagosUI) pagosUI.cargar();
   if (window.innerWidth < 900) window.scrollTo(0, 0);
 }
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
