@@ -1,5 +1,8 @@
 # Cambios
 
+## 26 nov 2026 · Panel en el celular: tablas como tarjetas
+- assets/app.css: clase `tbl cards`: en pantallas de hasta 760 px cada fila se ve como tarjeta, con el nombre de cada dato arriba (atributo data-l) y campos a todo el ancho. Aplicada a «Crédito de clientes», «Cuentas de clientes» y «Ventas» (antes se cortaban y se montaban los textos en la app de Operaciones).
+
 ## 26 nov 2026 · Crédito de clientes y pago en línea de servicios pendientes (etapa 76)
 - Panel → Cuentas de clientes → «💳 Crédito de clientes» (solo admin): casilla «Cuenta con crédito» y «Límite de deuda» por empresa (un crédito para toda la empresa) y por cliente particular o de la app (uno por persona). Muestra lo que debe hoy y si está bloqueado. Funciones admin_creditos y admin_credito_guardar.
 - Bloqueo: si la deuda (servicios finalizados sin pagar) supera el límite, no puede agendar desde el portal de empresas ni desde la app (trigger reservas_credito_bloqueo, mensaje con la deuda y el límite). El equipo puede seguir agendando desde el panel. Sin la casilla, nada cambia.

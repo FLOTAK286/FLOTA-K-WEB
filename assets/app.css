@@ -265,6 +265,16 @@ button.kpi:hover { border-color: var(--gold); }
   .tbl.tb select { max-width: none; width: 100%; }
   .tl-fila { grid-template-columns: 90px 1fr; }
   .tl { min-width: 760px; }
+  /* Tablas que en el celular se ven como tarjetas (una por fila, cada dato con su nombre arriba) */
+  .tbl.cards thead { display: none; }
+  .tbl.cards, .tbl.cards tbody, .tbl.cards tr, .tbl.cards td { display: block; width: 100%; }
+  .tbl.cards tr { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; background: var(--panel); }
+  .tbl.cards td { border: 0; padding: 4px 0 !important; }
+  .tbl.cards td[data-l]::before { content: attr(data-l); display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 2px; }
+  .tbl.cards td:empty { display: none; }
+  .tbl.cards input:not([type=checkbox]), .tbl.cards select, .tbl.cards textarea { width: 100%; max-width: none !important; min-width: 0 !important; }
+  .tbl.cards .nowrap { white-space: normal; }
+  .tbl.cards .btn { width: 100%; }
 }
 #app.eq, #app.eq [data-pane], #agenda { min-width: 0; }
 .tl-scroll { max-width: 100%; }

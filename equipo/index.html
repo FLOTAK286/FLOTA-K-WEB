@@ -495,11 +495,11 @@ details.paso > summary { cursor: pointer; }
       <div id="cc-msg" class="msg" hidden></div>
       <div id="cc-datos" class="pay" hidden></div>
       <div class="actions" style="margin-top:8px"><input id="cc-buscar" type="search" placeholder="🔎 Buscar por nombre, empresa o correo" style="flex:1;min-width:200px"></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="cc-lista"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
+      <div class="tblwrap"><table class="tbl cards"><thead><tr><th>Empresa</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="cc-lista"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
       <h3 style="margin:16px 0 0">💳 Crédito de clientes (pueden deber)</h3>
       <p class="small muted" style="margin:4px 0">Marque <b>Cuenta con crédito</b> a los clientes que pueden quedar debiendo y fije su <b>límite de deuda</b>. Si lo que deben (servicios finalizados sin pagar) supera el límite, no pueden agendar desde el portal ni desde la app hasta pagar. Todos los clientes con cuenta ven sus servicios pendientes en <b>💳 Pagos</b> y pueden pagarlos con tarjeta, uno, varios o todos. Las empresas tienen un solo crédito para toda la empresa; los particulares, uno por persona. Usted puede seguir agendándoles desde el panel aunque estén bloqueados.</p>
-      <div class="actions" style="margin:4px 0"><label class="small"><input type="checkbox" id="cr-solo"> Mostrar solo los que tienen crédito o deuda</label></div>
-      <div class="tblwrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Cuenta con crédito</th><th>Límite de deuda</th><th>Debe hoy</th><th>Estado</th><th></th></tr></thead><tbody id="cr-lista"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody></table></div>
+      <div class="actions" style="margin:4px 0"><label class="small" style="display:inline-flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="cr-solo" style="width:22px;height:22px;margin:0"> Mostrar solo los que tienen crédito o deuda</label></div>
+      <div class="tblwrap"><table class="tbl cards"><thead><tr><th>Cliente</th><th>Cuenta con crédito</th><th>Límite de deuda</th><th>Debe hoy</th><th>Estado</th><th></th></tr></thead><tbody id="cr-lista"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody></table></div>
       <div id="cr-msg" class="msg" hidden></div>
     </div>
 
@@ -3720,10 +3720,10 @@ function pintarCreditos() {
     const bloq = c.credito && c.limite != null && c.deuda > c.limite;
     return `<tr data-i="${creditos.indexOf(c)}">
       <td>${c.tipo === "empresa" ? "🏢" : "👤"} <b>${esc(c.nombre)}</b>${c.correo ? `<br><span class="muted small">${esc(FK.usuarioVisible(c.correo))}</span>` : ""}</td>
-      <td><label class="small nowrap"><input type="checkbox" class="cr-on" ${c.credito ? "checked" : ""}> Sí, puede deber</label></td>
-      <td><input type="number" class="cr-lim" min="0" step="1000" inputmode="numeric" placeholder="Sin límite" value="${c.limite ?? ""}" style="max-width:130px" ${c.credito ? "" : "disabled"}></td>
-      <td class="nowrap">${c.deuda > 0 ? `<b>${clp(c.deuda)}</b>` : '<span class="muted">$0</span>'}</td>
-      <td class="small">${!c.credito ? '<span class="muted">Sin crédito</span>' : bloq ? '<span class="alerta roja">⛔ Bloqueado: superó el límite</span>' : c.limite == null ? "✅ Crédito sin límite" : `✅ Disponible ${clp(c.limite - c.deuda)}`}</td>
+      <td data-l="Cuenta con crédito"><label class="small" style="display:inline-flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" class="cr-on" ${c.credito ? "checked" : ""} style="width:22px;height:22px;margin:0"> Sí, puede deber</label></td>
+      <td data-l="Límite de deuda ($)"><input type="number" class="cr-lim" min="0" step="1000" inputmode="numeric" placeholder="Sin límite" value="${c.limite ?? ""}" style="max-width:140px" ${c.credito ? "" : "disabled"}></td>
+      <td data-l="Debe hoy" class="nowrap">${c.deuda > 0 ? `<b>${clp(c.deuda)}</b>` : '<span class="muted">$0</span>'}</td>
+      <td data-l="Estado" class="small">${!c.credito ? '<span class="muted">Sin crédito</span>' : bloq ? '<span class="alerta roja">⛔ Bloqueado: superó el límite</span>' : c.limite == null ? "✅ Crédito sin límite" : `✅ Disponible ${clp(c.limite - c.deuda)}`}</td>
       <td><button class="btn sm cr-save" type="button">Guardar</button></td></tr>`; }).join("")
     : `<tr><td colspan="6" class="muted">${creditos.length ? "Nada coincide." : "Aún no hay clientes con cuenta."}</td></tr>`;
   $("cr-lista").querySelectorAll("tr[data-i]").forEach(tr => {
@@ -3749,8 +3749,8 @@ function pintarCuentasClientes() {
   $("cc-lista").innerHTML = us.length ? us.map(u => `<tr>
       <td>${u.cuenta.es_particulares ? "👤 <b>Particular</b>" : "🏢 " + esc(u.cuenta.razon_social)}</td>
       <td><b>${esc(u.nombre)}</b><br><span class="muted small">${esc(FK.usuarioVisible(u.correo))}${u.telefono ? " · " + esc(u.telefono) : ""}</span></td>
-      <td class="small">${u.cuenta.es_particulares ? "Cliente particular" : esc(ROL_CONV[u.rol] || u.rol)}</td>
-      <td class="small">${u.activo ? (u.clave_cambiada ? "✅ Activo" : "🔑 Falta cambiar la clave provisoria") : '<span class="muted">Sin acceso</span>'}</td>
+      <td data-l="Rol" class="small">${u.cuenta.es_particulares ? "Cliente particular" : esc(ROL_CONV[u.rol] || u.rol)}</td>
+      <td data-l="Estado" class="small">${u.activo ? (u.clave_cambiada ? "✅ Activo" : "🔑 Falta cambiar la clave provisoria") : '<span class="muted">Sin acceso</span>'}</td>
       <td class="nowrap small"><button class="linkbtn" type="button" data-ccclave="${esc(u.id)}">🔑 Nueva clave</button> · <button class="linkbtn" type="button" data-ccact="${esc(u.id)}" data-v="${u.activo ? "0" : "1"}">${u.activo ? "Quitar acceso" : "Dar acceso"}</button> · <a class="linkbtn" href="/empresa/?como=${esc(u.id)}" target="_blank" rel="noopener">👁 Ver como</a></td></tr>`).join("")
     : `<tr><td colspan="5" class="muted">${ccUsuarios.length ? "Nada coincide con la búsqueda." : "Aún no hay cuentas de clientes. Cree la primera arriba."}</td></tr>`;
   $("cc-lista").querySelectorAll("[data-ccclave]").forEach(b => b.onclick = async () => {
@@ -3841,13 +3841,13 @@ function pintarVentas() {
   const f = $("vt-filtro").value, q = (($("vt-buscar").value || "").toLowerCase());
   const xs = vtLista.filter(x => (f === "todos" || (f === "activos" ? !["convenio", "descartado"].includes(x.estado) : (x.proximo_contacto && x.proximo_contacto <= hoy && !["convenio", "descartado"].includes(x.estado))))
     && (!q || [x.empresa, x.contacto, x.rubro].join(" ").toLowerCase().includes(q)));
-  $("vt-lista").innerHTML = xs.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Contacto</th><th>Estado</th><th>Próximo contacto</th><th>Notas</th></tr></thead><tbody>
+  $("vt-lista").innerHTML = xs.length ? `<div class="tblwrap"><table class="tbl cards"><thead><tr><th>Empresa</th><th>Contacto</th><th>Estado</th><th>Próximo contacto</th><th>Notas</th></tr></thead><tbody>
     ${xs.map(x => { const atr = x.proximo_contacto && x.proximo_contacto < hoy && !["convenio", "descartado"].includes(x.estado), hoyQ = x.proximo_contacto === hoy;
       return `<tr data-vt="${x.id}"><td><b>${esc(x.empresa)}</b>${x.rubro ? `<br><span class="small muted">${esc(x.rubro)}</span>` : ""}</td>
-      <td>${esc(x.contacto || "—")}${x.cargo ? `<br><span class="small muted">${esc(x.cargo)}</span>` : ""}<br><span class="small">${[x.correo ? `<a href="mailto:${esc(x.correo)}">${esc(x.correo)}</a>` : "", x.telefono ? `<a href="https://wa.me/${esc(x.telefono.replace(/\D/g, "").replace(/^9(\d{8})$/, "569$1"))}" target="_blank" rel="noopener">${esc(x.telefono)}</a>` : "", x.linkedin ? `<a href="${esc(x.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>` : ""].filter(Boolean).join(" · ")}</span></td>
-      <td><select class="vt-est" aria-label="Estado de ${esc(x.empresa)}" style="border-left:4px solid ${VT_EST[x.estado][1]}">${Object.entries(VT_EST).map(([k, v]) => `<option value="${k}" ${k === x.estado ? "selected" : ""}>${v[0]}</option>`).join("")}</select></td>
-      <td><input type="date" class="vt-prox" value="${esc(x.proximo_contacto || "")}" aria-label="Próximo contacto">${atr ? '<br><span class="alerta roja">Atrasado</span>' : hoyQ ? '<br><span class="alerta amarilla">Hoy</span>' : ""}</td>
-      <td><textarea class="vt-not" rows="2" maxlength="3000" aria-label="Notas" style="min-width:180px">${esc(x.notas || "")}</textarea></td></tr>`; }).join("")}</tbody></table></div>`
+      <td data-l="Contacto">${esc(x.contacto || "—")}${x.cargo ? `<br><span class="small muted">${esc(x.cargo)}</span>` : ""}<br><span class="small">${[x.correo ? `<a href="mailto:${esc(x.correo)}">${esc(x.correo)}</a>` : "", x.telefono ? `<a href="https://wa.me/${esc(x.telefono.replace(/\D/g, "").replace(/^9(\d{8})$/, "569$1"))}" target="_blank" rel="noopener">${esc(x.telefono)}</a>` : "", x.linkedin ? `<a href="${esc(x.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>` : ""].filter(Boolean).join(" · ")}</span></td>
+      <td data-l="Estado"><select class="vt-est" aria-label="Estado de ${esc(x.empresa)}" style="border-left:4px solid ${VT_EST[x.estado][1]}">${Object.entries(VT_EST).map(([k, v]) => `<option value="${k}" ${k === x.estado ? "selected" : ""}>${v[0]}</option>`).join("")}</select></td>
+      <td data-l="Próximo contacto"><input type="date" class="vt-prox" value="${esc(x.proximo_contacto || "")}" aria-label="Próximo contacto">${atr ? '<br><span class="alerta roja">Atrasado</span>' : hoyQ ? '<br><span class="alerta amarilla">Hoy</span>' : ""}</td>
+      <td data-l="Notas"><textarea class="vt-not" rows="3" maxlength="3000" aria-label="Notas" style="min-width:180px">${esc(x.notas || "")}</textarea></td></tr>`; }).join("")}</tbody></table></div>`
     : '<p class="muted">No hay empresas en esta vista. Agregue las de la semana con "➕ Agregar empresa" (el kit de venta tiene los rubros y los mensajes).</p>';
   $("vt-lista").querySelectorAll("tr[data-vt]").forEach(tr => {
     const id = Number(tr.dataset.vt), guardar = async cambio => { const { error } = await sb.from("prospectos").update(cambio).eq("id", id); if (error) return msg("vt-msg", errText(error), "err"); const x = vtLista.find(y => y.id === id); Object.assign(x, cambio, { actualizado_en: new Date().toISOString() }); };
