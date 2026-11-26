@@ -49,8 +49,9 @@
         el.innerHTML = aviso + `<h2 style="margin:0">💳 Pagos</h2>${credito}${bloqueo}<p class="muted small">Los servicios de su empresa los paga el encargado de convenio.</p>`;
         return;
       }
+      const efe = info.efectivo ? '<p class="small muted" style="margin:4px 0">💵 Sus viajes se pagan en efectivo al conductor.</p>' : "";
       if (!vs.length) {
-        el.innerHTML = aviso + `<h2 style="margin:0">💳 Pagos</h2>${credito}<p class="muted">✅ No tiene servicios pendientes de pago.</p>`;
+        el.innerHTML = aviso + `<h2 style="margin:0">💳 Pagos</h2>${credito}${efe}<p class="muted">✅ No tiene pagos pendientes.</p>`;
         return;
       }
       const sel = vs.filter(v => elegidos.has(v.id)), total = sel.reduce((s, v) => s + (v.total || 0), 0);
@@ -63,8 +64,10 @@
         <div style="display:grid;gap:6px">${vs.map(v => `
           <label class="pay" style="display:flex;gap:10px;align-items:flex-start;cursor:${v.en_pago || op.soloLectura ? "default" : "pointer"};margin:0">
             <input type="checkbox" data-id="${esc(v.id)}" ${elegidos.has(v.id) ? "checked" : ""} ${v.en_pago || op.soloLectura ? "disabled" : ""} style="margin-top:4px;width:20px;height:20px">
-            <span style="flex:1;min-width:0"><b>${clp(v.total)}</b> · <span class="small">${esc(fecha(v.fecha))}</span> · <span class="small muted">${esc(v.codigo)}</span><br>
-              <span class="small">${esc(v.origen)} → ${esc(v.destino)}</span>${info.alcance === "empresa" && v.pasajero ? `<br><span class="small muted">Pasajero: ${esc(v.pasajero)}</span>` : ""}
+            <span style="flex:1;min-width:0">${v.tipo === "cargo"
+              ? `<b>${clp(v.total)}</b> · <span class="small muted">Cargo de su cuenta</span><br><span class="small">${esc(v.origen)}</span>`
+              : `<b>${clp(v.total)}</b> · <span class="small">${esc(fecha(v.fecha))}</span> · <span class="small muted">${esc(v.codigo)}</span><br>
+              <span class="small">${esc(v.origen)} → ${esc(v.destino)}</span>`}${info.alcance === "empresa" && v.pasajero ? `<br><span class="small muted">Pasajero: ${esc(v.pasajero)}</span>` : ""}
               ${v.en_pago ? '<br><span class="small" style="color:var(--gold)">⏳ Pago en curso (si no lo terminó, vuelve a estar disponible en 35 minutos)</span>' : ""}</span>
           </label>`).join("")}</div>
         ${op.soloLectura ? '<p class="small muted">Vista previa: solo lectura.</p>' : `<div class="actions" style="align-items:center">

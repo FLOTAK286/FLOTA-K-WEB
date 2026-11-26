@@ -131,7 +131,7 @@ details.paso > summary { cursor: pointer; }
           <button class="btn ghost sm" type="button" id="bulk-todas">Todas</button>
           <button class="btn ghost sm" type="button" id="bulk-conf">✔ Confirmar</button>
           <button class="btn ghost sm" type="button" id="bulk-bolsa">📢 Publicar en Reservas</button>
-          <span class="actions" id="bulk-pagwrap"><select id="bulk-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost sm" type="button" id="bulk-pag">$ Marcar pagadas</button></span>
+          <span class="actions" id="bulk-pagwrap"><select id="bulk-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost sm" type="button" id="bulk-pag">$ Marcar pagadas</button></span>
           <button class="btn ghost sm" type="button" id="bulk-limpiar">Limpiar</button></span>
         <span id="bulk-msg" class="small"></span>
       </div>
@@ -232,7 +232,7 @@ details.paso > summary { cursor: pointer; }
           <div id="n-sugerida" class="small" hidden></div>
           <div class="row3">
             <div class="f"><label for="n-precio">Precio acordado</label><input id="n-precio" type="number" min="0" step="1000" inputmode="numeric" placeholder="$"></div>
-            <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+            <div class="f"><label for="n-pago">Forma de pago</label><select id="n-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
             <div class="f"><label for="n-cobro">Tipo de cobro</label><select id="n-cobro"><option value="fija">Tarifa fija</option><option value="taximetro">Taxímetro</option></select></div>
           </div>
         </section>
@@ -497,9 +497,9 @@ details.paso > summary { cursor: pointer; }
       <div class="actions" style="margin-top:8px"><input id="cc-buscar" type="search" placeholder="🔎 Buscar por nombre, empresa o correo" style="flex:1;min-width:200px"></div>
       <div class="tblwrap"><table class="tbl cards"><thead><tr><th>Empresa</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="cc-lista"><tr><td colspan="5" class="muted">Cargando…</td></tr></tbody></table></div>
       <h3 style="margin:16px 0 0">💳 Crédito de clientes (pueden deber)</h3>
-      <p class="small muted" style="margin:4px 0">Marque <b>Cuenta con crédito</b> a los clientes que pueden quedar debiendo y fije su <b>límite de deuda</b>. Si lo que deben (servicios finalizados sin pagar) supera el límite, no pueden agendar desde el portal ni desde la app hasta pagar. Todos los clientes con cuenta ven sus servicios pendientes en <b>💳 Pagos</b> y pueden pagarlos con tarjeta, uno, varios o todos. Las empresas tienen un solo crédito para toda la empresa; los particulares, uno por persona. Usted puede seguir agendándoles desde el panel aunque estén bloqueados.</p>
+      <p class="small muted" style="margin:4px 0">Marque <b>Cuenta con crédito</b> a los clientes que pueden quedar debiendo y fije su <b>límite de deuda</b>. Si lo que deben (servicios finalizados sin pagar) supera el límite, no pueden agendar desde el portal ni desde la app hasta pagar. Todos los clientes con cuenta ven sus servicios pendientes en <b>💳 Pagos</b> y pueden pagarlos con tarjeta, uno, varios o todos. Las empresas tienen un solo crédito para toda la empresa; los particulares, uno por persona. Usted puede seguir agendándoles desde el panel aunque estén bloqueados. <b>💵 Al conductor:</b> el cliente paga en efectivo; sus reservas quedan con forma de pago «Efectivo» y no se le cobran con tarjeta. <b>➕ Agregar saldo o cargo:</b> para deudas que no son viajes del sistema (ej.: saldo anterior); el cliente lo ve en Pagos y lo puede pagar con tarjeta.</p>
       <div class="actions" style="margin:4px 0"><label class="small" style="display:inline-flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="cr-solo" style="width:22px;height:22px;margin:0"> Mostrar solo los que tienen crédito o deuda</label></div>
-      <div class="tblwrap"><table class="tbl cards"><thead><tr><th>Cliente</th><th>Cuenta con crédito</th><th>Límite de deuda</th><th>Debe hoy</th><th>Estado</th><th></th></tr></thead><tbody id="cr-lista"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody></table></div>
+      <div class="tblwrap"><table class="tbl cards"><thead><tr><th>Cliente</th><th>Cuenta con crédito</th><th>Límite de deuda</th><th>Paga en efectivo</th><th>Debe hoy</th><th>Estado</th><th></th></tr></thead><tbody id="cr-lista"><tr><td colspan="7" class="muted">Cargando…</td></tr></tbody></table></div>
       <div id="cr-msg" class="msg" hidden></div>
     </div>
 
@@ -1386,7 +1386,7 @@ async function abrir(id) {
     ${r.estado !== "cancelada" ? '<div class="actions"><button class="btn ghost sm" type="button" id="d-edit">✏ Editar datos de la reserva</button></div><div id="d-edit-box" class="pay" hidden></div>' : ""}
     <div class="row2">
       <div class="f"><label for="d-precio">${r.estado === "finalizada" ? "Valor final cobrado" : "Precio final"}</label><input id="d-precio" type="number" min="0" step="100" value="${esc(r.estado === "finalizada" ? (valorFinal(r) ?? "") : (r.precio ?? ""))}" ${r.estado === "finalizada" && !(yo && yo.rol === "admin") ? 'readonly title="Solo el administrador corrige el valor de un servicio finalizado"' : ""}></div>
-      <div class="f"><label for="d-pago">Forma de pago</label><select id="d-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+      <div class="f"><label for="d-pago">Forma de pago</label><select id="d-pago"><option value="">Sin definir</option><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
     </div>
     ${r.estado === "finalizada" ? `<p class="small muted" style="margin:2px 0 6px">${r.tipo_cobro === "taximetro" ? "Cobrado con taxímetro. " : ""}${r.valor_original != null ? `Valor corregido (original ${clp(r.valor_original)}). ` : ""}${yo && yo.rol === "admin" ? "Para corregirlo (facturación, cobro de más, etc.), cambie el valor y toque Guardar cambios: queda anotado en el historial con el valor anterior y la nota que escriba." : ""}</p>` : ""}
     <div class="row2">
@@ -1458,6 +1458,8 @@ async function abrir(id) {
     <div id="d-cambios" class="small"></div>
     <ul class="timeline">${(ev || []).map(e => `<li><b>${esc(ESTADOS[e.estado]?.t || e.estado)}</b> · <span class="muted small">${esc(fecha(e.creado_en))}</span>${e.nota ? `<br>${esc(e.nota)}` : ""}</li>`).join("")}</ul>`;
   $("det").showModal();
+  // Si la forma de pago guardada no está en la lista (ej.: "Flow (pagado en línea)"), se agrega para no perderla al guardar
+  if (r.forma_pago && ![...$("d-pago").options].some(o => o.value === r.forma_pago)) $("d-pago").add(new Option(r.forma_pago, r.forma_pago));
   $("d-pago").value = r.forma_pago || "";
   $("d-close").onclick = () => $("det").close();
   if ($("d-bolsa")) $("d-bolsa").onclick = () => formularioBolsa(r);
@@ -2840,7 +2842,7 @@ async function pintarCobro(r) {
     </div>
     <div class="actions"><button class="btn ghost sm" id="g-add" type="button">Agregar gasto</button></div>
     <div class="row3">
-      <div class="f"><label for="p-medio">Medio de pago</label><select id="p-medio"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
+      <div class="f"><label for="p-medio">Medio de pago</label><select id="p-medio"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Factura mensual</option></select></div>
       <div class="f"><label for="p-fecha">Fecha de pago</label><input id="p-fecha" type="date" value="${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date())}"></div>
       <div class="actions" style="align-self:end">${c.pagado ? `<button class="btn ghost" id="p-undo" type="button">Deshacer pago</button>` : `<button class="btn" id="p-ok" type="button">Marcar pagado</button>`}</div>
     </div>` : `<p class="muted small">Solo el administrador puede agregar gastos y marcar pagos.</p>`}
@@ -2944,7 +2946,7 @@ async function fichaCliente(id) {
       <button class="btn" id="cf-xlsx" type="button">Descargar planilla Excel</button>
       <button class="btn ghost" id="cf-wa" type="button">Cobrar por WhatsApp</button>
       <button class="btn ghost" id="cf-mail" type="button">Cobrar por correo</button>
-      ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
+      ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
     </div>
     <div id="cf-msg" class="msg" hidden></div>`;
   $("cf-etq").querySelectorAll("[data-etq]").forEach(b => b.addEventListener("click", async () => {
@@ -3305,7 +3307,7 @@ async function fichaEmpresa(id) {
     <div class="actions" style="margin-top:10px">
       <button class="btn" id="cf-xlsx" type="button">Descargar planilla Excel (para facturar)</button>
       <button class="btn ghost" id="cf-mail" type="button">Cobrar por correo</button>
-      ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
+      ${admin ? `<select id="cf-medio" aria-label="Medio de pago"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Factura mensual</option></select><button class="btn ghost" id="cf-pagar" type="button">Marcar seleccionados como pagados</button>` : ""}
     </div>
     <div id="cf-msg" class="msg" hidden></div>`;
   $("ef-volver").onclick = () => { $("cl-ficha").hidden = true; $("em-lista").hidden = false; pintarEmpresas(); };
@@ -3709,35 +3711,49 @@ async function cargarCuentasClientes() {
 let creditos = [];
 async function cargarCreditos() {
   const { data, error } = await sb.rpc("admin_creditos");
-  if (error) { $("cr-lista").innerHTML = `<tr><td colspan="6" class="msg err">${esc(/admin_creditos/.test(error.message || "") ? "Falta aplicar el cambio de la base de datos (etapa 76)." : errText(error))}</td></tr>`; return; }
+  if (error) { $("cr-lista").innerHTML = `<tr><td colspan="7" class="msg err">${esc(/admin_creditos/.test(error.message || "") ? "Falta aplicar el cambio de la base de datos (etapa 76)." : errText(error))}</td></tr>`; return; }
   creditos = [...(data.empresas || []).filter(e => e.activa !== false || e.credito || e.deuda).map(e => ({ ...e, tipo: "empresa" })), ...(data.personas || []).map(p => ({ ...p, tipo: "persona" }))];
   pintarCreditos();
 }
 function pintarCreditos() {
   const q = norm($("cc-buscar").value.trim()), solo = $("cr-solo").checked;
-  const xs = creditos.filter(c => (!q || norm([c.nombre, c.correo, c.telefono].join(" ")).includes(q)) && (!solo || c.credito || c.deuda > 0));
+  const xs = creditos.filter(c => (!q || norm([c.nombre, c.correo, c.telefono].join(" ")).includes(q)) && (!solo || c.credito || c.efectivo || c.deuda > 0 || (c.cargos || []).length));
   $("cr-lista").innerHTML = xs.length ? xs.map((c, i) => {
     const bloq = c.credito && c.limite != null && c.deuda > c.limite;
     return `<tr data-i="${creditos.indexOf(c)}">
       <td>${c.tipo === "empresa" ? "🏢" : "👤"} <b>${esc(c.nombre)}</b>${c.correo ? `<br><span class="muted small">${esc(FK.usuarioVisible(c.correo))}</span>` : ""}</td>
       <td data-l="Cuenta con crédito"><label class="small" style="display:inline-flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" class="cr-on" ${c.credito ? "checked" : ""} style="width:22px;height:22px;margin:0"> Sí, puede deber</label></td>
       <td data-l="Límite de deuda ($)"><input type="number" class="cr-lim" min="0" step="1000" inputmode="numeric" placeholder="Sin límite" value="${c.limite ?? ""}" style="max-width:140px" ${c.credito ? "" : "disabled"}></td>
-      <td data-l="Debe hoy" class="nowrap">${c.deuda > 0 ? `<b>${clp(c.deuda)}</b>` : '<span class="muted">$0</span>'}</td>
+      <td data-l="Paga en efectivo"><label class="small" style="display:inline-flex;gap:8px;align-items:center;cursor:pointer" title="Sus reservas quedan con forma de pago Efectivo (la ve el conductor) y no se le ofrecen para pagar con tarjeta"><input type="checkbox" class="cr-efe" ${c.efectivo ? "checked" : ""} style="width:22px;height:22px;margin:0"> 💵 Al conductor</label></td>
+      <td data-l="Debe hoy">${c.deuda > 0 ? `<b>${clp(c.deuda)}</b>` : '<span class="muted">$0</span>'}
+        ${(c.cargos || []).map(g => `<div class="small" style="margin-top:4px">${g.pagado ? "✅" : "🧾"} ${esc(g.descripcion)}: <b>${clp(g.monto)}</b>${g.pagado ? ` <span class="muted">pagado ${esc(g.medio || "")}</span>` : ` <button class="linkbtn" type="button" data-cg-pag="${esc(g.id)}">Pagado en efectivo</button> · <button class="linkbtn" type="button" data-cg-anu="${esc(g.id)}">Anular</button>`}</div>`).join("")}
+        <div><button class="linkbtn small" type="button" data-cg-nuevo>➕ Agregar saldo o cargo</button></div></td>
       <td data-l="Estado" class="small">${!c.credito ? '<span class="muted">Sin crédito</span>' : bloq ? '<span class="alerta roja">⛔ Bloqueado: superó el límite</span>' : c.limite == null ? "✅ Crédito sin límite" : `✅ Disponible ${clp(c.limite - c.deuda)}`}</td>
       <td><button class="btn sm cr-save" type="button">Guardar</button></td></tr>`; }).join("")
-    : `<tr><td colspan="6" class="muted">${creditos.length ? "Nada coincide." : "Aún no hay clientes con cuenta."}</td></tr>`;
+    : `<tr><td colspan="7" class="muted">${creditos.length ? "Nada coincide." : "Aún no hay clientes con cuenta."}</td></tr>`;
   $("cr-lista").querySelectorAll("tr[data-i]").forEach(tr => {
-    const c = creditos[+tr.dataset.i], on = tr.querySelector(".cr-on"), lim = tr.querySelector(".cr-lim");
+    const c = creditos[+tr.dataset.i], on = tr.querySelector(".cr-on"), lim = tr.querySelector(".cr-lim"), efe = tr.querySelector(".cr-efe");
+    const cargo = async (args, ok) => { const { error } = await sb.rpc("admin_cargo", { p_tipo: c.tipo, p_descripcion: null, p_monto: null, p_medio: null, ...args });
+      if (error) return msg("cr-msg", errText(error), "err"); msg("cr-msg", ok, "ok"); cargarCreditos(); };
+    tr.querySelector("[data-cg-nuevo]").onclick = () => {
+      const m = Number(String(prompt(`Monto que debe ${c.nombre} (solo números, en pesos):`, "") || "").replace(/\D/g, ""));
+      if (!m) return;
+      const d = prompt("¿De qué es? (lo ve el cliente en Pagos)", "Saldo anterior por servicios realizados");
+      if (!d) return;
+      cargo({ p_accion: "crear", p_id: c.id, p_descripcion: d, p_monto: m }, `Cargo agregado a ${c.nombre}: ${clp(m)}. Ya lo ve en su portal o app para pagarlo.`);
+    };
+    tr.querySelectorAll("[data-cg-pag]").forEach(b => b.onclick = () => { if (confirm("¿Marcar este cargo como pagado en efectivo?")) cargo({ p_accion: "pagado", p_id: b.dataset.cgPag, p_medio: "Efectivo" }, "Cargo marcado como pagado en efectivo."); });
+    tr.querySelectorAll("[data-cg-anu]").forEach(b => b.onclick = () => { if (confirm("¿Anular este cargo? Deja de aparecerle al cliente.")) cargo({ p_accion: "anular", p_id: b.dataset.cgAnu }, "Cargo anulado."); });
     on.onchange = () => { lim.disabled = !on.checked; if (on.checked && lim.value === "") lim.focus(); };
     tr.querySelector(".cr-save").onclick = async ev => {
       const v = lim.value.trim() === "" ? null : Number(lim.value);
       if (v != null && !(v >= 0)) return msg("cr-msg", "Revise el límite: debe ser un número en pesos.", "err");
       if (on.checked && v == null && !confirm(`¿Dejar a ${c.nombre} con crédito SIN límite? Nunca se le bloquearán las reservas.`)) return;
       ev.target.disabled = true;
-      const { error } = await sb.rpc("admin_credito_guardar", { p_tipo: c.tipo, p_id: c.id, p_credito: on.checked, p_limite: on.checked ? v : null });
+      const { error } = await sb.rpc("admin_credito_guardar", { p_tipo: c.tipo, p_id: c.id, p_credito: on.checked, p_limite: on.checked ? v : null, p_efectivo: efe.checked });
       ev.target.disabled = false;
       if (error) return msg("cr-msg", errText(error), "err");
-      msg("cr-msg", `Guardado: ${c.nombre} ${on.checked ? (v == null ? "con crédito sin límite" : "con crédito hasta " + clp(v)) : "sin crédito"}.`, "ok");
+      msg("cr-msg", `Guardado: ${c.nombre} ${on.checked ? (v == null ? "con crédito sin límite" : "con crédito hasta " + clp(v)) : "sin crédito"}${efe.checked ? " · paga en efectivo al conductor" : ""}.`, "ok");
       cargarCreditos();
     };
   });
