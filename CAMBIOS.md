@@ -1,5 +1,11 @@
 # Cambios
 
+## 26 nov 2026 · Saldos anteriores y clientes que pagan en efectivo (etapa 78)
+- Cargos manuales (tabla cargos_cliente, RLS): en Panel → Cuentas de clientes → Crédito, «➕ Agregar saldo o cargo» (ej.: saldo anterior de Enrique Mancini). El cliente lo ve en «💳 Pagos» y lo paga con tarjeta; suma a su deuda y límite; no cuenta como viaje. Se puede marcar «Pagado en efectivo» o anular (admin_cargo).
+- «💵 Al conductor» (clientes.paga_efectivo / cuentas_corporativas.paga_efectivo, solo admin): sus reservas nuevas quedan con forma de pago «Efectivo» (trigger reservas_forma_pago_efectivo; el conductor lo ve) y no aparecen como deuda para pagar con tarjeta.
+- «Efectivo» habilitado como medio al marcar pagos (marcar_pagado, solo admin) y como forma de pago en las fichas. La ficha ya no borra formas de pago que no están en la lista (ej.: «Flow (pagado en línea)»).
+- Migración etapa78 aplicada el 26 nov 2026.
+
 ## 26 nov 2026 · Panel en el celular: tablas como tarjetas
 - assets/app.css: clase `tbl cards`: en pantallas de hasta 760 px cada fila se ve como tarjeta, con el nombre de cada dato arriba (atributo data-l) y campos a todo el ancho. Aplicada a «Crédito de clientes», «Cuentas de clientes» y «Ventas» (antes se cortaban y se montaban los textos en la app de Operaciones).
 
