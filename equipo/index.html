@@ -81,6 +81,7 @@ details.paso > summary { cursor: pointer; }
       <button role="tab" data-tab="cuentas" aria-selected="false" id="tab-cuentas" hidden>Cuentas de clientes</button>
       <button role="tab" data-tab="fact" aria-selected="false" id="tab-fact" hidden>Facturación</button>
       <button role="tab" data-tab="ventas" aria-selected="false" id="tab-ventas" hidden>Ventas</button>
+      <button role="tab" data-tab="instagram" aria-selected="false" id="tab-instagram" hidden>Instagram</button>
       <button role="tab" data-tab="reportar" aria-selected="false">Reportar o sugerir</button>
     </nav>
     <nav class="mnav" aria-label="Menú rápido">
@@ -463,6 +464,22 @@ details.paso > summary { cursor: pointer; }
       <div class="msg" id="vt-msg" hidden></div>
     </div>
 
+    <div data-pane="instagram" class="panel" style="margin-top:14px" hidden>
+      <h2>Instagram automático</h2>
+      <p class="muted small" style="margin:0">Cuando alguien comenta una palabra clave en <b>cualquier</b> publicación, se le responde en el comentario y se le manda un mensaje privado con el enlace de reserva. A una misma persona se le manda el mensaje como máximo una vez cada 24 horas. Sin costo.</p>
+      <div id="ig-estado" class="confirm" style="margin-top:10px"></div>
+      <form id="ig-form" class="confirm" novalidate style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="ig-activo"> <b>Responder automáticamente</b></label>
+        <div class="f" style="margin-top:8px"><label for="ig-palabras">Palabras clave (separadas por coma; también sirven en plural, con mayúsculas o sin tilde)</label><input id="ig-palabras" maxlength="600" placeholder="aeropuerto, precio, tarifa"></div>
+        <div class="f"><label for="ig-pub">Respuesta en el comentario (pública)</label><textarea id="ig-pub" rows="2" maxlength="900"></textarea></div>
+        <div class="f"><label for="ig-priv">Mensaje privado (incluya el enlace de reserva)</label><textarea id="ig-priv" rows="4" maxlength="900"></textarea></div>
+        <div class="actions"><button class="btn" type="submit">Guardar</button><button class="btn ghost sm" type="button" id="ig-revisar">🔄 Revisar comentarios ahora</button></div>
+      </form>
+      <h3 style="margin-top:14px">Últimos comentarios</h3>
+      <div id="ig-lista"></div>
+      <div class="msg" id="ig-msg" hidden></div>
+    </div>
+
     <div data-pane="fact" class="panel" style="margin-top:14px" hidden>
       <h2>Facturación de empresas con convenio</h2>
       <p class="muted small" style="margin:0">Viajes finalizados de cada empresa en el período. Marque los viajes que incluye cada factura con su número: así ningún viaje se factura dos veces ni queda sin facturar.</p>
@@ -744,6 +761,7 @@ async function iniciar(session) {
   $("who").textContent = `${data.nombre} · ${ROLES[data.rol]}`; $("userbar").hidden = false;
   $("tab-fact").hidden = !["admin", "facturacion"].includes(data.rol);
   $("tab-ventas").hidden = data.rol !== "admin";
+  $("tab-instagram").hidden = data.rol !== "admin";
   if (data.rol === "facturacion") { // solo facturación: sin despacho ni datos operativos
     document.querySelectorAll('.tabs [role="tab"]').forEach(t => { if (t.dataset.tab !== "fact" && t.dataset.tab !== "reportar") t.hidden = true; });
     const mn = document.querySelector(".mnav"); if (mn) mn.hidden = true; if ($("gbuscar")) $("gbuscar").closest(".gsearch").hidden = true;
@@ -766,6 +784,14 @@ async function iniciar(session) {
   if (["nueva", "reservas", "agenda", "mapa", "central"].includes(ir)) document.querySelector(`.tabs button[data-tab="${ir}"]`)?.click();
   avisoInstalar();
   iniciarAvisosEquipo();
+  // Regreso desde Instagram después de "Conectar Instagram"
+  const igr = new URLSearchParams(location.search).get("ig");
+  if (igr && data.rol === "admin") {
+    history.replaceState(null, "", location.pathname + location.hash);
+    $("tab-instagram").click();
+    const t = { ok: ["Instagram quedó conectado. Revise los textos y marque «Responder automáticamente».", "ok"], cancelado: ["Se canceló la conexión con Instagram.", "err"], vencido: ["El enlace de conexión venció. Toque «Conectar Instagram» de nuevo.", "err"] }[igr] || ["No se pudo conectar Instagram. Revise que la app de Meta tenga los permisos y vuelva a intentar.", "err"];
+    msg("ig-msg", t[0], t[1]);
+  }
 }
 
 // ---- App Android Flota-K Operaciones: avisos con sonido aunque la app esté cerrada
@@ -890,6 +916,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if (b.dataset.tab === "equipo") cargarEquipo();
   if (b.dataset.tab === "fact") cargarFacturacion();
   if (b.dataset.tab === "ventas") cargarVentas();
+  if (b.dataset.tab === "instagram") cargarInstagram();
   if (b.dataset.tab === "nueva") montarCargaPanel();
   if (b.dataset.tab === "cuentas") cargarCuentasClientes();
   if (b.dataset.tab === "agenda") cargarAgenda();
@@ -3839,6 +3866,56 @@ document.addEventListener("change", e => { if (e.target && e.target.id === "rs-s
 const VT_EST = { por_contactar: ["Por contactar", "#9aa0a6"], contactado: ["Contactado", "#56ccf2"], respondio: ["Respondió", "#2563eb"], propuesta: ["Propuesta enviada", "#f2c94c"],
   prueba: ["Viaje de prueba", "#f2994a"], convenio: ["Convenio activo", "#2e9e5f"], descartado: ["No por ahora", "#555b65"] };
 let vtLista = [];
+// ---- Instagram automático (etapa 79)
+const IG_FN = () => FK_CONFIG.url + "/functions/v1/ig-webhook";
+async function igLlamar(ruta) {
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch(IG_FN() + "/" + ruta, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: FK_CONFIG.anonKey }, body: "{}" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "No se pudo completar (" + r.status + ").");
+  return j;
+}
+async function cargarInstagram() {
+  const fch = iso => iso ? new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const [{ data: est }, { data: cfg }, { data: cs, error }] = await Promise.all([
+    sb.rpc("ig_estado"), sb.from("ig_config").select("*").maybeSingle(),
+    sb.from("ig_comentarios").select("*").order("creado_en", { ascending: false }).limit(50)]);
+  if (error) return msg("ig-msg", errText(error), "err");
+  const e = Array.isArray(est) ? est[0] : est;
+  const dias = e && e.o_vence ? Math.round((new Date(e.o_vence) - Date.now()) / 864e5) : null;
+  $("ig-estado").innerHTML = e && e.o_conectado
+    ? `<p style="margin:0">✅ Conectado como <b>@${esc(e.o_usuario || "")}</b> desde el ${fch(e.o_conectado_en)}. Permiso vigente ${dias != null ? `por ${dias} día(s) más` : ""} (se renueva solo).</p>${e.o_error ? `<p class="small" style="color:#b42318;margin:4px 0 0">⚠ ${esc(e.o_error)}</p>` : ""}<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="ig-conectar">Reconectar Instagram</button></div>`
+    : `<p style="margin:0">Instagram aún no está conectado.</p><div class="actions" style="margin-top:6px"><button class="btn" type="button" id="ig-conectar">📷 Conectar Instagram</button></div>`;
+  $("ig-conectar").onclick = async ev => {
+    ev.target.disabled = true;
+    try { const j = await igLlamar("conectar"); location.href = j.url; }
+    catch (err) { ev.target.disabled = false; msg("ig-msg", err.message, "err"); }
+  };
+  if (cfg) {
+    $("ig-activo").checked = !!cfg.activo; $("ig-palabras").value = (cfg.palabras || []).join(", ");
+    $("ig-pub").value = cfg.respuesta_publica || ""; $("ig-priv").value = cfg.mensaje_privado || "";
+  }
+  const xs = cs || [];
+  $("ig-lista").innerHTML = xs.length ? `<div class="tblwrap"><table class="tbl cards"><thead><tr><th>Fecha</th><th>Persona</th><th>Comentario</th><th>Resultado</th></tr></thead><tbody>
+    ${xs.map(x => `<tr><td data-l="Fecha">${fch(x.creado_en)}</td><td data-l="Persona">${x.autor ? `<a href="https://instagram.com/${esc(x.autor)}" target="_blank" rel="noopener">@${esc(x.autor)}</a>` : "—"}</td>
+      <td data-l="Comentario">${esc(x.texto || "")}${x.palabra ? `<br><span class="small muted">palabra: ${esc(x.palabra)}</span>` : ""}</td>
+      <td data-l="Resultado">${x.respondido ? "💬 Respondido " : ""}${x.mensaje_enviado ? "📩 Mensaje enviado " : ""}<span class="small muted">${esc(x.resultado || "")}</span></td></tr>`).join("")}</tbody></table></div>`
+    : '<p class="muted">Todavía no llegan comentarios.</p>';
+}
+$("ig-form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const palabras = $("ig-palabras").value.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  const { error } = await sb.from("ig_config").update({ activo: $("ig-activo").checked, palabras, respuesta_publica: $("ig-pub").value.trim(), mensaje_privado: $("ig-priv").value.trim() }).eq("empresa_id", yo.empresa_id);
+  if (error) return msg("ig-msg", errText(error), "err");
+  msg("ig-msg", "Guardado.", "ok"); cargarInstagram();
+});
+$("ig-revisar").addEventListener("click", async ev => {
+  ev.target.disabled = true;
+  try { const j = await igLlamar("revisar"); msg("ig-msg", j.nota || `Revisión lista: ${j.revisados} comentario(s) nuevo(s).`, "ok"); cargarInstagram(); }
+  catch (err) { msg("ig-msg", err.message, "err"); }
+  ev.target.disabled = false;
+});
+
 async function cargarVentas() {
   const { data, error } = await sb.from("prospectos").select("*").order("proximo_contacto", { ascending: true, nullsFirst: false }).order("creado_en", { ascending: false });
   if (error) return msg("vt-msg", errText(error), "err");

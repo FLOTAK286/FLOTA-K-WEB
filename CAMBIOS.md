@@ -1,5 +1,14 @@
 # Cambios
 
+## 26 nov 2026 · Instagram automático propio, Microsoft Clarity y ahorro en el equipo de agentes (etapa 79, SIN publicar)
+- Instagram automático (reemplaza a ManyChat, gratis, en cualquier publicación): Edge Function nueva `ig-webhook` (verify_jwt false). Si un comentario trae una palabra clave (aeropuerto, precio, tarifa; también en plural, mayúsculas o sin tilde) responde en el comentario y manda mensaje privado con fk-servicios.com/reservar/?utm_source=instagram. Máximo 1 mensaje privado por persona cada 24 h. Rutas: `/` (webhook de Meta, firma X-Hub-Signature-256), `/conectar` y `/revisar` (solo admin), `/callback` (regreso de Instagram), `/tarea` (pg_cron).
+- Migración etapa79 (sin aplicar): tablas `ig_cuentas` (permiso de Instagram, sin políticas: solo servidor), `ig_oauth_estado`, `ig_config` (activo, palabras, textos; admin) e `ig_comentarios` (registro; admin), función `ig_estado()` y tarea `flotak-instagram` cada 10 min: renueva el permiso si le faltan menos de 15 días (dura 60) y revisa comentarios recientes por si un aviso no llegó (como máximo cada 4 min).
+- Panel: pestaña «Instagram» (solo admin) con botón «📷 Conectar Instagram», interruptor «Responder automáticamente», palabras y textos editables, «🔄 Revisar comentarios ahora» y los últimos 50 comentarios con su resultado.
+- Secretos que pone el dueño en Supabase: IG_APP_ID, IG_APP_SECRET, IG_VERIFY_TOKEN y META_APP_SECRET.
+- Microsoft Clarity: `assets/clarity.js` en la portada y /reservar; se activa al poner el ID en `assets/config.js` (`clarity`). El formulario de /reservar va oculto en las grabaciones (data-clarity-mask).
+- Tareas programadas: recreadas «mejora de la plataforma (viernes)» y «respaldo semanal» ligadas a la conversación nueva (antiguas pausadas, no borradas). Ejecutivo de cuentas a 12:17 y 18:17 L-S con Sonnet; gerente general a 9:46 y 21:46.
+- Guiones: Google Doc «Flota-K - 5 guiones de video y lista de tomas (dic 2026)» (id 1Dxsw9QeCwBg6wZ8RdZFYnrM6ct78Ob6vaRxeaZFV9kI).
+
 ## 26 nov 2026 · Saldos anteriores y clientes que pagan en efectivo (etapa 78)
 - Cargos manuales (tabla cargos_cliente, RLS): en Panel → Cuentas de clientes → Crédito, «➕ Agregar saldo o cargo» (ej.: saldo anterior de Enrique Mancini). El cliente lo ve en «💳 Pagos» y lo paga con tarjeta; suma a su deuda y límite; no cuenta como viaje. Se puede marcar «Pagado en efectivo» o anular (admin_cargo).
 - «💵 Al conductor» (clientes.paga_efectivo / cuentas_corporativas.paga_efectivo, solo admin): sus reservas nuevas quedan con forma de pago «Efectivo» (trigger reservas_forma_pago_efectivo; el conductor lo ve) y no aparecen como deuda para pagar con tarjeta.
