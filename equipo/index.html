@@ -76,7 +76,7 @@ details.paso > summary { cursor: pointer; }
       <button role="tab" data-tab="clientes" aria-selected="false">Clientes y cobros</button>
       <button role="tab" data-tab="central" aria-selected="false">Central <span class="badge" id="b-central" hidden></span></button>
       <button role="tab" data-tab="flota" aria-selected="false" id="tab-flota" hidden>Flota</button>
-      <button role="tab" data-tab="reportes" aria-selected="false" id="tab-reportes" hidden>Reportes</button>
+      <button role="tab" data-tab="reportes" aria-selected="false" id="tab-reportes" hidden>Reportes y finanzas</button>
       <button role="tab" data-tab="equipo" aria-selected="false" id="tab-equipo" hidden>Equipo y roles</button>
       <button role="tab" data-tab="cuentas" aria-selected="false" id="tab-cuentas" hidden>Cuentas de clientes</button>
       <button role="tab" data-tab="fact" aria-selected="false" id="tab-fact" hidden>Facturación</button>
@@ -314,10 +314,12 @@ details.paso > summary { cursor: pointer; }
         <div class="f"><label for="rp-per">Período</label><select id="rp-per"><option value="mes">Este mes</option><option value="mesant">Mes anterior</option><option value="30">Últimos 30 días</option><option value="anio">Este año</option></select></div>
         <button class="btn ghost" id="rp-xlsx" type="button">Descargar Excel</button>
       </div>
-      <h2 style="margin:10px 0 0">Gastos, otros ingresos y resultado</h2>
-      <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente) y los ingresos de otras plataformas (Cabify, Servimóvil, etc.) con su comisión. Resultado = servicios Flota-K finalizados + otros ingresos netos + lo que corresponda de los cierres diarios − gastos del período.</p>
+      <h2 style="margin:10px 0 0">💰 Finanzas</h2>
+      <div id="fz-box" class="rp-caja" style="margin-top:8px"><p class="muted">Cargando…</p></div>
       <div id="sc-box" class="rp-caja" style="margin-top:8px"></div>
       <div id="pp-box" class="rp-caja" style="margin-top:8px"></div>
+      <h2 style="margin:10px 0 0">Gastos y otros ingresos</h2>
+      <p class="muted small" style="margin:0">Registre los gastos (de la empresa o de una patente; fijos o variables) y los ingresos de otras plataformas (Cabify, etc.) con su comisión. Los pagos a dueños de vehículos y a la red se calculan solos en Finanzas: no los registre como gasto.</p>
       <details class="rp-caja" style="margin-top:8px" id="rc-det"><summary><b>⚙ ¿De dónde salen los números?</b> <span class="small muted" id="rc-res"></span></summary>
         <p class="small muted" style="margin:6px 0">Para no contar dos veces. <b>"Se descuenta"</b>: la compra (p. ej. $780.000 de bencina) se registra en Gastos y lo que anotan los conductores se va descontando de ella; no suma otra vez. <b>"Se suma"</b>: lo del cierre cuenta como gasto adicional.</p>
         <div class="row2">
@@ -325,6 +327,7 @@ details.paso > summary { cursor: pointer; }
           <div class="f"><label for="rc-peajes">🛣 Peajes que anota el conductor en su cierre</label><select id="rc-peajes" data-rc="peajes"><option value="descuenta">Se descuenta de lo que pagó la empresa</option><option value="suma">Se suma como gasto nuevo</option></select></div>
           <div class="f"><label for="rc-otros">Otros gastos que anota el conductor en su cierre</label><select id="rc-otros" data-rc="otros"><option value="descuenta">Se descuenta de lo que pagó la empresa</option><option value="suma">Se suma como gasto nuevo</option></select></div>
           <div class="f"><label for="rc-apps">Ingresos de Cabify y otras apps</label><select id="rc-apps" data-rc="ingresos_apps"><option value="cierres">Del cierre diario de los conductores</option><option value="manual">De lo que yo ingreso en "Otros ingresos"</option></select></div>
+          <div class="f"><label for="rc-ahorro">🐷 La comisión de los vehículos propios (ahorro) se calcula sobre</label><select id="rc-ahorro" data-rc="ahorro_base"><option value="flotak">Solo los servicios de Flota-K</option><option value="todo">Todo lo que produce el auto (Flota-K + Cabify + otras apps)</option></select></div>
         </div>
         <div id="rc-msg" class="msg" hidden></div>
       </details>
@@ -2075,6 +2078,7 @@ function rangoReporte() {
 }
 async function cargarReportes() {
   const { desde, hasta, txt } = rangoReporte();
+  fzVehs = null; // vuelve a leer comisiones y dueños (pueden haber cambiado en Flota)
   $("rp-body").innerHTML = '<p class="muted">Cargando…</p>';
   const [{ data: rs, error }, { data: vs }] = await Promise.all([
     FK.todo(() => sb.from("reservas").select("id, codigo, fecha_hora, estado, canal, como_nos_conocio, tipo_servicio, conductor_id, derivado_a, costo_partner, cliente_id, nombre_pasajero, tipo_cobro, taxi_metros, vehiculo_id").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("fecha_hora").order("id")),
@@ -2085,7 +2089,7 @@ async function cargarReportes() {
   const filas = (rs || []).map(r => ({ ...r, total: (tot.get(r.id) || {}).total || 0, gastos: (tot.get(r.id) || {}).gastos || 0, pagado: (tot.get(r.id) || {}).pagado }));
   const ok = filas.filter(r => r.estado !== "cancelada"), fin = ok.filter(r => r.estado === "finalizada");
   pintarCierres(desde, hasta, filas);
-  rpFilas = ok;
+  rpFilas = ok; rpTodas = filas;
   cargarGastos(desde, hasta, txt, fin);
   const suma = a => a.reduce((s, r) => s + (r.total || 0), 0);
   const ingreso = suma(fin), porCobrar = suma(ok.filter(r => !r.pagado)), cobrado = suma(ok.filter(r => r.pagado));
@@ -2202,7 +2206,10 @@ async function cargarGastos(desde, hasta, txt, fin) {
   // Compras de la empresa vs lo que consumieron los conductores (conceptos que "se descuentan")
   const compras = descK.map(k => { const cat = CONC_CIERRE[k].cat, comprado = gsLista.filter(g => g.categoria === cat).reduce((a, g) => a + g.monto, 0), usado = consumo(k);
     return { k, comprado, usado, disp: comprado - usado }; }).filter(x => x.comprado || x.usado);
-  const ingreso = ingFK + oiNeto + cdIng, res = ingreso - gasto - cdGas;
+  // Resultado único (el mismo de Finanzas): descuenta lo que se paga a dueños de vehículos y a la red
+  const fz = calcFinanzas({ fin: fin || [], gs: gsLista, oi: oiLista, cds: cierres, cfg, vehs: await vehsFinanzas() });
+  const ingreso = fz.ingresos - fz.costosDirectos, res = fz.resultado;
+  pintarFinanzas(fz, { desde, hasta, txt, d0, d1 });
   const barras = (titulo, pares, vacio) => { const mx = Math.max(1, ...pares.map(p => p[1]));
     return `<div class="rp-caja"><h3>${titulo}</h3>${pares.length ? pares.map(([n, t]) => `<div class="rp-bar"><span class="rp-n">${esc(n)}</span><span class="rp-track"><span style="width:${Math.max(2, t / mx * 100)}%"></span></span><span class="rp-v">${clp(t)}</span></div>`).join("") : `<p class="muted small">${vacio}</p>`}</div>`; };
   const sumar = (lista, k, v) => { const m = {}; lista.forEach(x => m[k(x)] = (m[k(x)] || 0) + v(x)); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
@@ -2223,7 +2230,7 @@ async function cargarGastos(desde, hasta, txt, fin) {
       <div class="pay"><small class="muted">Otros ingresos (neto)</small><b>${clp(oiNeto)}</b><span class="small muted">bruto ${clp(oiBruto)} · comisiones ${clp(oiCom)}</span></div>
       <div class="pay"><small class="muted">Cierres diarios (${cierres.length})</small><b>${clp(cdIng)}</b><span class="small muted">${usaIngCd ? "ingresos de apps que suman" : `ingresos de apps: ${clp(cdIngTot)} solo referencia`} · gastos anotados ${clp(cdGasTot)}${cdGas ? ` (suman ${clp(cdGas)})` : " (se descuentan de lo comprado)"}</span></div>
       <div class="pay"><small class="muted">Gastos</small><b>${clp(gasto + cdGas)}</b><span class="small muted">fijos ${clp(gFijo)} · variables ${clp(gasto - gFijo)}${cdGas ? " · de cierres " + clp(cdGas) : ""}</span></div>
-      <div class="pay"><small class="muted">Resultado</small><b class="${res < 0 ? "warn" : ""}">${clp(res)}</b><span class="small muted">${ingreso ? "margen " + Math.round(res / ingreso * 100) + " %" : "ingresos − gastos"}</span></div>
+      <div class="pay"><small class="muted">Resultado</small><b class="${res < 0 ? "warn" : ""}">${clp(res)}</b><span class="small muted">${ingreso ? "margen " + Math.round(res / ingreso * 100) + " %" : "ingresos − gastos"}${fz.costosDirectos ? ` · descuenta ${clp(fz.costosDirectos)} de dueños y red` : ""}</span></div>
     </div>
     ${compras.length ? `<div class="rp-caja" style="margin:12px 0"><h3>Compras de la empresa y consumo de los conductores</h3>
       ${compras.map(x => { const pct = x.comprado ? Math.min(100, Math.round(x.usado / x.comprado * 100)) : 100;
@@ -2264,16 +2271,165 @@ async function cargarGastos(desde, hasta, txt, fin) {
     if (error) return alert(errText(error)); recargar();
   });
 }
+// ---- Finanzas: estado de resultados, ahorro (comisión de la plataforma de los vehículos propios),
+// liquidación a dueños de vehículos, comparación con el período anterior y proyección del mes
+let fzVehs = null, fzUlt = null;
+async function vehsFinanzas() {
+  if (!fzVehs) {
+    const { data } = await sb.from("vehiculos").select("id, patente, marca, modelo, propio, activo, comision_pct, propietario_id, conductor_habitual").order("patente");
+    fzVehs = data || [];
+    const ids = [...new Set(fzVehs.map(v => v.propietario_id).filter(Boolean))];
+    if (ids.length) { const { data: ps } = await sb.from("perfiles").select("id, nombre").in("id", ids); fzVehs.forEach(v => v.dueno = ((ps || []).find(p => p.id === v.propietario_id) || {}).nombre || "Dueño"); }
+  }
+  return fzVehs;
+}
+// Cálculo único. Servicios sin vehículo o con vehículo propio = de Flota-K; con vehículo de un dueño = Flota-K gana su comisión
+// y el resto se le paga al dueño; derivados = Flota-K cobra el total y paga el costo del partner.
+function calcFinanzas({ fin, gs, oi, cds, cfg, vehs }) {
+  const n0 = v => Number(v) || 0, V = new Map(vehs.map(v => [v.id, v]));
+  const esPropio = id => !id || !V.has(id) || V.get(id).propio !== false;
+  const r = { propios: 0, nPropios: 0, duenos: 0, nDuenos: 0, comDuenos: 0, pagoDuenos: 0, deriv: 0, nDeriv: 0, costoDeriv: 0, ahorro: 0, ahorroDet: [], liq: [] };
+  const liq = new Map();
+  fin.forEach(x => {
+    const t = n0(x.total);
+    if (x.derivado_a) { r.deriv += t; r.nDeriv++; r.costoDeriv += n0(x.costo_partner); return; }
+    if (esPropio(x.vehiculo_id)) { r.propios += t; r.nPropios++; return; }
+    const v = V.get(x.vehiculo_id), com = Math.round(t * n0(v.comision_pct) / 100);
+    r.duenos += t; r.nDuenos++; r.comDuenos += com; r.pagoDuenos += t - com;
+    const l = liq.get(v.id) || { v, n: 0, total: 0, com: 0 }; l.n++; l.total += t; l.com += com; liq.set(v.id, l);
+  });
+  r.liq = [...liq.values()].sort((a, b) => b.total - a.total);
+  r.oiNeto = oi.reduce((a, x) => a + n0(x.neto), 0);
+  r.cdIng = cfg.ingresos_apps === "cierres" ? cds.reduce((a, c) => a + n0(c.cabify_ingreso) + n0(c.otras_ingreso), 0) : 0;
+  r.gasFijo = gs.filter(g => g.fijo).reduce((a, g) => a + n0(g.monto), 0);
+  r.gasVar = gs.filter(g => !g.fijo).reduce((a, g) => a + n0(g.monto), 0);
+  r.cdGas = Object.keys(CONC_CIERRE).filter(k => cfg[k] === "suma").reduce((a, k) => a + cds.reduce((b, c) => b + n0(c[CONC_CIERRE[k].campo]), 0), 0);
+  r.ingresos = r.propios + r.duenos + r.deriv + r.oiNeto + r.cdIng;
+  r.costosDirectos = r.pagoDuenos + r.costoDeriv;
+  r.gastos = r.gasFijo + r.gasVar + r.cdGas;
+  r.resultado = r.ingresos - r.costosDirectos - r.gastos;
+  // Ahorro: cada vehículo propio "paga" su comisión a la plataforma; ese monto se guarda en la cuenta de ahorro
+  vehs.filter(v => v.propio !== false && n0(v.comision_pct) > 0).forEach(v => {
+    const fk = fin.filter(x => !x.derivado_a && x.vehiculo_id === v.id).reduce((a, x) => a + n0(x.total), 0);
+    const apps = cfg.ahorro_base === "todo" ? cds.filter(c => c.vehiculo_id === v.id).reduce((a, c) => a + n0(c.cabify_ingreso) + n0(c.otras_ingreso), 0) : 0;
+    const monto = Math.round((fk + apps) * n0(v.comision_pct) / 100);
+    if (fk + apps) { r.ahorro += monto; r.ahorroDet.push({ v, fk, apps, pct: n0(v.comision_pct), monto }); }
+  });
+  r.sinPct = vehs.filter(v => v.activo && v.propio !== false && !n0(v.comision_pct));
+  return r;
+}
+// Período anterior equivalente al elegido
+function rangoPrevio() {
+  const [y, m] = hoyChile().split("-").map(Number), p = $("rp-per").value;
+  const iso = (yy, mm) => { while (mm < 1) { mm += 12; yy--; } return FK.chileLocalToISO(`${yy}-${String(mm).padStart(2, "0")}-01T00:00`); };
+  if (p === "mes") return { desde: iso(y, m - 1), hasta: iso(y, m), txt: "mes anterior" };
+  if (p === "mesant") return { desde: iso(y, m - 2), hasta: iso(y, m - 1), txt: "mes previo" };
+  if (p === "anio") return { desde: iso(y - 1, 1), hasta: iso(y, 1), txt: "año anterior" };
+  return { desde: new Date(Date.now() - 60 * 864e5).toISOString(), hasta: new Date(Date.now() - 30 * 864e5).toISOString(), txt: "30 días anteriores" };
+}
+async function finanzasDe(desde, hasta) {
+  const dia = iso => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+  const d0 = dia(desde), d1 = dia(new Date(new Date(hasta).getTime() - 1000).toISOString());
+  const [{ data: rs }, { data: vs }, { data: gs }, { data: oi }, { data: cds }] = await Promise.all([
+    FK.todo(() => sb.from("reservas").select("id, vehiculo_id, derivado_a, costo_partner").eq("estado", "finalizada").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("id")),
+    FK.todo(() => sb.from("v_cobro").select("id, total").eq("estado", "finalizada").gte("fecha_hora", desde).lt("fecha_hora", hasta).order("id")),
+    sb.from("gastos").select("monto, fijo").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null),
+    sb.from("ingresos_externos").select("neto").gte("fecha", d0).lte("fecha", d1).is("anulado_en", null),
+    sb.from("cierres_diarios").select("vehiculo_id, cabify_ingreso, otras_ingreso, cabify_peajes, combustible, otros_gastos").gte("fecha", d0).lte("fecha", d1)]);
+  const tot = new Map((vs || []).map(v => [v.id, v.total]));
+  return calcFinanzas({ fin: (rs || []).map(r => ({ ...r, total: tot.get(r.id) || 0 })), gs: gs || [], oi: oi || [], cds: cds || [], cfg: await configReportes(), vehs: await vehsFinanzas() });
+}
+async function pintarFinanzas(fz, rango) {
+  fzUlt = { ...fz, txt: rango.txt };
+  const box = $("fz-box"); if (!box) return;
+  const per = $("rp-per").value, mensual = per === "mes" || per === "mesant";
+  const linea = (t, v, cls = "", det = "") => `<tr><td>${t}${det ? `<br><span class="small muted">${det}</span>` : ""}</td><td class="nowrap ${cls}" style="text-align:right">${v}</td></tr>`;
+  const flecha = (a, b, malo) => { if (!b) return ""; const d = Math.round((a - b) / Math.abs(b) * 100); if (!d) return ' <span class="small muted">= </span>'; const bien = malo ? d < 0 : d > 0;
+    return ` <span class="small" style="color:${bien ? "#1a7f37" : "#b42318"}">${d > 0 ? "▲" : "▼"} ${Math.abs(d)} %</span>`; };
+  // Ahorro: traspasos ya registrados a la cuenta de ahorro (diferencia entre saldos de esa cuenta)
+  const { data: sal } = await sb.from("saldos_cuenta").select("cuenta, fecha, saldo, nota, creado_en").is("anulado_en", null).order("fecha").order("creado_en");
+  const ah = (sal || []).filter(x => /ahorro/i.test(x.cuenta)); let prev = 0;
+  const movAh = ah.map(x => { const d = Number(x.saldo) - prev; prev = Number(x.saldo); return { ...x, delta: d }; });
+  const esTraspaso = x => /^Traspaso de ahorro/i.test(x.nota || "");
+  const traspasado = movAh.filter(x => esTraspaso(x) && x.fecha >= rango.d0 && x.fecha <= rango.d1).reduce((a, x) => a + x.delta, 0);
+  const anio = hoyChile().slice(0, 4), ahorradoAnio = movAh.filter(x => esTraspaso(x) && x.fecha.startsWith(anio)).reduce((a, x) => a + x.delta, 0);
+  const saldoAh = ah.length ? Number(ah[ah.length - 1].saldo) : null, cuentaAh = ah.length ? ah[ah.length - 1].cuenta : "Cuenta de ahorro";
+  const pendiente = Math.max(0, fz.ahorro - traspasado);
+  // Proyección del mes en curso
+  let proy = "";
+  if (per === "mes") {
+    const hoy = hoyChile(), dHoy = Number(hoy.slice(8, 10)), [yy, mm] = hoy.split("-").map(Number), dMes = new Date(yy, mm, 0).getDate();
+    const porHacer = (rpFilas || []).filter(r => !["finalizada", "cancelada"].includes(r.estado) && new Date(r.fecha_hora) >= new Date());
+    const agendado = porHacer.reduce((a, r) => a + (r.total || 0), 0);
+    const ritmo = dHoy ? Math.round((fz.ingresos - fz.costosDirectos) / dHoy * dMes) : 0;
+    proy = `<div class="pay"><small class="muted">Proyección del mes</small><b>${clp(ritmo)}</b><span class="small muted">ingresos al ritmo actual (día ${dHoy} de ${dMes}) · ya agendado por realizar ${clp(agendado)} (${porHacer.length})</span></div>`;
+  }
+  // Punto de equilibrio: cuántos servicios cubren los gastos fijos
+  const ticket = fz.nPropios ? Math.round(fz.propios / fz.nPropios) : 0;
+  const equilibrio = mensual && fz.gasFijo && ticket ? `<div class="pay"><small class="muted">Punto de equilibrio</small><b>${Math.ceil(fz.gasFijo / ticket)} servicios</b><span class="small muted">al mes cubren los gastos fijos (${clp(fz.gasFijo)}) con el ticket promedio de ${clp(ticket)}; lleva ${fz.nPropios}</span></div>` : "";
+  box.innerHTML = `<div class="rp-kpis">
+      <div class="pay"><small class="muted">Ingresos de la empresa</small><b>${clp(fz.ingresos - fz.costosDirectos)}</b><span class="small muted">${esc(rango.txt)} · después de pagar a dueños y red</span><span id="fz-cmp-ing"></span></div>
+      <div class="pay"><small class="muted">Gastos</small><b>${clp(fz.gastos)}</b><span class="small muted">fijos ${clp(fz.gasFijo)} · variables ${clp(fz.gasVar + fz.cdGas)}</span><span id="fz-cmp-gas"></span></div>
+      <div class="pay"><small class="muted">Resultado</small><b class="${fz.resultado < 0 ? "warn" : ""}">${clp(fz.resultado)}</b><span class="small muted">${fz.ingresos - fz.costosDirectos ? "margen " + Math.round(fz.resultado / (fz.ingresos - fz.costosDirectos) * 100) + " %" : "ingresos − gastos"}</span><span id="fz-cmp-res"></span></div>
+      <div class="pay" style="border-color:var(--gold)"><small class="muted">🐷 Ahorro del período</small><b>${clp(fz.ahorro)}</b><span class="small muted">${pendiente ? `por traspasar ${clp(pendiente)}` : fz.ahorro ? "✅ ya traspasado" : "comisión de la plataforma"}</span></div>
+      ${proy}${equilibrio}
+    </div>
+    <div class="rp-grid" style="margin-top:8px">
+      <div class="rp-caja"><h3>Estado de resultados · ${esc(rango.txt)}</h3><div class="tblwrap"><table class="tbl"><tbody>
+        ${linea("Servicios con vehículos propios" + (fz.nPropios ? ` (${fz.nPropios})` : ""), clp(fz.propios))}
+        ${fz.duenos ? linea(`Servicios con vehículos de dueños (${fz.nDuenos})`, clp(fz.duenos)) + linea("− Pago a dueños de vehículos", "− " + clp(fz.pagoDuenos), "", `Flota-K se queda con su comisión: ${clp(fz.comDuenos)}`) : ""}
+        ${fz.deriv ? linea(`Servicios derivados a la red (${fz.nDeriv})`, clp(fz.deriv)) + linea("− Costo de la red", "− " + clp(fz.costoDeriv), "", `margen ${clp(fz.deriv - fz.costoDeriv)}`) : ""}
+        ${fz.oiNeto ? linea("Otros ingresos (neto de comisiones)", clp(fz.oiNeto)) : ""}
+        ${fz.cdIng ? linea("Cabify y otras apps (cierres diarios)", clp(fz.cdIng)) : ""}
+        ${linea("<b>Ingresos de la empresa</b>", `<b>${clp(fz.ingresos - fz.costosDirectos)}</b>`)}
+        ${linea("− Gastos fijos", "− " + clp(fz.gasFijo))}
+        ${linea("− Gastos variables", "− " + clp(fz.gasVar + fz.cdGas), "", fz.cdGas ? `incluye ${clp(fz.cdGas)} de los cierres diarios` : "")}
+        ${linea("<b>Resultado</b>", `<b>${clp(fz.resultado)}</b>`, fz.resultado < 0 ? "warn" : "")}
+        ${fz.ahorro ? linea("− 🐷 Ahorro (comisión de la plataforma)", "− " + clp(fz.ahorro)) + linea("<b>Queda disponible</b>", `<b>${clp(fz.resultado - fz.ahorro)}</b>`, fz.resultado - fz.ahorro < 0 ? "warn" : "") : ""}
+      </tbody></table></div></div>
+      <div class="rp-caja"><h3>🐷 Ahorro: comisión de la plataforma</h3>
+        <p class="small muted" style="margin:0">Cada vehículo propio paga a la plataforma su comisión (como un dueño externo). Ese monto se separa y se guarda en la cuenta de ahorro.</p>
+        ${fz.ahorroDet.length ? fz.ahorroDet.map(a => `<p class="small" style="margin:6px 0 0"><b>${esc(a.v.patente)}</b>: ${String(a.pct).replace(".", ",")} % de ${clp(a.fk + a.apps)}${a.apps ? ` (Flota-K ${clp(a.fk)} + apps ${clp(a.apps)})` : ""} = <b>${clp(a.monto)}</b></p>`).join("") : '<p class="small muted">Sin servicios de vehículos propios en el período.</p>'}
+        ${fz.sinPct.length ? `<p class="small warn" style="margin:6px 0 0">⚠ ${fz.sinPct.map(v => esc(v.patente)).join(", ")} sin comisión: defínala en la pestaña Flota.</p>` : ""}
+        <p class="small" style="margin:8px 0 0">Traspasado en el período: <b>${clp(traspasado)}</b> · por traspasar: <b class="${pendiente ? "warn" : ""}">${clp(pendiente)}</b><br>Ahorrado en ${anio}: <b>${clp(ahorradoAnio)}</b>${saldoAh != null ? ` · saldo ${esc(cuentaAh)}: <b>${clp(saldoAh)}</b>` : ""}</p>
+        <div class="actions" style="margin-top:6px"><button class="btn sm" type="button" id="fz-traspaso">🐷 Registrar traspaso a ahorro</button></div>
+        <div id="fz-msg" class="msg" hidden></div></div>
+    </div>
+    ${fz.liq.length ? `<div class="rp-caja" style="margin-top:8px"><h3>Liquidación a dueños de vehículos · ${esc(rango.txt)}</h3><div class="tblwrap"><table class="tbl cards"><thead><tr><th>Dueño</th><th>Vehículo</th><th>Servicios</th><th>Total</th><th>Comisión Flota-K</th><th>A pagar al dueño</th></tr></thead><tbody>
+      ${fz.liq.map(l => `<tr><td data-l="Dueño">${esc(l.v.dueno || "—")}</td><td data-l="Vehículo">${esc(l.v.patente)}</td><td data-l="Servicios">${l.n}</td><td data-l="Total">${clp(l.total)}</td><td data-l="Comisión">${clp(l.com)} <span class="small muted">(${String(Number(l.v.comision_pct) || 0).replace(".", ",")} %)</span></td><td data-l="A pagar"><b>${clp(l.total - l.com)}</b></td></tr>`).join("")}
+    </tbody></table></div><p class="small muted" style="margin:4px 0 0">Servicios finalizados del período. Cada dueño ve el mismo detalle en su portal (/propietario).</p></div>` : ""}
+    <p class="small muted" style="margin:6px 0 0" id="fz-cmp-txt"></p>`;
+  $("fz-traspaso").onclick = async () => {
+    const v = prompt(`¿Cuánto traspasó a la cuenta de ahorro?${pendiente ? ` (por traspasar en ${rango.txt}: ${clp(pendiente)})` : ""}`, pendiente || "");
+    if (v === null) return; const monto = Math.round(Number(String(v).replace(/[^\d-]/g, "")));
+    if (!(monto > 0)) return msg("fz-msg", "Escriba un monto mayor a cero.", "err");
+    const { error } = await sb.from("saldos_cuenta").insert({ empresa_id: yo.empresa_id, cuenta: cuentaAh, fecha: hoyChile(), saldo: (saldoAh || 0) + monto,
+      nota: `Traspaso de ahorro (comisión de la plataforma, ${rango.txt}): ${clp(monto)}`, creado_por: yo.id });
+    if (error) return msg("fz-msg", errText(error), "err");
+    pintarSaldo(); pintarFinanzas(fz, rango);
+  };
+  // Comparación con el período anterior (se carga después, para no demorar la pantalla)
+  const pr = rangoPrevio();
+  finanzasDe(pr.desde, pr.hasta).then(a => {
+    if (!$("fz-cmp-ing")) return;
+    $("fz-cmp-ing").innerHTML = flecha(fz.ingresos - fz.costosDirectos, a.ingresos - a.costosDirectos);
+    $("fz-cmp-gas").innerHTML = flecha(fz.gastos, a.gastos, true);
+    $("fz-cmp-res").innerHTML = flecha(fz.resultado, a.resultado);
+    $("fz-cmp-txt").innerHTML = `Comparado con el ${esc(pr.txt)}${per === "mes" ? " completo (este mes aún no termina)" : ""}: ingresos ${clp(a.ingresos - a.costosDirectos)} · gastos ${clp(a.gastos)} · resultado ${clp(a.resultado)} · ahorro ${clp(a.ahorro)}.`;
+    fzUlt.previo = { ...a, txt: pr.txt };
+  }).catch(() => {});
+}
+
 // ---- Cómo se cuentan los gastos del cierre diario: "se descuenta" de lo que compró la empresa o "se suma" (se guarda en la empresa)
 const CONC_CIERRE = { combustible: { campo: "combustible", cat: "combustible", nom: "⛽ Combustible" }, peajes: { campo: "cabify_peajes", cat: "peajes_tag", nom: "🛣 Peajes y TAG" }, otros: { campo: "otros_gastos", cat: "otros", nom: "Otros gastos" } };
 let rcCfg = null;
 async function configReportes() {
   if (!rcCfg) {
     const { data } = await sb.from("empresas").select("reportes_config").eq("id", yo.empresa_id).maybeSingle();
-    rcCfg = Object.assign({ combustible: "descuenta", peajes: "descuenta", otros: "descuenta", ingresos_apps: "cierres" }, (data && data.reportes_config) || {});
+    rcCfg = Object.assign({ combustible: "descuenta", peajes: "descuenta", otros: "descuenta", ingresos_apps: "cierres", ahorro_base: "flotak" }, (data && data.reportes_config) || {});
   }
   document.querySelectorAll("[data-rc]").forEach(x => x.value = rcCfg[x.dataset.rc]);
-  $("rc-res").textContent = `· combustible: ${rcCfg.combustible === "suma" ? "suma" : "descuenta"} · peajes: ${rcCfg.peajes === "suma" ? "suma" : "descuenta"} · otros: ${rcCfg.otros === "suma" ? "suma" : "descuenta"} · apps: ${rcCfg.ingresos_apps === "cierres" ? "cierres" : "manual"}`;
+  $("rc-res").textContent = `· combustible: ${rcCfg.combustible === "suma" ? "suma" : "descuenta"} · peajes: ${rcCfg.peajes === "suma" ? "suma" : "descuenta"} · otros: ${rcCfg.otros === "suma" ? "suma" : "descuenta"} · apps: ${rcCfg.ingresos_apps === "cierres" ? "cierres" : "manual"} · ahorro: ${rcCfg.ahorro_base === "todo" ? "todo el auto" : "servicios Flota-K"}`;
   return rcCfg;
 }
 document.querySelectorAll("[data-rc]").forEach(x => x.addEventListener("change", async () => {
@@ -2282,6 +2438,7 @@ document.querySelectorAll("[data-rc]").forEach(x => x.addEventListener("change",
   if (error) return msg("rc-msg", errText(error), "err");
   rcCfg = nuevo; msg("rc-msg", "Guardado. Los números se recalcularon.", "ok");
   if (gsRango) cargarGastos(gsRango.desde, gsRango.hasta, gsRango.txt, gsRango.fin);
+  if (gsRango) pintarCierres(gsRango.desde, gsRango.hasta, rpTodas);
 }));
 // ---- Presupuestos mensuales por concepto (y opcionalmente por patente)
 async function pintarPresupuestos(cierres, gastosMes) {
@@ -2341,6 +2498,7 @@ function avisoDoble() {
   const dobleIng = rcCfg && rcCfg.ingresos_apps === "cierres" && /cabify/i.test(f);
   const conc = Object.keys(CONC_CIERRE).find(k => CONC_CIERRE[k].cat === cat);
   const dobleGas = rcCfg && conc && rcCfg[conc] === "suma";
+  if (cat === "partners") { msg("gs-msg", "Ojo: lo que se paga a los dueños de vehículos (según su comisión) y a la red (costo del partner de cada servicio derivado) ya se descuenta solo en Finanzas. Regístrelo aquí solo si es otro pago (por ejemplo, un sueldo o un bono).", "err"); return; }
   if (dobleIng) msg("oi-msg", "Ojo: los ingresos de Cabify se están tomando del cierre diario de los conductores. Si lo ingresa aquí también, se contará dos veces (cámbielo en «¿De dónde salen los números?»).", "err");
   else if ($("oi-msg").classList.contains("err")) $("oi-msg").hidden = true;
   if (dobleGas) msg("gs-msg", "Ojo: este concepto lo están sumando los conductores en su cierre diario. Si lo ingresa aquí también, se contará dos veces (o cámbielo a «Se descuenta» en «¿De dónde salen los números?»).", "err");
@@ -2440,17 +2598,25 @@ $("gs-fijos").addEventListener("click", async () => {
 });
 $("gs-xlsx").addEventListener("click", () => {
   if (!window.XLSX) return;
-  if (!gsLista.length && !oiLista.length) return alert("No hay gastos ni otros ingresos en este período.");
+  if (!gsLista.length && !oiLista.length && !fzUlt) return alert("No hay datos en este período.");
   const nomF = id => (fuentes.find(f => f.id === id) || {}).nombre || "Otra";
   const wb = XLSX.utils.book_new();
+  if (fzUlt) { const f = fzUlt, p = f.previo;
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Estado de resultados", f.txt, p ? p.txt : ""],
+      ["Servicios con vehículos propios", f.propios, p ? p.propios : ""], ["Servicios con vehículos de dueños", f.duenos, p ? p.duenos : ""], ["Pago a dueños de vehículos", -f.pagoDuenos, p ? -p.pagoDuenos : ""],
+      ["Servicios derivados a la red", f.deriv, p ? p.deriv : ""], ["Costo de la red", -f.costoDeriv, p ? -p.costoDeriv : ""], ["Otros ingresos (neto)", f.oiNeto, p ? p.oiNeto : ""], ["Cabify y otras apps (cierres)", f.cdIng, p ? p.cdIng : ""],
+      ["Ingresos de la empresa", f.ingresos - f.costosDirectos, p ? p.ingresos - p.costosDirectos : ""], ["Gastos fijos", -f.gasFijo, p ? -p.gasFijo : ""], ["Gastos variables", -(f.gasVar + f.cdGas), p ? -(p.gasVar + p.cdGas) : ""],
+      ["Resultado", f.resultado, p ? p.resultado : ""], ["Ahorro (comisión de la plataforma)", -f.ahorro, p ? -p.ahorro : ""], ["Queda disponible", f.resultado - f.ahorro, p ? p.resultado - p.ahorro : ""], [],
+      ["Liquidación a dueños", "Vehículo", "Servicios", "Total", "Comisión Flota-K", "A pagar"], ...f.liq.map(l => [l.v.dueno || "", l.v.patente, l.n, l.total, l.com, l.total - l.com])]), "Finanzas"); }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Fecha", "Concepto", "Patente", "Detalle", "Monto", "Fijo o variable"],
     ...gsLista.map(g => [g.fecha, CAT_GASTO[g.categoria] || g.categoria, g.vehiculo_id ? vehPorId(g.vehiculo_id).patente : "Empresa (general)", g.descripcion || "", g.monto, g.fijo ? "Fijo" : "Variable"])]), "Gastos");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Fecha", "Plataforma", "Patente", "Viajes", "Bruto", "Comisión %", "Comisión", "Neto", "Detalle"],
     ...oiLista.map(x => [x.fecha, nomF(x.fuente_id), x.vehiculo_id ? vehPorId(x.vehiculo_id).patente : "Empresa (general)", x.viajes ?? "", x.monto_bruto, Number(x.comision_pct), x.comision, x.neto, x.descripcion || ""])]), "Otros ingresos");
   XLSX.writeFile(wb, `Flota-K_gastos_e_ingresos_${hoyChile()}.xlsx`);
 });
-// Cierres diarios (solo vehículos propios)
-let rpCierres = [];
+// Cierres diarios (solo vehículos propios). Uso real desde el 1 de diciembre de 2026 (antes fue de prueba).
+const CIERRES_DESDE = "2026-12-01";
+let rpCierres = [], rpTodas = [];
 async function pintarCierres(desde, hasta, filas) {
   const d0 = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(desde)), d1 = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(new Date(hasta).getTime() - 1000));
   const { data: cs, error } = await FK.todo(() => sb.from("cierres_diarios").select("*").gte("fecha", d0).lte("fecha", d1).order("fecha", { ascending: false }).order("vehiculo_id"));
@@ -2463,10 +2629,20 @@ async function pintarCierres(desde, hasta, filas) {
     const ref = ing - c.km_recorridos * 410 - gasFK - c.cabify_peajes;
     return { c, nFK: fk.length, ingFK, gasFK, ing, costos, gan: ing - costos, ref, patente: (vehiculos.find(v => v.id === c.vehiculo_id) || {}).patente || "—", cond: etiquetaConductor(c.conductor_id) || "—" };
   });
-  if (!rpCierres.length) { $("rp-cierres").innerHTML = '<p class="muted">Aún no hay cierres en este período. Los conductores de vehículos propios lo hacen en su app: Billetera → Cierre del día.</p>'; return; }
+  // Días sin cierre de cada vehículo propio con conductor fijo (desde el 1-dic-2026, cuando empieza el uso real; hasta ayer)
+  const vehs = await vehsFinanzas(), ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 864e5));
+  const ini = d0 > CIERRES_DESDE ? d0 : CIERRES_DESDE, fin = d1 < ayer ? d1 : ayer, faltan = [];
+  if (ini <= fin) vehs.filter(v => v.activo && v.propio !== false && v.conductor_habitual).forEach(v => {
+    const dias = []; for (let d = new Date(ini + "T12:00:00"); d <= new Date(fin + "T12:00:00"); d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().slice(0, 10); if (!(cs || []).some(c => c.vehiculo_id === v.id && c.fecha === k)) dias.push(k); }
+    if (dias.length) faltan.push({ v, dias });
+  });
+  const avisoFaltan = faltan.length ? `<div class="confirm" style="margin:8px 0"><b>⚠ Días sin cierre diario</b>${faltan.map(f => `<p class="small" style="margin:4px 0 0"><b>${esc(f.v.patente)}</b> (${esc(etiquetaConductor(f.v.conductor_habitual) || "conductor")}): ${f.dias.map(d => esc(new Date(d + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" }))).join(", ")}</p>`).join("")}
+    <p class="small muted" style="margin:4px 0 0">Si ese día no trabajó, ignórelo. Si trabajó, el conductor lo puede registrar hasta 7 días después (app → Billetera → Cierre del día).</p></div>` : "";
+  if (!rpCierres.length) { $("rp-cierres").innerHTML = avisoFaltan + '<p class="muted">Aún no hay cierres en este período. Los conductores de vehículos propios lo hacen en su app: Billetera → Cierre del día.</p>'; return; }
   const T = k => rpCierres.reduce((a, x) => a + (typeof k === "function" ? k(x) : x[k]), 0);
   const km = T(x => x.c.km_recorridos), pk = (v, kk) => kk ? clp(Math.round(v / kk)) : "—";
-  $("rp-cierres").innerHTML = `
+  $("rp-cierres").innerHTML = avisoFaltan + `
     <div class="rp-kpis">
       <div class="pay"><small class="muted">Km totales</small><b>${km.toLocaleString("es-CL")}</b><span class="small muted">${rpCierres.length} cierre(s)</span></div>
       <div class="pay"><small class="muted">Ingresos</small><b>${clp(T("ing"))}</b><span class="small muted">Flota-K ${clp(T("ingFK"))} · Cabify ${clp(T(x => x.c.cabify_ingreso))} · otras ${clp(T(x => x.c.otras_ingreso))}</span></div>

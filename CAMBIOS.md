@@ -1,6 +1,14 @@
 # Cambios
 
-## 27 nov 2026 · Páginas por comuna: Macul, San Miguel, La Cisterna y Huechuraba (rama mejora-2026-11-27, SIN publicar)
+## 27 nov 2026 · Reportes y finanzas: ahorro, liquidación a dueños, comparación y proyección (publicado el 27 nov 2026)
+- Panel: la pestaña «Reportes» pasa a llamarse «Reportes y finanzas». Arriba, sección «💰 Finanzas» con el estado de resultados del período: servicios con vehículos propios, servicios con vehículos de dueños − pago a dueños (Flota-K se queda con la comisión del vehículo), derivados − costo de la red, otros ingresos, Cabify/apps de los cierres, gastos fijos y variables, resultado, ahorro y lo que queda disponible.
+- 🐷 Ahorro = comisión de la plataforma de cada vehículo propio (vehiculos.comision_pct; SSHY88 = 5 %). Por defecto sobre los servicios de Flota-K; en «¿De dónde salen los números?» se puede cambiar a «todo lo que produce el auto» (reportes_config.ahorro_base). Botón «Registrar traspaso a ahorro»: anota el nuevo saldo de la «Cuenta de ahorro» en saldos_cuenta (nota «Traspaso de ahorro…»); muestra lo traspasado y lo pendiente del período, y lo ahorrado en el año.
+- Liquidación a dueños de vehículos (servicios, total, comisión Flota-K y a pagar al dueño). Comparación con el período anterior (▲▼), proyección del mes en curso (ritmo actual + agendado por realizar) y punto de equilibrio (servicios necesarios para cubrir los gastos fijos).
+- Corrección: el «Resultado» de Gastos ya no cuenta como ingreso lo que se paga a dueños de vehículos ni el costo de los partners en los servicios derivados (es el mismo cálculo de Finanzas). Aviso si se intenta registrar como gasto «Pago a conductores o red».
+- Cierres diarios: aviso de días sin cierre de cada vehículo propio con conductor fijo, desde el 1 de diciembre de 2026 (antes fue de prueba). Excel de gastos con hoja «Finanzas».
+- Sin cambios en la base de datos.
+
+## 27 nov 2026 · Páginas por comuna: Macul, San Miguel, La Cisterna y Huechuraba (publicado el 27 nov 2026)
 - 4 páginas nuevas /aeropuerto/<comuna>/ con el formato de las existentes, tarifa real (igual en assets/tarifas.js y tarifas_aeropuerto) y botón «Reservar y pagar en línea»; agregadas a sitemap.xml (21 direcciones) y a «Otras comunas» de todas las páginas por comuna.
 
 ## 26 nov 2026 · Saldos anteriores y clientes que pagan en efectivo (etapa 78)
