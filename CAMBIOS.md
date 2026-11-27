@@ -1,5 +1,8 @@
 # Cambios
 
+## 27 nov 2026 · Páginas por comuna: Macul, San Miguel, La Cisterna y Huechuraba (rama mejora-2026-11-27, SIN publicar)
+- 4 páginas nuevas /aeropuerto/<comuna>/ con el formato de las existentes, tarifa real (igual en assets/tarifas.js y tarifas_aeropuerto) y botón «Reservar y pagar en línea»; agregadas a sitemap.xml (21 direcciones) y a «Otras comunas» de todas las páginas por comuna.
+
 ## 26 nov 2026 · Saldos anteriores y clientes que pagan en efectivo (etapa 78)
 - Cargos manuales (tabla cargos_cliente, RLS): en Panel → Cuentas de clientes → Crédito, «➕ Agregar saldo o cargo» (ej.: saldo anterior de Enrique Mancini). El cliente lo ve en «💳 Pagos» y lo paga con tarjeta; suma a su deuda y límite; no cuenta como viaje. Se puede marcar «Pagado en efectivo» o anular (admin_cargo).
 - «💵 Al conductor» (clientes.paga_efectivo / cuentas_corporativas.paga_efectivo, solo admin): sus reservas nuevas quedan con forma de pago «Efectivo» (trigger reservas_forma_pago_efectivo; el conductor lo ve) y no aparecen como deuda para pagar con tarjeta.
