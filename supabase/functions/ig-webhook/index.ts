@@ -2,18 +2,19 @@
 // Si alguien comenta en CUALQUIER publicación una palabra clave (por defecto: aeropuerto, precio, tarifa),
 // se responde en el comentario y se le manda un mensaje privado con el enlace de reserva.
 //
-// Rutas (todas en https://<proyecto>.supabase.co/functions/v1/ig-webhook/...):
-//   GET  /                 verificación del webhook de Meta (hub.challenge con IG_VERIFY_TOKEN).
-//   POST /                 aviso de Meta (comentarios). Se valida la firma X-Hub-Signature-256.
-//   POST /conectar         (admin con sesión) devuelve el enlace para autorizar la cuenta de Instagram.
-//   GET  /callback         regreso desde Instagram: guarda el permiso (60 días) y suscribe la cuenta a los avisos.
-//   POST /revisar          (admin con sesión) revisa ahora los comentarios recientes.
-//   POST /tarea            tarea programada (pg_cron cada 10 min): renueva el permiso y revisa comentarios.
+// Usa la API de Instagram con "inicio de sesión unificado" (Facebook) y un token de USUARIO DEL SISTEMA
+// del portfolio comercial de Flota-K, que no vence (no hay que renovarlo).
 //
-// Secretos (Supabase → Edge Functions → Secrets): IG_APP_ID, IG_APP_SECRET (los de "Instagram" en la app de Meta),
-// IG_VERIFY_TOKEN (una frase cualquiera, la misma que se escribe en Meta), y opcional META_APP_SECRET
-// (Configuración de la app → Básica), por si Meta firma los avisos con esa clave.
-// Se publica con verify_jwt = false (Meta e Instagram no envían la sesión de Supabase).
+// Rutas (https://<proyecto>.supabase.co/functions/v1/ig-webhook/...):
+//   GET  /            verificación del webhook de Meta (hub.challenge con IG_VERIFY_TOKEN).
+//   POST /            aviso de Meta (comentarios). Se valida la firma X-Hub-Signature-256 con META_APP_SECRET.
+//   POST /conectar    (admin con sesión) busca la cuenta de Instagram del token, la guarda y la suscribe a los avisos.
+//   POST /revisar     (admin con sesión) revisa ahora los comentarios recientes.
+//   POST /tarea       tarea programada (pg_cron cada 10 min): revisa comentarios por si un aviso no llegó.
+//
+// Secretos (Supabase → Edge Functions → Secrets): IG_TOKEN (token del usuario del sistema), META_APP_SECRET
+// (Configuración de la app → Básica → Clave secreta) e IG_VERIFY_TOKEN (una palabra cualquiera, la misma que en Meta).
+// Se publica con verify_jwt = false (Meta no envía la sesión de Supabase).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const CORS = {
@@ -24,15 +25,13 @@ const CORS = {
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 const env = (k: string) => (Deno.env.get(k) ?? "").trim();
 const db = () => createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
-const GRAPH = "https://graph.instagram.com/v22.0";
-const PANEL = "https://fk-servicios.com/equipo/";
-const redirectUri = () => `${env("SUPABASE_URL")}/functions/v1/ig-webhook/callback`;
-const SCOPES = "instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages";
+const GRAPH = "https://graph.facebook.com/v22.0";
+type SB = ReturnType<typeof db>;
 
 // ---------- utilidades
 const norm = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 function palabraClave(texto: string, palabras: string[]): string | null {
-  const tokens = norm(texto).split(/[^a-z0-9ñ]+/).filter(Boolean);
+  const tokens = norm(texto).split(/[^a-z0-9]+/).filter(Boolean);
   for (const p of palabras.map(norm)) {
     if (p.includes(" ")) { if (norm(texto).includes(p)) return p; continue; }
     if (tokens.some((t) => t === p || t === p + "s" || t === p + "es")) return p;
@@ -49,20 +48,20 @@ function igual(a: string, b: string) {
   let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return r === 0;
 }
-async function ig(metodo: "GET" | "POST", url: string, token?: string, cuerpo?: unknown) {
-  const h: Record<string, string> = {};
-  if (token) h["Authorization"] = "Bearer " + token;
+async function api(metodo: "GET" | "POST", ruta: string, token = env("IG_TOKEN"), cuerpo?: unknown) {
+  if (!token) throw new Error("Falta el secreto IG_TOKEN en Supabase.");
+  const h: Record<string, string> = { Authorization: "Bearer " + token };
   if (cuerpo !== undefined) h["Content-Type"] = "application/json";
-  const r = await fetch(url, { method: metodo, headers: h, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+  const r = await fetch(GRAPH + ruta, { method: metodo, headers: h, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
   const j = await r.json().catch(() => ({})) as any;
-  if (!r.ok || j.error) throw new Error(j.error?.message || j.error_message || `Instagram respondió ${r.status}`);
+  if (!r.ok || j.error) throw new Error(j.error?.message || `Meta respondió ${r.status}`);
   return j;
 }
-async function empresaFlotaK(sb: ReturnType<typeof db>) {
-  const { data } = await sb.from("empresas").select("id").eq("slug", "flota-k").single();
-  return data?.id as string;
+// Token de la página de Facebook unida al Instagram (para el mensaje privado). Derivado de un token que no vence, tampoco vence.
+async function tokenPagina(pageId: string) {
+  const j = await api("GET", `/${pageId}?fields=access_token`);
+  return j.access_token as string;
 }
-// Revisa que quien llama tenga sesión de administrador (para /conectar y /revisar)
 async function adminDe(req: Request) {
   const auth = req.headers.get("Authorization") ?? "";
   if (!/^Bearer\s+\S+/.test(auth)) return null;
@@ -73,16 +72,35 @@ async function adminDe(req: Request) {
   return p && p.activo && p.rol === "admin" ? p : null;
 }
 
+// ---------- conectar: busca la cuenta de Instagram a la que tiene acceso el token
+async function conectar(sb: SB, yo: { id: string; empresa_id: string }) {
+  const j = await api("GET", "/me/accounts?fields=id,name,instagram_business_account{id,username}&limit=50");
+  const paginas = (j.data || []).filter((p: any) => p.instagram_business_account?.id);
+  if (!paginas.length) throw new Error("El token no tiene acceso a ninguna página de Facebook con Instagram. Revise que al usuario del sistema le asignó la página y la cuenta de Instagram fkservi.");
+  const p = paginas.find((x: any) => x.instagram_business_account.username === "fkservi") || paginas[0];
+  let nota: string | null = null;
+  try {
+    const pt = await tokenPagina(p.id);
+    await api("POST", `/${p.id}/subscribed_apps?subscribed_fields=feed`, pt);
+  } catch (e) { nota = "No se pudo activar el aviso instantáneo (" + (e as Error).message + "). La revisión cada 10 minutos funciona igual."; }
+  await sb.from("ig_cuentas").upsert({
+    empresa_id: yo.empresa_id, ig_user_id: p.instagram_business_account.id, page_id: p.id,
+    usuario: p.instagram_business_account.username || null, conectado_en: new Date().toISOString(), conectado_por: yo.id, ultimo_error: nota,
+  });
+  return { usuario: p.instagram_business_account.username, nota };
+}
+
 // ---------- responder un comentario
 type Comentario = { id: string; texto: string; autorId?: string; autor?: string; mediaId?: string; padre?: string };
-async function procesar(sb: ReturnType<typeof db>, c: Comentario, origen: "webhook" | "revision") {
+async function procesar(sb: SB, c: Comentario, origen: "webhook" | "revision") {
   const { data: cta } = await sb.from("ig_cuentas").select("*").limit(1).maybeSingle();
   if (!cta) return "sin conexión";
   if (c.autorId && c.autorId === cta.ig_user_id) return "comentario propio";
+  if (c.autor && cta.usuario && c.autor === cta.usuario) return "comentario propio";
   if (c.padre) return "respuesta dentro de un hilo";
   const { data: cfg } = await sb.from("ig_config").select("*").eq("empresa_id", cta.empresa_id).single();
   const palabra = cfg ? palabraClave(c.texto, cfg.palabras || []) : null;
-  // Se registra cada comentario una sola vez (si ya estaba, no se responde de nuevo)
+  // Cada comentario se registra una sola vez (si ya estaba, no se responde de nuevo)
   const { data: fila, error } = await sb.from("ig_comentarios").insert({
     empresa_id: cta.empresa_id, comentario_id: c.id, publicacion_id: c.mediaId || null, autor_id: c.autorId || null,
     autor: c.autor || null, texto: (c.texto || "").slice(0, 2200), palabra, origen,
@@ -93,30 +111,36 @@ async function procesar(sb: ReturnType<typeof db>, c: Comentario, origen: "webho
 
   // A la misma persona se le manda el mensaje privado como máximo una vez cada 24 horas
   let repetido = false;
-  if (c.autorId) {
+  const quien = c.autorId ? ["autor_id", c.autorId] : c.autor ? ["autor", c.autor] : null;
+  if (quien) {
     const { count } = await sb.from("ig_comentarios").select("id", { count: "exact", head: true })
-      .eq("empresa_id", cta.empresa_id).eq("autor_id", c.autorId).eq("mensaje_enviado", true)
+      .eq("empresa_id", cta.empresa_id).eq(quien[0], quien[1]).eq("mensaje_enviado", true)
       .gte("creado_en", new Date(Date.now() - 864e5).toISOString());
     repetido = (count ?? 0) > 0;
   }
   const notas: string[] = []; let respondido = false, enviado = false;
   try {
-    await ig("POST", `${GRAPH}/${encodeURIComponent(c.id)}/replies`, cta.token, { message: cfg.respuesta_publica });
+    await api("POST", `/${encodeURIComponent(c.id)}/replies`, undefined, { message: cfg.respuesta_publica });
     respondido = true;
   } catch (e) { notas.push("respuesta: " + (e as Error).message); }
   if (repetido) notas.push("mensaje privado ya enviado en las últimas 24 h");
   else {
+    const cuerpo = { recipient: { comment_id: c.id }, message: { text: cfg.mensaje_privado } };
     try {
-      await ig("POST", `${GRAPH}/${encodeURIComponent(cta.ig_user_id)}/messages`, cta.token, { recipient: { comment_id: c.id }, message: { text: cfg.mensaje_privado } });
+      if (!cta.page_id) throw new Error("sin página");
+      await api("POST", `/${cta.page_id}/messages`, await tokenPagina(cta.page_id), cuerpo);
       enviado = true;
-    } catch (e) { notas.push("mensaje: " + (e as Error).message); }
+    } catch (e1) {
+      try { await api("POST", `/${cta.ig_user_id}/messages`, undefined, cuerpo); enviado = true; }
+      catch (e2) { notas.push("mensaje: " + (e1 as Error).message + " / " + (e2 as Error).message); }
+    }
   }
   await sb.from("ig_comentarios").update({ respondido, mensaje_enviado: enviado, resultado: notas.length ? notas.join(" · ").slice(0, 1000) : "respondido y mensaje enviado" }).eq("id", fila.id);
   return notas.length ? notas.join(" · ") : "ok";
 }
 
 // ---------- revisión de comentarios recientes (respaldo por si un aviso no llegó)
-async function revisar(sb: ReturnType<typeof db>, forzar = false) {
+async function revisar(sb: SB, forzar = false) {
   const { data: cta } = await sb.from("ig_cuentas").select("*").limit(1).maybeSingle();
   if (!cta) return { revisados: 0, nota: "Instagram no está conectado." };
   const { data: cfg } = await sb.from("ig_config").select("activo").eq("empresa_id", cta.empresa_id).single();
@@ -125,10 +149,10 @@ async function revisar(sb: ReturnType<typeof db>, forzar = false) {
   await sb.from("ig_cuentas").update({ ultima_revision: new Date().toISOString() }).eq("empresa_id", cta.empresa_id);
   // Solo comentarios posteriores a la conexión y de los últimos 7 días (Instagram no permite mensaje privado después)
   const desde = Math.max(new Date(cta.conectado_en).getTime(), Date.now() - 7 * 864e5);
-  const medios = await ig("GET", `${GRAPH}/me/media?fields=id,timestamp&limit=12`, cta.token);
+  const medios = await api("GET", `/${cta.ig_user_id}/media?fields=id,timestamp&limit=12`);
   let n = 0;
   for (const m of medios.data || []) {
-    const cs = await ig("GET", `${GRAPH}/${m.id}/comments?fields=id,text,timestamp,username,from&limit=50`, cta.token).catch(() => ({ data: [] }));
+    const cs = await api("GET", `/${m.id}/comments?fields=id,text,timestamp,username,from&limit=50`).catch(() => ({ data: [] }));
     for (const x of cs.data || []) {
       if (new Date(x.timestamp).getTime() < desde) continue;
       const { count } = await sb.from("ig_comentarios").select("id", { count: "exact", head: true }).eq("comentario_id", x.id);
@@ -137,24 +161,8 @@ async function revisar(sb: ReturnType<typeof db>, forzar = false) {
       n++;
     }
   }
+  if (cta.ultimo_error && /token|IG_TOKEN|permis/i.test(cta.ultimo_error)) await sb.from("ig_cuentas").update({ ultimo_error: null }).eq("empresa_id", cta.empresa_id);
   return { revisados: n };
-}
-
-// ---------- permiso: renovar antes de que venza (dura 60 días; se renueva si faltan menos de 15)
-async function renovar(sb: ReturnType<typeof db>) {
-  const { data: cta } = await sb.from("ig_cuentas").select("*").limit(1).maybeSingle();
-  if (!cta) return "sin conexión";
-  const vence = cta.token_vence ? new Date(cta.token_vence).getTime() : 0;
-  if (vence - Date.now() > 15 * 864e5) return "vigente";
-  if (Date.now() - new Date(cta.token_renovado_en).getTime() < 864e5) return "renovado hace menos de 24 h";
-  try {
-    const j = await ig("GET", `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(cta.token)}`);
-    await sb.from("ig_cuentas").update({ token: j.access_token, token_vence: new Date(Date.now() + (j.expires_in || 5184000) * 1000).toISOString(), token_renovado_en: new Date().toISOString(), ultimo_error: null }).eq("empresa_id", cta.empresa_id);
-    return "renovado";
-  } catch (e) {
-    await sb.from("ig_cuentas").update({ ultimo_error: ("No se pudo renovar el permiso: " + (e as Error).message).slice(0, 1000) }).eq("empresa_id", cta.empresa_id);
-    return "error";
-  }
 }
 
 // ---------- rutas
@@ -164,73 +172,32 @@ Deno.serve(async (req) => {
   const ruta = url.pathname.replace(/\/+$/, "").split("/").pop() || "";
   const sb = db();
   try {
-    // Verificación del webhook (Meta la hace una vez al configurarlo)
     if (req.method === "GET" && url.searchParams.get("hub.mode") === "subscribe") {
       const ok = env("IG_VERIFY_TOKEN") && url.searchParams.get("hub.verify_token") === env("IG_VERIFY_TOKEN");
       return ok ? new Response(url.searchParams.get("hub.challenge") ?? "", { status: 200 }) : new Response("token incorrecto", { status: 403 });
     }
-
     if (ruta === "conectar" && req.method === "POST") {
       const yo = await adminDe(req);
       if (!yo) return json({ error: "Solo el administrador puede conectar Instagram." }, 403);
-      if (!env("IG_APP_ID") || !env("IG_APP_SECRET")) return json({ error: "Faltan los secretos IG_APP_ID e IG_APP_SECRET en Supabase." }, 400);
-      const estado = crypto.randomUUID();
-      await sb.from("ig_oauth_estado").delete().lt("creado_en", new Date(Date.now() - 3600e3).toISOString());
-      await sb.from("ig_oauth_estado").insert({ estado, empresa_id: yo.empresa_id, creado_por: yo.id });
-      const q = new URLSearchParams({ client_id: env("IG_APP_ID"), redirect_uri: redirectUri(), response_type: "code", scope: SCOPES, state: estado });
-      return json({ url: "https://www.instagram.com/oauth/authorize?" + q });
+      return json(await conectar(sb, yo));
     }
-
-    if (ruta === "callback" && req.method === "GET") {
-      const volver = (r: string) => Response.redirect(PANEL + "?ig=" + encodeURIComponent(r), 302);
-      if (url.searchParams.get("error")) return volver("cancelado");
-      const code = (url.searchParams.get("code") || "").replace(/#_$/, "");
-      const estado = url.searchParams.get("state") || "";
-      const { data: st } = await sb.from("ig_oauth_estado").select("*").eq("estado", estado).maybeSingle();
-      if (!code || !st || Date.now() - new Date(st.creado_en).getTime() > 3600e3) return volver("vencido");
-      await sb.from("ig_oauth_estado").delete().eq("estado", estado);
-      // 1) código → permiso corto
-      const f = new FormData();
-      f.append("client_id", env("IG_APP_ID")); f.append("client_secret", env("IG_APP_SECRET"));
-      f.append("grant_type", "authorization_code"); f.append("redirect_uri", redirectUri()); f.append("code", code);
-      const r1 = await fetch("https://api.instagram.com/oauth/access_token", { method: "POST", body: f });
-      const j1 = await r1.json().catch(() => ({})) as any;
-      if (!r1.ok || !j1.access_token) return volver("error");
-      // 2) permiso corto → permiso de 60 días
-      const j2 = await ig("GET", `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(env("IG_APP_SECRET"))}&access_token=${encodeURIComponent(j1.access_token)}`);
-      const token = j2.access_token as string;
-      // 3) datos de la cuenta y suscripción a los avisos de comentarios
-      const me = await ig("GET", `${GRAPH}/me?fields=user_id,username`, token);
-      let nota: string | null = null;
-      try { await ig("POST", `${GRAPH}/me/subscribed_apps?subscribed_fields=comments,messages`, token); }
-      catch (e) { nota = "No se pudo activar el aviso de comentarios: " + (e as Error).message + ". La revisión cada 10 minutos sigue funcionando."; }
-      await sb.from("ig_cuentas").upsert({
-        empresa_id: st.empresa_id, ig_user_id: String(me.user_id || me.id || j1.user_id), usuario: me.username || null, token,
-        token_vence: new Date(Date.now() + (j2.expires_in || 5184000) * 1000).toISOString(), token_renovado_en: new Date().toISOString(),
-        conectado_en: new Date().toISOString(), conectado_por: st.creado_por, ultimo_error: nota,
-      });
-      return volver("ok");
-    }
-
     if (ruta === "revisar" && req.method === "POST") {
       if (!(await adminDe(req))) return json({ error: "Solo el administrador." }, 403);
-      await renovar(sb);
       return json(await revisar(sb, true));
     }
-
     if (ruta === "tarea" && req.method === "POST") {
-      const r = await renovar(sb);
-      const v = await revisar(sb).catch((e) => ({ revisados: 0, nota: (e as Error).message }));
-      return json({ permiso: r, ...v });
+      const v = await revisar(sb).catch(async (e) => {
+        await sb.from("ig_cuentas").update({ ultimo_error: ("La revisión falló: " + (e as Error).message).slice(0, 1000) }).neq("ig_user_id", "");
+        return { revisados: 0, nota: (e as Error).message };
+      });
+      return json(v);
     }
-
     // Aviso de Meta: comentarios nuevos
     if (req.method === "POST") {
       const cuerpo = await req.text();
       const firma = (req.headers.get("X-Hub-Signature-256") || "").replace(/^sha256=/, "");
-      const claves = [env("IG_APP_SECRET"), env("META_APP_SECRET")].filter(Boolean);
       let valida = false;
-      for (const k of claves) if (firma && igual(firma, await hmacHex(k, cuerpo))) valida = true;
+      for (const k of [env("META_APP_SECRET"), env("IG_APP_SECRET")].filter(Boolean)) if (firma && igual(firma, await hmacHex(k, cuerpo))) valida = true;
       if (!valida) return new Response("firma inválida", { status: 401 });
       const b = JSON.parse(cuerpo || "{}");
       for (const e of b.entry || []) for (const ch of e.changes || []) {
@@ -238,12 +205,11 @@ Deno.serve(async (req) => {
         const v = ch.value;
         await procesar(sb, { id: String(v.id), texto: v.text || "", autorId: v.from?.id, autor: v.from?.username, mediaId: v.media?.id, padre: v.parent_id }, "webhook");
       }
-      return new Response("ok", { status: 200 }); // Meta solo necesita un 200 rápido
+      return new Response("ok", { status: 200 });
     }
     return json({ error: "Ruta no encontrada" }, 404);
   } catch (e) {
     console.error("ig-webhook:", (e as Error).message);
-    if (ruta === "callback") return Response.redirect(PANEL + "?ig=error", 302);
     return json({ error: (e as Error).message }, 500);
   }
 });

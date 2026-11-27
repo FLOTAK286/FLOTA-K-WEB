@@ -784,14 +784,6 @@ async function iniciar(session) {
   if (["nueva", "reservas", "agenda", "mapa", "central"].includes(ir)) document.querySelector(`.tabs button[data-tab="${ir}"]`)?.click();
   avisoInstalar();
   iniciarAvisosEquipo();
-  // Regreso desde Instagram después de "Conectar Instagram"
-  const igr = new URLSearchParams(location.search).get("ig");
-  if (igr && data.rol === "admin") {
-    history.replaceState(null, "", location.pathname + location.hash);
-    $("tab-instagram").click();
-    const t = { ok: ["Instagram quedó conectado. Revise los textos y marque «Responder automáticamente».", "ok"], cancelado: ["Se canceló la conexión con Instagram.", "err"], vencido: ["El enlace de conexión venció. Toque «Conectar Instagram» de nuevo.", "err"] }[igr] || ["No se pudo conectar Instagram. Revise que la app de Meta tenga los permisos y vuelva a intentar.", "err"];
-    msg("ig-msg", t[0], t[1]);
-  }
 }
 
 // ---- App Android Flota-K Operaciones: avisos con sonido aunque la app esté cerrada
@@ -3882,14 +3874,14 @@ async function cargarInstagram() {
     sb.from("ig_comentarios").select("*").order("creado_en", { ascending: false }).limit(50)]);
   if (error) return msg("ig-msg", errText(error), "err");
   const e = Array.isArray(est) ? est[0] : est;
-  const dias = e && e.o_vence ? Math.round((new Date(e.o_vence) - Date.now()) / 864e5) : null;
   $("ig-estado").innerHTML = e && e.o_conectado
-    ? `<p style="margin:0">✅ Conectado como <b>@${esc(e.o_usuario || "")}</b> desde el ${fch(e.o_conectado_en)}. Permiso vigente ${dias != null ? `por ${dias} día(s) más` : ""} (se renueva solo).</p>${e.o_error ? `<p class="small" style="color:#b42318;margin:4px 0 0">⚠ ${esc(e.o_error)}</p>` : ""}<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="ig-conectar">Reconectar Instagram</button></div>`
-    : `<p style="margin:0">Instagram aún no está conectado.</p><div class="actions" style="margin-top:6px"><button class="btn" type="button" id="ig-conectar">📷 Conectar Instagram</button></div>`;
+    ? `<p style="margin:0">✅ Conectado como <b>@${esc(e.o_usuario || "")}</b> desde el ${fch(e.o_conectado_en)}. El permiso de Meta no vence.</p>${e.o_error ? `<p class="small" style="color:#b42318;margin:4px 0 0">⚠ ${esc(e.o_error)}</p>` : ""}<div class="actions" style="margin-top:6px"><button class="btn ghost sm" type="button" id="ig-conectar">Reconectar Instagram</button></div>`
+    : `<p style="margin:0">Instagram aún no está conectado. Primero ponga el permiso de Meta (IG_TOKEN) en Supabase y luego toque el botón.</p><div class="actions" style="margin-top:6px"><button class="btn" type="button" id="ig-conectar">📷 Conectar Instagram</button></div>`;
   $("ig-conectar").onclick = async ev => {
     ev.target.disabled = true;
-    try { const j = await igLlamar("conectar"); location.href = j.url; }
-    catch (err) { ev.target.disabled = false; msg("ig-msg", err.message, "err"); }
+    try { const j = await igLlamar("conectar"); msg("ig-msg", `Conectado como @${j.usuario}.` + (j.nota ? " " + j.nota : " Revise los textos y marque «Responder automáticamente»."), j.nota ? "err" : "ok"); cargarInstagram(); }
+    catch (err) { msg("ig-msg", err.message, "err"); }
+    ev.target.disabled = false;
   };
   if (cfg) {
     $("ig-activo").checked = !!cfg.activo; $("ig-palabras").value = (cfg.palabras || []).join(", ");

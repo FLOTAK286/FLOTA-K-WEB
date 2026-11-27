@@ -1,32 +1,22 @@
 -- Etapa 79: Instagram automático propio (reemplaza a ManyChat).
 -- Si un comentario en CUALQUIER publicación trae una palabra clave (aeropuerto, precio, tarifa),
 -- la Edge Function "ig-webhook" responde en el comentario y manda un mensaje privado con el enlace de reserva.
--- El permiso (token) de Instagram se guarda en ig_cuentas, que NO tiene políticas: solo la lee el servidor.
+-- El permiso de Meta (token de usuario del sistema, no vence) está en el secreto IG_TOKEN, nunca en tablas.
 
--- 1) Conexión con Instagram (solo servidor)
+-- 1) Cuenta de Instagram conectada (solo servidor). El permiso (token de usuario del sistema de Meta, no vence)
+--    NO se guarda aquí: está en el secreto IG_TOKEN de las Edge Functions.
 create table if not exists ig_cuentas (
   empresa_id uuid primary key references empresas(id),
   ig_user_id text not null,
+  page_id text,
   usuario text,
-  token text not null,
-  token_vence timestamptz,
-  token_renovado_en timestamptz not null default now(),
   conectado_en timestamptz not null default now(),
   conectado_por uuid references perfiles(id),
   ultima_revision timestamptz, -- evita que la revisión corra más de una vez cada 4 minutos
   ultimo_error text check (length(ultimo_error) <= 1000)
 );
 alter table ig_cuentas enable row level security;
--- sin políticas: ni anon ni usuarios conectados pueden leer el token
-
--- Estados temporales del botón "Conectar Instagram" (protegen el regreso desde Instagram)
-create table if not exists ig_oauth_estado (
-  estado text primary key,
-  empresa_id uuid not null references empresas(id),
-  creado_por uuid references perfiles(id),
-  creado_en timestamptz not null default now()
-);
-alter table ig_oauth_estado enable row level security;
+-- sin políticas: solo el servidor
 
 -- 2) Configuración editable desde el panel (solo admin)
 create table if not exists ig_config (
@@ -78,9 +68,9 @@ create index if not exists ig_comentarios_autor_idx on ig_comentarios (empresa_i
 
 -- 4) Estado de la conexión para el panel (sin mostrar el token)
 create or replace function ig_estado()
-returns table (o_conectado boolean, o_usuario text, o_conectado_en timestamptz, o_vence timestamptz, o_error text)
+returns table (o_conectado boolean, o_usuario text, o_conectado_en timestamptz, o_error text)
 language sql stable security definer set search_path = public as $$
-  select c.ig_user_id is not null, c.usuario, c.conectado_en, c.token_vence, c.ultimo_error
+  select c.ig_user_id is not null, c.usuario, c.conectado_en, c.ultimo_error
   from (select mi_empresa() e) yo
   left join ig_cuentas c on c.empresa_id = yo.e
   where mi_rol() = 'admin'
@@ -88,8 +78,8 @@ $$;
 revoke all on function ig_estado() from public, anon;
 grant execute on function ig_estado() to authenticated;
 
--- 5) Tarea programada: cada 10 minutos la función renueva el permiso si le faltan menos de 15 días
---    (vence a los 60) y, si el automático está activo, revisa los comentarios recientes por si algún aviso no llegó.
+-- 5) Tarea programada: cada 10 minutos, si el automático está activo, la función revisa los comentarios
+--    recientes por si algún aviso de Meta no llegó (respaldo del webhook).
 --    La llamada no lleva datos ni claves: la función solo hace esas dos cosas.
 select cron.schedule('flotak-instagram', '*/10 * * * *', $$
   select net.http_post(
