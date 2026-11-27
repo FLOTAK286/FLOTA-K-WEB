@@ -1,10 +1,6 @@
 # Cambios
 
-<<<<<<< HEAD
-## 27 nov 2026 · Reportes y finanzas: ahorro, liquidación a dueños, comparación y proyección (SIN publicar)
-=======
 ## 27 nov 2026 · Reportes y finanzas: ahorro, liquidación a dueños, comparación y proyección (publicado el 27 nov 2026)
->>>>>>> origin/main
 - Panel: la pestaña «Reportes» pasa a llamarse «Reportes y finanzas». Arriba, sección «💰 Finanzas» con el estado de resultados del período: servicios con vehículos propios, servicios con vehículos de dueños − pago a dueños (Flota-K se queda con la comisión del vehículo), derivados − costo de la red, otros ingresos, Cabify/apps de los cierres, gastos fijos y variables, resultado, ahorro y lo que queda disponible.
 - 🐷 Ahorro = comisión de la plataforma de cada vehículo propio (vehiculos.comision_pct; SSHY88 = 5 %). Por defecto sobre los servicios de Flota-K; en «¿De dónde salen los números?» se puede cambiar a «todo lo que produce el auto» (reportes_config.ahorro_base). Botón «Registrar traspaso a ahorro»: anota el nuevo saldo de la «Cuenta de ahorro» en saldos_cuenta (nota «Traspaso de ahorro…»); muestra lo traspasado y lo pendiente del período, y lo ahorrado en el año.
 - Liquidación a dueños de vehículos (servicios, total, comisión Flota-K y a pagar al dueño). Comparación con el período anterior (▲▼), proyección del mes en curso (ritmo actual + agendado por realizar) y punto de equilibrio (servicios necesarios para cubrir los gastos fijos).
@@ -12,7 +8,9 @@
 - Cierres diarios: aviso de días sin cierre de cada vehículo propio con conductor fijo, desde el 1 de diciembre de 2026 (antes fue de prueba). Excel de gastos con hoja «Finanzas».
 - Sin cambios en la base de datos.
 
-<<<<<<< HEAD
+## 27 nov 2026 · Páginas por comuna: Macul, San Miguel, La Cisterna y Huechuraba (publicado el 27 nov 2026)
+- 4 páginas nuevas /aeropuerto/<comuna>/ con el formato de las existentes, tarifa real (igual en assets/tarifas.js y tarifas_aeropuerto) y botón «Reservar y pagar en línea»; agregadas a sitemap.xml (21 direcciones) y a «Otras comunas» de todas las páginas por comuna.
+
 ## 26 nov 2026 · Instagram automático propio, Microsoft Clarity y ahorro en el equipo de agentes (etapa 79, SIN publicar)
 - Instagram automático (reemplaza a ManyChat, gratis, en cualquier publicación): Edge Function nueva `ig-webhook` (verify_jwt false). Si un comentario trae una palabra clave (aeropuerto, precio, tarifa; también en plural, mayúsculas o sin tilde) responde en el comentario y manda mensaje privado con fk-servicios.com/reservar/?utm_source=instagram. Máximo 1 mensaje privado por persona cada 24 h. Usa la API de Instagram con inicio de sesión unificado (las apps nuevas de Meta ya no permiten el inicio de sesión con Instagram) y un token de usuario del sistema del portfolio, que no vence. Rutas: `/` (webhook de Meta, firma X-Hub-Signature-256), `/conectar` y `/revisar` (solo admin), `/tarea` (pg_cron).
 - Migración etapa79 (sin aplicar): tablas `ig_cuentas` (cuenta y página conectadas, sin políticas: solo servidor), `ig_config` (activo, palabras, textos; admin) e `ig_comentarios` (registro; admin), función `ig_estado()` y tarea `flotak-instagram` cada 10 min: revisa comentarios recientes por si un aviso no llegó (como máximo cada 4 min).
@@ -21,10 +19,6 @@
 - Microsoft Clarity: `assets/clarity.js` en la portada y /reservar; se activa al poner el ID en `assets/config.js` (`clarity`). El formulario de /reservar va oculto en las grabaciones (data-clarity-mask).
 - Tareas programadas: recreadas «mejora de la plataforma (viernes)» y «respaldo semanal» ligadas a la conversación nueva (antiguas pausadas, no borradas). Ejecutivo de cuentas a 12:17 y 18:17 L-S con Sonnet; gerente general a 9:46 y 21:46.
 - Guiones: Google Doc «Flota-K - 5 guiones de video y lista de tomas (dic 2026)» (id 1Dxsw9QeCwBg6wZ8RdZFYnrM6ct78Ob6vaRxeaZFV9kI).
-=======
-## 27 nov 2026 · Páginas por comuna: Macul, San Miguel, La Cisterna y Huechuraba (publicado el 27 nov 2026)
-- 4 páginas nuevas /aeropuerto/<comuna>/ con el formato de las existentes, tarifa real (igual en assets/tarifas.js y tarifas_aeropuerto) y botón «Reservar y pagar en línea»; agregadas a sitemap.xml (21 direcciones) y a «Otras comunas» de todas las páginas por comuna.
->>>>>>> origin/main
 
 ## 26 nov 2026 · Saldos anteriores y clientes que pagan en efectivo (etapa 78)
 - Cargos manuales (tabla cargos_cliente, RLS): en Panel → Cuentas de clientes → Crédito, «➕ Agregar saldo o cargo» (ej.: saldo anterior de Enrique Mancini). El cliente lo ve en «💳 Pagos» y lo paga con tarjeta; suma a su deuda y límite; no cuenta como viaje. Se puede marcar «Pagado en efectivo» o anular (admin_cargo).
